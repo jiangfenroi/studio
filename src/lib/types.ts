@@ -18,6 +18,7 @@ export interface AbnormalResult {
   noticeTime: string;
   reportPdfUrl?: string;
   createdAt: string;
+  nextFollowUpDate?: string;
 }
 
 export interface PatientInfo {
@@ -26,4 +27,19 @@ export interface PatientInfo {
   gender: '男' | '女' | '其他';
   age: number;
   phone: string;
+}
+
+export interface FollowUpRecord {
+  id: string;
+  resultId: string;
+  archiveNo: string;
+  followUpResult: string;
+  followUpPerson: string;
+  followUpDate: string;
+  followUpTime: string;
+  isReExamined: boolean;
+  fileUrl?: string;
+  fileExamDate?: string;
+  fileCategory?: '影像检查报告' | '病理检查报告';
+  createdAt: string;
 }

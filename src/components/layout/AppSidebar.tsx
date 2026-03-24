@@ -10,7 +10,7 @@ import {
   Settings, 
   ShieldAlert,
   Home,
-  FileText
+  Clock
 } from "lucide-react"
 import {
   Sidebar,
@@ -42,6 +42,11 @@ const items = [
     title: "结果管理",
     url: "/records",
     icon: ClipboardList,
+  },
+  {
+    title: "随访管理",
+    url: "/follow-ups",
+    icon: Clock,
   },
   {
     title: "档案中心",
@@ -80,7 +85,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
+                    isActive={pathname === item.url || pathname?.startsWith(item.url + '/')}
                     tooltip={item.title}
                   >
                     <Link href={item.url}>
