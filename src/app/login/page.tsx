@@ -26,13 +26,13 @@ export default function LoginPage() {
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db]);
   const { data: config } = useDoc(configRef);
   
-  // Local states for settings dialog (MySQL only)
+  // Local states for settings dialog with provided defaults
   const [mysqlConfig, setMysqlConfig] = React.useState({
-    host: '',
-    port: '3306',
-    user: '',
-    password: '',
-    database: ''
+    host: '172.17.168.18',
+    port: '10699',
+    user: 'medi_admin',
+    password: 'AdminPassword123',
+    database: 'meditrack_db'
   });
 
   React.useEffect(() => {
@@ -76,7 +76,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4 relative">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-24 -left-24 size-96 bg-primary/5 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -right-24 size-96 bg-accent/5 rounded-full blur-3xl" />

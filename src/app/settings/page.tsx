@@ -1,5 +1,4 @@
-
-"use client"
+'use client';
 
 import * as React from "react"
 import { 
@@ -64,15 +63,15 @@ export default function SettingsPage() {
   const [editingUser, setEditingUser] = React.useState<any | null>(null)
   
   const [formData, setFormData] = React.useState({
-    appName: "",
-    appLogoFileName: "",
+    appName: "HealthInsight Registry",
+    appLogoFileName: "logo.png",
     pdfStoragePath: "",
-    pacsUrlBase: "",
-    mysqlHost: "",
-    mysqlPort: "3306",
-    mysqlUser: "",
-    mysqlPassword: "",
-    mysqlDatabase: ""
+    pacsUrlBase: "http://172.16.201.61:7242/?ChtId=",
+    mysqlHost: "172.17.168.18",
+    mysqlPort: "10699",
+    mysqlUser: "medi_admin",
+    mysqlPassword: "AdminPassword123",
+    mysqlDatabase: "meditrack_db"
   })
 
   React.useEffect(() => {
@@ -82,11 +81,11 @@ export default function SettingsPage() {
         appLogoFileName: config.appLogoFileName || "logo.png",
         pdfStoragePath: config.pdfStoragePath || "",
         pacsUrlBase: config.pacsUrlBase || "http://172.16.201.61:7242/?ChtId=",
-        mysqlHost: config.mysql?.host || "",
-        mysqlPort: config.mysql?.port || "3306",
-        mysqlUser: config.mysql?.user || "",
-        mysqlPassword: config.mysql?.password || "",
-        mysqlDatabase: config.mysql?.database || ""
+        mysqlHost: config.mysql?.host || "172.17.168.18",
+        mysqlPort: config.mysql?.port || "10699",
+        mysqlUser: config.mysql?.user || "medi_admin",
+        mysqlPassword: config.mysql?.password || "AdminPassword123",
+        mysqlDatabase: config.mysql?.database || "meditrack_db"
       })
     }
   }, [config])
@@ -257,7 +256,7 @@ export default function SettingsPage() {
                 <Input 
                   value={formData.mysqlHost} 
                   onChange={e => setFormData({...formData, mysqlHost: e.target.value})}
-                  placeholder="localhost"
+                  placeholder="172.17.168.18"
                 />
               </div>
               <div className="space-y-2">
@@ -265,7 +264,7 @@ export default function SettingsPage() {
                 <Input 
                   value={formData.mysqlPort} 
                   onChange={e => setFormData({...formData, mysqlPort: e.target.value})}
-                  placeholder="3306"
+                  placeholder="10699"
                 />
               </div>
               <div className="space-y-2">
@@ -273,7 +272,7 @@ export default function SettingsPage() {
                 <Input 
                   value={formData.mysqlDatabase} 
                   onChange={e => setFormData({...formData, mysqlDatabase: e.target.value})}
-                  placeholder="health_db"
+                  placeholder="meditrack_db"
                 />
               </div>
               <div className="space-y-2">
@@ -281,7 +280,7 @@ export default function SettingsPage() {
                 <Input 
                   value={formData.mysqlUser} 
                   onChange={e => setFormData({...formData, mysqlUser: e.target.value})}
-                  placeholder="root"
+                  placeholder="medi_admin"
                 />
               </div>
               <div className="space-y-2">
