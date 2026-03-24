@@ -73,9 +73,12 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
         anomalyCategory: record.anomalyCategory,
         anomalyDetails: record.anomalyDetails,
         disposalSuggestions: record.disposalSuggestions,
+        notifiedPerson: record.notifiedPerson || '',
         notifier: record.notifier,
         notificationDate: record.notificationDate,
         notificationTime: record.notificationTime,
+        isNotified: record.isNotified ? 1 : 0,
+        isHealthEducationProvided: record.isHealthEducationProvided ? 1 : 0,
         notifiedPersonFeedback: record.notifiedPersonFeedback || '',
         isClosed: record.isClosed ? 1 : 0
       };
