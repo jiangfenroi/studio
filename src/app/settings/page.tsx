@@ -90,6 +90,7 @@ export default function SettingsPage() {
     mysqlDatabase: "meditrack_db"
   })
 
+  // 严格零本地缓存：仅在从数据库获取数据时更新状态，不利用 localStorage
   React.useEffect(() => {
     if (config) {
       setFormData({
