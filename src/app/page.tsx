@@ -5,16 +5,14 @@ import {
   ShieldAlert, 
   Users, 
   FileCheck, 
-  TrendingUp,
   AlertCircle,
-  Calendar,
   ArrowRight,
   Activity,
   Loader2
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Line, LineChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart, ResponsiveContainer } from "recharts"
+import { Line, LineChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from "recharts"
 import { useFirestore, useMemoFirebase, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import Link from "next/link"
@@ -38,7 +36,6 @@ export default function Home() {
     
     setIsLoading(true)
     try {
-      // 这里的 fetchHomeStats 内部已优化为并发查询，前端仅需调用一次
       const data = await fetchHomeStats(config.mysql)
       if (data) {
         setMysqlStats(data)
@@ -61,8 +58,9 @@ export default function Home() {
     const months = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
     return months.map((month, idx) => {
       const data = mysqlStats.trend.find((t: any) => t.month === idx + 1)
-      const total = data?.total || 0
-      return { month, rate: total > 0 ? Math.round((data.notified / total) * 100) : 0 }
+      const total = Number(data?.total) || 0
+      const notified = Number(data?.notified) || 0
+      return { month, rate: total > 0 ? Math.round((notified / total) * 100) : 0 }
     })
   }, [mysqlStats])
 
@@ -70,7 +68,7 @@ export default function Home() {
     if (!mysqlStats?.categories) return []
     return mysqlStats.categories.map((c: any) => ({
       name: `${c.category}类`,
-      value: c.count,
+      value: Number(c.count) || 0,
       fill: c.category === 'A' ? "hsl(var(--destructive))" : "hsl(var(--primary))"
     }))
   }, [mysqlStats])
@@ -82,10 +80,13 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-primary">临床数据中心</h1>
           <p className="text-muted-foreground font-medium">实时并发同步中心 MySQL 业务库统计</p>
         </div>
-        <Button variant="outline" onClick={loadData} disabled={isLoading} className="gap-2">
-          {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
-          {isLoading ? "同步中..." : "立即同步"}
-        </Button>
+        <div className="flex gap-2">
+           {isLoading && <Badge variant="outline" className="animate-pulse">同步中...</Badge>}
+           <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading} className="gap-2">
+            <Activity className="size-4" />
+            立即同步
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -113,17 +114,47 @@ export default function Home() {
         <Card className="lg:col-span-2 border-none shadow-md">
           <CardHeader><CardTitle>随访趋势分析</CardTitle></CardHeader>
           <CardContent>
-            <ChartContainer config={{ rate: { label: "告知率", color: "hsl(var(--primary))" } }} className="h-[300px] w-full">
-              <LineChart data={lineData}><CartesianGrid vertical={false} stroke="#f0f0f0" /><XAxis dataKey="month" /><YAxis unit="%" /><ChartTooltip content={<ChartTooltipContent />} /><Line type="monotone" dataKey="rate" stroke="var(--color-rate)" strokeWidth={3} dot /></LineChart>
-            </ChartContainer>
+            {isLoading ? (
+              <div className="h-[300px] flex items-center justify-center bg-muted/10 rounded-lg">
+                <Loader2 className="size-8 animate-spin text-primary/30" />
+              </div>
+            ) : (
+              <ChartContainer config={{ rate: { label: "告知率", color: "hsl(var(--primary))" } }} className="h-[300px] w-full">
+                <LineChart data={lineData}>
+                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                  <YAxis unit="%" tickLine={false} axisLine={false} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line type="monotone" dataKey="rate" stroke="var(--color-rate)" strokeWidth={3} dot={{ r: 4, fill: "var(--color-rate)" }} />
+                </LineChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
         <Card className="border-none shadow-md">
           <CardHeader><CardTitle>异常分类占比</CardTitle></CardHeader>
           <CardContent className="flex flex-col items-center">
-            <ChartContainer config={{ value: { label: "例数" } }} className="h-[240px] w-full">
-              <ResponsiveContainer><PieChart><Pie data={pieData} dataKey="value" innerRadius={60} outerRadius={80} paddingAngle={5}>{pieData.map((e: any, i: number) => <Cell key={i} fill={e.fill} />)}</Pie><ChartTooltip content={<ChartTooltipContent />} /></PieChart></ResponsiveContainer>
-            </ChartContainer>
+            {isLoading ? (
+               <div className="h-[240px] flex items-center justify-center bg-muted/10 rounded-lg w-full">
+                <Loader2 className="size-8 animate-spin text-primary/30" />
+              </div>
+            ) : (
+              <ChartContainer config={{ value: { label: "例数" } }} className="h-[240px] w-full">
+                <PieChart>
+                  <Pie 
+                    data={pieData} 
+                    dataKey="value" 
+                    innerRadius={60} 
+                    outerRadius={80} 
+                    paddingAngle={5}
+                    strokeWidth={0}
+                  >
+                    {pieData.map((e: any, i: number) => <Cell key={i} fill={e.fill} />)}
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                </PieChart>
+              </ChartContainer>
+            )}
             <div className="grid grid-cols-2 gap-4 mt-4 w-full px-4">
               {pieData.map((item: any) => (
                 <div key={item.name} className="flex flex-col items-center p-2 rounded-lg bg-muted/30">
@@ -157,7 +188,11 @@ export default function Home() {
                     <p className="text-[10px] text-muted-foreground">ID: {task.patientProfileId} • 日期: {task.checkupDate}</p>
                   </div>
                 </div>
-                <Button variant="link" size="sm" asChild className="p-0 h-auto font-bold text-xs"><Link href={`/follow-ups/${task.id}/record`}>录入随访 <ArrowRight className="size-3 ml-1" /></Link></Button>
+                <Button variant="link" size="sm" asChild className="p-0 h-auto font-bold text-xs">
+                  <Link href={`/follow-ups/${task.id}/record`}>
+                    录入随访 <ArrowRight className="size-3 ml-1" />
+                  </Link>
+                </Button>
               </div>
             ))}
             {(!mysqlStats?.recentTasks || mysqlStats.recentTasks.length === 0) && !isLoading && (

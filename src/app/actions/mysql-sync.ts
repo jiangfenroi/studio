@@ -14,12 +14,13 @@ async function getConnection(config: any) {
     user: config.user || 'medi_admin',
     password: config.password || 'AdminPassword123',
     database: config.database || 'meditrack_db',
-    connectTimeout: 3000, 
+    connectTimeout: 5000, 
   });
 }
 
 /**
  * 首页实时统计 - 并发聚合计算，确保数据来源于中心 MySQL
+ * 关键修正：所有 BigInt/Decimal 聚合结果均强制转换为 Number 以支持 JSON 序列化
  */
 export async function fetchHomeStats(config: any) {
   if (!config || !config.host) return null;
@@ -64,17 +65,24 @@ export async function fetchHomeStats(config: any) {
       `)
     ]);
 
-    const totalCount = totalAnomalies[0].count || 0;
-    const notifiedCount = notifiedAnomalies[0].count || 0;
+    const totalCount = Number(totalAnomalies[0].count) || 0;
+    const notifiedCount = Number(notifiedAnomalies[0].count) || 0;
     const completionRate = totalCount > 0 ? Math.round((notifiedCount / totalCount) * 100) : 0;
 
     return {
-      totalPatients: patientRows[0].count,
-      todayNew: todayRows[0].count,
-      pendingTasks: pendingRows[0].count,
+      totalPatients: Number(patientRows[0].count),
+      todayNew: Number(todayRows[0].count),
+      pendingTasks: Number(pendingRows[0].count),
       completionRate,
-      trend: trendRows,
-      categories: catRows,
+      trend: trendRows.map((r: any) => ({
+        month: Number(r.month),
+        total: Number(r.total),
+        notified: Number(r.notified)
+      })),
+      categories: catRows.map((r: any) => ({
+        category: r.category,
+        count: Number(r.count)
+      })),
       recentTasks: recentTasks
     };
   } catch (err) {
@@ -86,7 +94,7 @@ export async function fetchHomeStats(config: any) {
 }
 
 /**
- * 数据统计报表 - 联表实时查询，补全所有告知与宣教字段
+ * 数据统计报表 - 联表实时查询
  */
 export async function fetchDataForStats(config: any) {
   if (!config || !config.host) return [];
@@ -106,7 +114,14 @@ export async function fetchDataForStats(config: any) {
       ORDER BY y.checkupDate DESC
     `;
     const [rows] = await connection.execute(sql);
-    return rows;
+    // 确保所有数值字段被正确转换以支持序列化
+    return (rows as any[]).map(row => ({
+      ...row,
+      age: Number(row.age),
+      isNotified: Number(row.isNotified),
+      isHealthEducationProvided: Number(row.isHealthEducationProvided),
+      isReExamined: Number(row.isReExamined)
+    }));
   } catch (err) {
     console.error('MySQL 报表数据抓取失败:', err);
     return [];
