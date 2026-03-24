@@ -1,4 +1,3 @@
-
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -24,6 +23,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // 移除所有可能导致 Turbopack 报错的过期实验性配置
 };
 
 export default nextConfig;

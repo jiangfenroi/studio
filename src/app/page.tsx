@@ -31,11 +31,18 @@ export default function Home() {
   const { data: config } = useDoc(configRef)
 
   const loadData = React.useCallback(async () => {
-    if (!config?.mysql) return
+    if (!config?.mysql) {
+      setIsLoading(false)
+      return
+    }
+    
     setIsLoading(true)
     try {
+      // 这里的 fetchHomeStats 内部已优化为并发查询，前端仅需调用一次
       const data = await fetchHomeStats(config.mysql)
-      setMysqlStats(data)
+      if (data) {
+        setMysqlStats(data)
+      }
     } catch (err) {
       console.error("Home Stats Sync Failed")
     } finally {
@@ -73,11 +80,11 @@ export default function Home() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">临床数据中心</h1>
-          <p className="text-muted-foreground font-medium">实时同步中心 MySQL 业务库统计</p>
+          <p className="text-muted-foreground font-medium">实时并发同步中心 MySQL 业务库统计</p>
         </div>
-        <Button variant="outline" onClick={loadData} disabled={isLoading}>
-          {isLoading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Activity className="size-4 mr-2" />}
-          同步最新数据
+        <Button variant="outline" onClick={loadData} disabled={isLoading} className="gap-2">
+          {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
+          {isLoading ? "同步中..." : "立即同步"}
         </Button>
       </header>
 
@@ -130,7 +137,12 @@ export default function Home() {
       </div>
 
       <Card className="border-none shadow-md overflow-hidden">
-        <CardHeader className="bg-primary/5"><CardTitle>最近待办提醒</CardTitle></CardHeader>
+        <CardHeader className="bg-primary/5">
+          <div className="flex justify-between items-center">
+            <CardTitle>最近待办提醒</CardTitle>
+            <Badge variant="outline">MySQL 实时同步</Badge>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
             {mysqlStats?.recentTasks?.map((task: any) => (
@@ -148,6 +160,11 @@ export default function Home() {
                 <Button variant="link" size="sm" asChild className="p-0 h-auto font-bold text-xs"><Link href={`/follow-ups/${task.id}/record`}>录入随访 <ArrowRight className="size-3 ml-1" /></Link></Button>
               </div>
             ))}
+            {(!mysqlStats?.recentTasks || mysqlStats.recentTasks.length === 0) && !isLoading && (
+              <div className="p-12 text-center text-muted-foreground">
+                <p className="text-sm">中心业务库暂无最近待办任务</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
