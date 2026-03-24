@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react"
@@ -11,7 +12,10 @@ import {
   Plus,
   Trash2,
   Edit,
-  UserCheck
+  UserCheck,
+  KeyRound,
+  Eye,
+  EyeOff
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -28,9 +32,11 @@ import {
   setDocumentNonBlocking, 
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking 
+  deleteDocumentNonBlocking,
+  useUser
 } from "@/firebase"
 import { doc, collection } from "firebase/firestore"
+import { updatePassword } from "firebase/auth"
 import {
   Table,
   TableBody,
@@ -50,6 +56,7 @@ import { Badge } from "@/components/ui/badge"
 
 export default function SettingsPage() {
   const db = useFirestore()
+  const { user } = useUser()
   const { toast } = useToast()
   
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
@@ -61,6 +68,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = React.useState("general")
   const [testing, setTesting] = React.useState(false)
   const [editingUser, setEditingUser] = React.useState<any | null>(null)
+  const [newPassword, setNewPassword] = React.useState("")
+  const [showPassword, setShowPassword] = React.useState(false)
   
   const [formData, setFormData] = React.useState({
     appName: "HealthInsight Registry",
@@ -126,7 +135,7 @@ export default function SettingsPage() {
   const handleAddUser = () => {
     const newUser = {
       name: "新员工",
-      email: "staff@hospital.com",
+      email: "staff@hospital.local",
       role: "医生",
       jobId: `STAFF-${Date.now().toString().slice(-4)}`,
       status: "在职"
@@ -140,6 +149,42 @@ export default function SettingsPage() {
       deleteDocumentNonBlocking(doc(db, "staffProfiles", id))
       toast({ title: "账号已删除", variant: "destructive" })
     }
+  }
+
+  const handleSaveUserEdit = async () => {
+    if (!editingUser) return
+
+    // 1. Update Firestore Profile
+    updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
+
+    // 2. Handle Password Update if applicable
+    if (newPassword && user && (user.email === editingUser.email || user.email?.startsWith(`${editingUser.jobId}@`))) {
+      try {
+        await updatePassword(user, newPassword)
+        toast({
+          title: "密码更新成功",
+          description: "您的登录密码已完成重置。",
+        })
+      } catch (error: any) {
+        if (error.code === 'auth/requires-recent-login') {
+          toast({
+            variant: "destructive",
+            title: "安全验证过期",
+            description: "修改密码需要重新登录以验证身份。",
+          })
+        } else {
+          toast({
+            variant: "destructive",
+            title: "密码更新失败",
+            description: error.message || "未知错误，请重试。",
+          })
+        }
+      }
+    }
+
+    setEditingUser(null)
+    setNewPassword("")
+    toast({ title: "账户信息已同步" })
   }
 
   return (
@@ -326,8 +371,11 @@ export default function SettingsPage() {
                 </TableHeader>
                 <TableBody>
                   {staffMembers?.map(staff => (
-                    <TableRow key={staff.id}>
-                      <TableCell className="font-mono text-xs font-bold text-primary">{staff.jobId}</TableCell>
+                    <TableRow key={staff.id} className={staff.jobId === '1058' ? 'bg-primary/5' : ''}>
+                      <TableCell className="font-mono text-xs font-bold text-primary">
+                        {staff.jobId}
+                        {staff.jobId === '1058' && <Badge variant="default" className="ml-2 scale-75 origin-left">Admin</Badge>}
+                      </TableCell>
                       <TableCell className="font-bold">{staff.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{staff.role}</Badge>
@@ -340,10 +388,10 @@ export default function SettingsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setEditingUser(staff)}>
+                          <Button variant="ghost" size="icon" onClick={() => setEditingUser(staff)} title="编辑账户">
                             <Edit className="size-4 text-primary" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(staff.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(staff.id)} title="删除账户">
                             <Trash2 className="size-4 text-destructive" />
                           </Button>
                         </div>
@@ -364,70 +412,97 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!editingUser} onOpenChange={o => !o && setEditingUser(null)}>
-        <DialogContent>
+      <Dialog open={!!editingUser} onOpenChange={o => {
+        if (!o) {
+          setEditingUser(null)
+          setNewPassword("")
+          setShowPassword(false)
+        }
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>修改账户信息</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="size-5 text-primary" />
+              {editingUser?.jobId === '1058' ? '维护管理员账户' : '修改账户信息'}
+            </DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">工号</Label>
-              <Input 
-                value={editingUser?.jobId} 
-                onChange={e => setEditingUser({...editingUser, jobId: e.target.value})}
-                className="col-span-3 font-mono" 
-              />
+          <div className="grid gap-6 py-4">
+            <div className="grid gap-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">工号</Label>
+                <Input 
+                  value={editingUser?.jobId} 
+                  onChange={e => setEditingUser({...editingUser, jobId: e.target.value})}
+                  className="col-span-3 font-mono" 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">姓名</Label>
+                <Input 
+                  value={editingUser?.name} 
+                  onChange={e => setEditingUser({...editingUser, name: e.target.value})}
+                  className="col-span-3" 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">角色</Label>
+                <select 
+                  className="col-span-3 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={editingUser?.role}
+                  onChange={e => setEditingUser({...editingUser, role: e.target.value})}
+                >
+                  <option value="管理员">管理员</option>
+                  <option value="医生">医生</option>
+                  <option value="护士">护士</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">状态</Label>
+                <select 
+                  className="col-span-3 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={editingUser?.status}
+                  onChange={e => setEditingUser({...editingUser, status: e.target.value})}
+                >
+                  <option value="在职">在职</option>
+                  <option value="离职">离职</option>
+                </select>
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">姓名</Label>
-              <Input 
-                value={editingUser?.name} 
-                onChange={e => setEditingUser({...editingUser, name: e.target.value})}
-                className="col-span-3" 
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">账号/邮箱</Label>
-              <Input 
-                value={editingUser?.email} 
-                onChange={e => setEditingUser({...editingUser, email: e.target.value})}
-                className="col-span-3" 
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">角色</Label>
-              <select 
-                className="col-span-3 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={editingUser?.role}
-                onChange={e => setEditingUser({...editingUser, role: e.target.value})}
-              >
-                <option value="医生">医生</option>
-                <option value="护士">护士</option>
-                <option value="管理员">管理员</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">状态</Label>
-              <select 
-                className="col-span-3 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={editingUser?.status}
-                onChange={e => setEditingUser({...editingUser, status: e.target.value})}
-              >
-                <option value="在职">在职</option>
-                <option value="离职">离职</option>
-              </select>
+
+            <Separator />
+
+            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-primary/10">
+              <div className="flex items-center gap-2 mb-2">
+                <KeyRound className="size-4 text-primary" />
+                <span className="text-sm font-bold">密码修改 (可选)</span>
+              </div>
+              <div className="relative">
+                <Input 
+                  type={showPassword ? "text" : "password"}
+                  placeholder="输入新密码..."
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                提示：仅当修改当前登录账号（工号：{user?.email?.split('@')[0]}）时密码更新才会生效。
+              </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingUser(null)}>取消</Button>
-            <Button onClick={() => {
-              if (editingUser) {
-                updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
-                setEditingUser(null)
-                toast({ title: "账户信息已同步" })
-              }
-            }}>
-              保存修改
+            <Button onClick={handleSaveUserEdit} className="gap-2 shadow-md">
+              <Save className="size-4" />
+              保存临床更改
             </Button>
           </DialogFooter>
         </DialogContent>
