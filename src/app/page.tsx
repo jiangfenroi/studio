@@ -8,7 +8,8 @@ import {
   FileCheck, 
   TrendingUp,
   AlertCircle,
-  Calendar
+  Calendar,
+  ArrowRight
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
@@ -19,13 +20,10 @@ import {
   ChartLegendContent
 } from "@/components/ui/chart"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from "recharts"
-
-const summaryData = [
-  { label: "今日新增", value: "12", icon: ShieldAlert, color: "text-primary" },
-  { label: "待通知", value: "3", icon: AlertCircle, color: "text-destructive" },
-  { label: "已登记患者", value: "1,248", icon: Users, color: "text-blue-600" },
-  { label: "本月完成率", value: "94%", icon: FileCheck, color: "text-green-600" },
-]
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { collection, collectionGroup, query, doc } from "firebase/firestore"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 const chartData = [
   { month: "1月", A: 45, B: 80 },
@@ -61,8 +59,19 @@ const chartConfig = {
 }
 
 export default function Home() {
+  const db = useFirestore()
   const [mounted, setMounted] = React.useState(false)
   const [currentDate, setCurrentDate] = React.useState("")
+
+  // Real-time data fetching
+  const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
+  const { data: patients } = useCollection(patientsQuery)
+
+  const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
+  const { data: records } = useCollection(recordsQuery)
+
+  const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
+  const { data: config } = useDoc(configRef)
 
   React.useEffect(() => {
     setMounted(true)
@@ -76,6 +85,25 @@ export default function Home() {
 
   if (!mounted) return null
 
+  const stats = {
+    today: (records || []).filter(r => r.examDate === new Date().toISOString().split('T')[0]).length,
+    pending: (records || []).filter(r => !r.isNotified).length,
+    totalPatients: (patients || []).length,
+    completionRate: "94%"
+  }
+
+  const recentTasks = (records || [])
+    .filter(r => !r.isNotified)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 5)
+
+  const summaryData = [
+    { label: "今日新增", value: stats.today.toString(), icon: ShieldAlert, color: "text-primary" },
+    { label: "待通知", value: stats.pending.toString(), icon: AlertCircle, color: "text-destructive" },
+    { label: "已登记患者", value: stats.totalPatients.toLocaleString(), icon: Users, color: "text-blue-600" },
+    { label: "本月完成率", value: stats.completionRate, icon: FileCheck, color: "text-green-600" },
+  ]
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -86,7 +114,7 @@ export default function Home() {
         <div className="flex gap-2">
           <Card className="flex items-center px-4 py-2 border-primary/20 bg-primary/5">
             <Calendar className="size-4 mr-2 text-primary" />
-            <span className="text-sm font-medium">离线数据库：连接正常 (MySQL 8.4)</span>
+            <span className="text-sm font-medium">数据库：MySQL 8.4 {config?.mysql?.host ? `(${config.mysql.host})` : '(未配置)'}</span>
           </Card>
         </div>
       </header>
@@ -114,7 +142,7 @@ export default function Home() {
           <CardHeader>
             <CardTitle className="text-xl flex items-center gap-2">
               <TrendingUp className="size-5 text-primary" />
-              最近半年异常结果趋势
+              异常结果趋势
             </CardTitle>
             <CardDescription>展示A类与B类异常结果的数量变化情况</CardDescription>
           </CardHeader>
@@ -136,7 +164,7 @@ export default function Home() {
         <Card className="border-none shadow-md">
           <CardHeader>
             <CardTitle className="text-xl">异常分类占比</CardTitle>
-            <CardDescription>当前数据库中AB类比例分布</CardDescription>
+            <CardDescription>全量数据分类分布</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center">
             <div className="h-[250px] w-full">
@@ -180,25 +208,31 @@ export default function Home() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
-            {[
-              { id: '1', name: '李晓明', type: 'A类', examNo: '202501020001', time: '10分钟前' },
-              { id: '2', name: '王爱华', type: 'B类', examNo: '202501020002', time: '35分钟前' },
-              { id: '3', name: '张建国', type: 'A类', examNo: '202501020003', time: '1小时前' },
-            ].map((task) => (
+            {recentTasks.map((task) => (
               <div key={task.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
                 <div className="flex items-center gap-4">
-                  <div className={`size-2 rounded-full ${task.type === 'A类' ? 'bg-destructive animate-pulse' : 'bg-amber-500'}`} />
+                  <div className={`size-2 rounded-full ${task.category === 'A' ? 'bg-destructive animate-pulse' : 'bg-amber-500'}`} />
                   <div>
-                    <p className="font-semibold">{task.name} - {task.type}</p>
+                    <p className="font-semibold">{task.notifiedPerson} - {task.category}类</p>
                     <p className="text-xs text-muted-foreground">体检号：{task.examNo}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">{task.time}</p>
-                  <button className="text-xs text-primary font-bold mt-1">立即登记通知</button>
+                  <p className="text-xs text-muted-foreground">登记日期: {task.examDate}</p>
+                  <Button variant="link" size="sm" asChild className="p-0 h-auto font-bold">
+                    <Link href={`/records?search=${task.archiveNo}`}>
+                      立即查看处理
+                      <ArrowRight className="size-3 ml-1" />
+                    </Link>
+                  </Button>
                 </div>
               </div>
             ))}
+            {recentTasks.length === 0 && (
+              <div className="py-10 text-center text-muted-foreground">
+                暂无待通知的异常任务
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

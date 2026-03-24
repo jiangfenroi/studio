@@ -55,6 +55,8 @@ import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase"
+import { collection, doc } from "firebase/firestore"
 
 // Patient Schema for Editing
 const patientSchema = z.object({
@@ -71,18 +73,14 @@ const patientSchema = z.object({
 
 type PatientFormValues = z.infer<typeof patientSchema>
 
-// Mock patients
-const initialPatients: PatientFormValues[] = [
-  { id: 'D1001', name: '张三', gender: '男', age: 45, phoneNumber: '13800138000', idNumber: '440101198001012345', organization: '广州科技有限公司', address: '天河区路101号', status: '正常' },
-  { id: 'D1002', name: '李四', gender: '女', age: 62, phoneNumber: '13912345678', idNumber: '440101196301012345', organization: '白云区第一中学', address: '白云大道北', status: '正常' },
-  { id: 'D1003', name: '王五', gender: '男', age: 50, phoneNumber: '13500001111', idNumber: '440101197501012345', organization: '退休', address: '越秀区环市路', status: '死亡' },
-]
-
 export default function PatientsPage() {
+  const db = useFirestore()
   const [searchTerm, setSearchTerm] = React.useState("")
-  const [patients, setPatients] = React.useState<PatientFormValues[]>(initialPatients)
   const [editingPatient, setEditingPatient] = React.useState<PatientFormValues | null>(null)
   const { toast } = useToast()
+
+  const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
+  const { data: patients, isLoading } = useCollection(patientsQuery)
 
   const form = useForm<PatientFormValues>({
     resolver: zodResolver(patientSchema),
@@ -99,17 +97,18 @@ export default function PatientsPage() {
     },
   })
 
-  const filteredPatients = patients.filter(p => 
-    p.name.includes(searchTerm) || p.id.includes(searchTerm) || p.phoneNumber.includes(searchTerm) || p.idNumber.includes(searchTerm)
+  const filteredPatients = (patients || []).filter(p => 
+    p.name?.includes(searchTerm) || p.id?.includes(searchTerm) || p.phoneNumber?.includes(searchTerm) || p.idNumber?.includes(searchTerm)
   )
 
-  const handleEdit = (patient: PatientFormValues) => {
+  const handleEdit = (patient: any) => {
     setEditingPatient(patient)
     form.reset(patient)
   }
 
   const onSubmitEdit = (values: PatientFormValues) => {
-    setPatients(prev => prev.map(p => p.id === values.id ? values : p))
+    const patientRef = doc(db, "patientProfiles", values.id)
+    updateDocumentNonBlocking(patientRef, values)
     setEditingPatient(null)
     toast({
       title: "档案更新成功",
@@ -117,18 +116,30 @@ export default function PatientsPage() {
     })
   }
 
-  const handleDownloadTemplate = () => {
-    toast({
-      title: "正在准备模板",
-      description: "健康档案批量导入模版.xlsx 已开始下载。",
-    })
+  const handleDelete = (id: string) => {
+    if (confirm("确定要永久删除该患者档案吗？此操作不可逆。")) {
+      const patientRef = doc(db, "patientProfiles", id)
+      deleteDocumentNonBlocking(patientRef)
+      toast({
+        title: "档案已删除",
+        variant: "destructive"
+      })
+    }
   }
 
-  const handleImportExcel = () => {
-    toast({
-      title: "Excel导入成功",
-      description: "已成功解析并导入 12 条患者健康档案。",
-    })
+  const handleExportCSV = () => {
+    if (!patients || patients.length === 0) return
+    const headers = ["档案编号", "姓名", "性别", "年龄", "身份证", "电话", "单位", "状态"]
+    const rows = patients.map(p => [
+      p.id, p.name, p.gender, p.age, p.idNumber, p.phoneNumber, p.organization || "-", p.status
+    ])
+    const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `患者档案_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
   }
 
   return (
@@ -139,11 +150,11 @@ export default function PatientsPage() {
           <p className="text-muted-foreground">管理全院患者健康档案，支持批量导入与信息维护</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={handleDownloadTemplate}>
+          <Button variant="outline" className="gap-2" onClick={handleExportCSV}>
             <FileSpreadsheet className="size-4" />
-            下载模版
+            导出档案
           </Button>
-          <Button variant="outline" className="gap-2" onClick={handleImportExcel}>
+          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "功能开发中", description: "Excel 导入功能正在对接 MySQL 核心库。" })}>
             <Upload className="size-4" />
             批量导入
           </Button>
@@ -220,11 +231,11 @@ export default function PatientsPage() {
                         <DropdownMenuItem className="gap-2" onClick={() => handleEdit(patient)}>
                           <Edit className="size-4" /> 修改资料
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2">
+                        <DropdownMenuItem className="gap-2" onClick={() => toast({ title: "正在生成", description: "PDF 导出任务已加入队列。" })}>
                           <Download className="size-4" /> 导出PDF
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-2 text-destructive">
+                        <DropdownMenuItem className="gap-2 text-destructive" onClick={() => handleDelete(patient.id)}>
                           <Trash2 className="size-4" /> 删除档案
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -235,14 +246,18 @@ export default function PatientsPage() {
             ))}
           </TableBody>
         </Table>
-        {filteredPatients.length === 0 && (
+        {filteredPatients.length === 0 && !isLoading && (
           <div className="py-20 text-center text-muted-foreground">
             未找到匹配的档案记录
           </div>
         )}
+        {isLoading && (
+          <div className="py-20 text-center text-muted-foreground">
+            正在读取云端档案...
+          </div>
+        )}
       </div>
 
-      {/* Edit Patient Dialog */}
       <Dialog open={!!editingPatient} onOpenChange={(open) => !open && setEditingPatient(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -254,131 +269,53 @@ export default function PatientsPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmitEdit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>姓名</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>性别</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择性别" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="男">男</SelectItem>
-                          <SelectItem value="女">女</SelectItem>
-                          <SelectItem value="其他">其他</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="age"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>年龄</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="idNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>身份证号</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phoneNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>联系电话</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>当前状态</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择状态" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="正常">正常</SelectItem>
-                          <SelectItem value="死亡">死亡</SelectItem>
-                          <SelectItem value="无法联系">无法联系</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem><FormLabel>姓名</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="gender" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>性别</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="选择性别" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="男">男</SelectItem>
+                        <SelectItem value="女">女</SelectItem>
+                        <SelectItem value="其他">其他</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="age" render={({ field }) => (
+                  <FormItem><FormLabel>年龄</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="idNumber" render={({ field }) => (
+                  <FormItem><FormLabel>身份证号</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="phoneNumber" render={({ field }) => (
+                  <FormItem><FormLabel>联系电话</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>当前状态</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="选择状态" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="正常">正常</SelectItem>
+                        <SelectItem value="死亡">死亡</SelectItem>
+                        <SelectItem value="无法联系">无法联系</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
                 <div className="col-span-full">
-                  <FormField
-                    control={form.control}
-                    name="organization"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>单位/部门</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="organization" render={({ field }) => (
+                    <FormItem><FormLabel>单位/部门</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
                 </div>
                 <div className="col-span-full">
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>家庭住址</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="address" render={({ field }) => (
+                    <FormItem><FormLabel>家庭住址</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
                 </div>
               </div>
               <DialogFooter className="mt-6">

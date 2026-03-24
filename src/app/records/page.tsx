@@ -15,7 +15,8 @@ import {
   Phone,
   User,
   Calendar,
-  ClipboardList
+  ClipboardList,
+  CheckCircle2
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -40,33 +41,96 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
 import Link from "next/link"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
 import { collectionGroup, query, doc } from "firebase/firestore"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { useToast } from "@/hooks/use-toast"
+
+const editSchema = z.object({
+  details: z.string().min(1, "详情不能为空"),
+  disposalAdvice: z.string().min(1, "处置意见不能为空"),
+  feedback: z.string().optional(),
+})
 
 export default function RecordsPage() {
   const db = useFirestore()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null)
+  const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
 
-  // Use collectionGroup to fetch all anomaly records from all patient profiles
   const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
   const { data: records, isLoading } = useCollection(recordsQuery)
 
   const filteredRecords = (records || []).filter(r => 
-    (r.name?.includes(searchTerm) || 
+    (r.notifiedPerson?.includes(searchTerm) || 
      r.archiveNo?.includes(searchTerm) || 
      r.examNo?.includes(searchTerm))
   )
+
+  const editForm = useForm({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      details: "",
+      disposalAdvice: "",
+      feedback: "",
+    }
+  })
+
+  React.useEffect(() => {
+    if (editingRecord) {
+      editForm.reset({
+        details: editingRecord.details,
+        disposalAdvice: editingRecord.disposalAdvice,
+        feedback: editingRecord.feedback || "",
+      })
+    }
+  }, [editingRecord, editForm])
+
+  const handleEditSave = (values: any) => {
+    const recordRef = doc(db, `patientProfiles/${editingRecord.patientProfileId}/medicalAnomalyRecords`, editingRecord.id)
+    updateDocumentNonBlocking(recordRef, values)
+    setEditingRecord(null)
+    toast({ title: "修改成功", description: "异常结果记录已更新。" })
+  }
 
   const handleDelete = (record: any) => {
     if (confirm("确定要删除这条异常结果记录吗？")) {
       const recordRef = doc(db, `patientProfiles/${record.patientProfileId}/medicalAnomalyRecords`, record.id)
       deleteDocumentNonBlocking(recordRef)
+      toast({ title: "已删除", variant: "destructive" })
     }
+  }
+
+  const handleExportCSV = () => {
+    if (!records || records.length === 0) return
+    const headers = ["体检日期", "档案编号", "姓名", "体检号", "异常分类", "详情", "处置意见", "通知人"]
+    const rows = filteredRecords.map(r => [
+      r.examDate, r.archiveNo, r.notifiedPerson, r.examNo, r.category, 
+      r.details.replace(/,/g, "，"), r.disposalAdvice.replace(/,/g, "，"), r.notifier
+    ])
+    const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `异常结果统计_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
   }
 
   return (
@@ -77,14 +141,14 @@ export default function RecordsPage() {
           <p className="text-muted-foreground">综合展示并维护所有重要异常结果登记详情</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleExportCSV}>
             <Download className="size-4" />
-            导出详细记录
+            导出数据
           </Button>
           <Button asChild className="gap-2">
             <Link href="/records/new">
               <Plus className="size-4" />
-              新增结果登记
+              新增登记
             </Link>
           </Button>
         </div>
@@ -112,8 +176,6 @@ export default function RecordsPage() {
             <TableRow>
               <TableHead className="font-bold whitespace-nowrap">体检日期</TableHead>
               <TableHead className="font-bold">档案/姓名</TableHead>
-              <TableHead className="font-bold">性别/年龄</TableHead>
-              <TableHead className="font-bold">联系电话</TableHead>
               <TableHead className="font-bold">类别</TableHead>
               <TableHead className="font-bold">异常详情 (摘要)</TableHead>
               <TableHead className="font-bold">通知人</TableHead>
@@ -126,18 +188,16 @@ export default function RecordsPage() {
                 <TableCell className="font-medium whitespace-nowrap">{record.examDate}</TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-bold text-primary">{record.name || '未命名'}</span>
+                    <span className="font-bold text-primary">{record.notifiedPerson || '未命名'}</span>
                     <span className="text-[10px] text-muted-foreground">ID: {record.archiveNo}</span>
                   </div>
                 </TableCell>
-                <TableCell className="whitespace-nowrap">{record.gender} / {record.age}岁</TableCell>
-                <TableCell className="text-sm font-mono">{record.phone || record.phoneNumber}</TableCell>
                 <TableCell>
                   <Badge variant={record.category === 'A' ? 'destructive' : 'secondary'} className="font-bold px-3">
                     {record.category}类
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-[200px]">
+                <TableCell className="max-w-[300px]">
                   <p className="truncate text-xs text-muted-foreground" title={record.details}>
                     {record.details}
                   </p>
@@ -158,11 +218,13 @@ export default function RecordsPage() {
                         <DropdownMenuItem className="gap-2" onClick={() => setSelectedRecord(record)}>
                           <ClipboardList className="size-4" /> 查看完整详情
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2">
-                          <Edit className="size-4" /> 修改登记信息
+                        <DropdownMenuItem className="gap-2" onClick={() => setEditingRecord(record)}>
+                          <Edit className="size-4" /> 修改记录
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2 text-primary">
-                          <FileText className="size-4" /> 查看体检报告
+                        <DropdownMenuItem className="gap-2 text-primary" asChild>
+                           <Link href={`/patients/${record.archiveNo}?tab=files`}>
+                            <FileText className="size-4" /> 查看体检报告
+                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="gap-2 text-destructive" onClick={() => handleDelete(record)}>
@@ -178,20 +240,11 @@ export default function RecordsPage() {
         </Table>
         {(filteredRecords.length === 0 && !isLoading) && (
           <div className="py-24 text-center">
-            <div className="size-16 bg-muted/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Search className="size-8 text-muted-foreground" />
-            </div>
             <p className="text-muted-foreground font-medium">未找到匹配的重要异常结果记录</p>
-          </div>
-        )}
-        {isLoading && (
-          <div className="py-24 text-center text-muted-foreground">
-            正在加载云端数据...
           </div>
         )}
       </div>
 
-      {/* Record Details Dialog */}
       <Dialog open={!!selectedRecord} onOpenChange={(open) => !open && setSelectedRecord(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
@@ -201,83 +254,50 @@ export default function RecordsPage() {
               </Badge>
               重要异常结果详情
             </DialogTitle>
-            <DialogDescription>
-              体检编号: <span className="font-mono font-bold text-foreground">{selectedRecord?.examNo}</span>
-            </DialogDescription>
           </DialogHeader>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
             <div className="space-y-4">
               <div className="bg-muted/30 p-4 rounded-lg space-y-3">
-                <div className="flex items-center gap-3">
-                  <User className="size-4 text-primary" />
-                  <span className="font-bold text-lg">{selectedRecord?.name}</span>
-                  <Badge variant="outline">{selectedRecord?.gender} / {selectedRecord?.age}岁</Badge>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Phone className="size-4" />
-                  <span>{selectedRecord?.phone || selectedRecord?.phoneNumber}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Calendar className="size-4" />
-                  <span>体检日期: {selectedRecord?.examDate}</span>
-                </div>
-                <div className="text-[10px] text-muted-foreground bg-white/50 px-2 py-1 rounded inline-block">
-                  档案编号: {selectedRecord?.archiveNo}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-primary">通知情况</p>
-                <div className="p-3 border rounded-md bg-white space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">通知人:</span>
-                    <span className="font-medium">{selectedRecord?.notifier}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">状态:</span>
-                    <Badge variant="outline" className="h-5 px-1 bg-green-50 text-green-700 border-green-200">
-                      {selectedRecord?.isNotified ? '已通知' : '待通知'}
-                    </Badge>
-                  </div>
-                </div>
+                <p className="font-bold text-lg">{selectedRecord?.notifiedPerson}</p>
+                <p className="text-sm">档案号: {selectedRecord?.archiveNo}</p>
+                <p className="text-sm">体检日期: {selectedRecord?.examDate}</p>
               </div>
             </div>
-
             <div className="space-y-4">
               <div className="space-y-1">
-                <p className="text-sm font-bold text-destructive flex items-center gap-2">
-                  <ClipboardList className="size-4" />
-                  异常结果详情
-                </p>
-                <ScrollArea className="h-[100px] p-3 border rounded-md bg-white text-sm leading-relaxed">
-                  {selectedRecord?.details}
-                </ScrollArea>
+                <p className="text-sm font-bold text-destructive">异常详情</p>
+                <ScrollArea className="h-[100px] border p-3 rounded bg-white text-xs">{selectedRecord?.details}</ScrollArea>
               </div>
-
               <div className="space-y-1">
                 <p className="text-sm font-bold text-amber-600">处置意见</p>
-                <ScrollArea className="h-[100px] p-3 border rounded-md bg-amber-50/10 text-sm leading-relaxed">
-                  {selectedRecord?.disposalAdvice}
-                </ScrollArea>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-primary">反馈结果</p>
-                <div className="p-3 border rounded-md bg-blue-50/10 text-sm italic text-muted-foreground">
-                  “{selectedRecord?.feedback || '暂无反馈'}”
-                </div>
+                <ScrollArea className="h-[100px] border p-3 rounded bg-white text-xs">{selectedRecord?.disposalAdvice}</ScrollArea>
               </div>
             </div>
           </div>
-          
-          <div className="mt-6 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setSelectedRecord(null)}>关闭窗口</Button>
-            <Button className="gap-2">
-              <FileText className="size-4" />
-              查看完整报告 (PDF)
-            </Button>
-          </div>
+          <DialogFooter><Button onClick={() => setSelectedRecord(null)}>关闭</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingRecord} onOpenChange={(open) => !open && setEditingRecord(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>修改异常结果登记</DialogTitle></DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(handleEditSave)} className="space-y-4">
+              <FormField control={editForm.control} name="details" render={({ field }) => (
+                <FormItem><FormLabel>异常详情</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={editForm.control} name="disposalAdvice" render={({ field }) => (
+                <FormItem><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={editForm.control} name="feedback" render={({ field }) => (
+                <FormItem><FormLabel>患者反馈</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditingRecord(null)}>取消</Button>
+                <Button type="submit">保存修改</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
