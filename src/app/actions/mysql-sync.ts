@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -36,7 +35,6 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
         anomalyCategory: record.anomalyCategory,
         anomalyDetails: record.anomalyDetails,
         disposalSuggestions: record.disposalSuggestions,
-        // 告知与宣教核心字段补全
         notifiedPerson: record.notifiedPerson || '',
         notifier: record.notifier || '',
         notificationDate: record.notificationDate || '',
@@ -58,6 +56,36 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
     }
   } catch (err) {
     console.error('MySQL Sync Error (Anomaly):', err);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+/**
+ * 获取统计报表数据 - 联表查询
+ */
+export async function fetchDataForStats(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    // 联表查询：档案 (SP_PERSON) + 异常结果 (SP_YCJG) + 随访记录 (SP_SF)
+    const sql = `
+      SELECT 
+        p.archiveNo, p.name, p.gender, p.age, p.idNumber, p.organization, p.phoneNumber, p.status as patientStatus,
+        y.checkupNumber as examNo, y.checkupDate as examDate, y.anomalyCategory as category, y.anomalyDetails as details, 
+        y.disposalSuggestions as disposalAdvice, y.notifier, y.notificationDate, y.notificationTime, 
+        y.notifiedPerson, y.isNotified, y.isHealthEducationProvided, y.notifiedPersonFeedback,
+        f.followUpDate, f.followUpResult, f.followUpPerson, f.isReExamined
+      FROM SP_PERSON p
+      LEFT JOIN SP_YCJG y ON p.archiveNo = y.patientProfileId
+      LEFT JOIN SP_SF f ON y.id = f.associatedAnomalyId
+    `;
+    const [rows] = await connection.execute(sql);
+    return rows;
+  } catch (err) {
+    console.error('MySQL Fetch Stats Error:', err);
+    return [];
   } finally {
     if (connection) await connection.end();
   }

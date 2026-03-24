@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -11,10 +10,11 @@ import {
   Square,
   Search,
   ChevronRight,
-  Database
+  Database,
+  Loader2
 } from "lucide-react"
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase"
-import { collection, collectionGroup, query } from "firebase/firestore"
+import { useFirestore, useDoc, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,10 +29,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
+import { fetchDataForStats } from "@/app/actions/mysql-sync"
 
-// Column Definitions for Custom Design
+// 对应中心 MySQL (SP_PERSON, SP_YCJG, SP_SF) 的完整字段设计
 const COLUMNS = {
   SP_PERSON: [
     { id: "archiveNo", label: "档案编号" },
@@ -42,7 +42,7 @@ const COLUMNS = {
     { id: "idNumber", label: "身份证号" },
     { id: "organization", label: "单位" },
     { id: "phoneNumber", label: "电话" },
-    { id: "status", label: "状态" },
+    { id: "patientStatus", label: "档案状态" },
   ],
   SP_YCJG: [
     { id: "examNo", label: "体检编号" },
@@ -50,7 +50,13 @@ const COLUMNS = {
     { id: "category", label: "异常类别" },
     { id: "details", label: "异常详情" },
     { id: "disposalAdvice", label: "处置意见" },
+    { id: "notificationDate", label: "通知日期" },
+    { id: "notificationTime", label: "通知时间" },
+    { id: "notifiedPerson", label: "被通知人" },
     { id: "notifier", label: "通知人" },
+    { id: "isNotified", label: "是否已告知" },
+    { id: "isHealthEducationProvided", label: "是否健康宣教" },
+    { id: "notifiedPersonFeedback", label: "告知反馈" },
   ],
   SP_SF: [
     { id: "followUpDate", label: "随访日期" },
@@ -63,17 +69,32 @@ const COLUMNS = {
 export default function StatsPage() {
   const db = useFirestore()
   const { toast } = useToast()
-  const [selectedCols, setSelectedCols] = React.useState<string[]>(["archiveNo", "name", "examDate", "category", "followUpResult"])
+  const [selectedCols, setSelectedCols] = React.useState<string[]>(["archiveNo", "name", "examDate", "category", "notifiedPerson", "isNotified", "followUpResult"])
   const [searchTerm, setSearchTerm] = React.useState("")
+  const [mysqlData, setMysqlData] = React.useState<any[]>([])
+  const [isSyncing, setIsSyncing] = React.useState(false)
 
-  // Fetch all patients (SP_PERSON)
-  const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
-  const { data: patients, isLoading: patientsLoading } = useCollection(patientsQuery)
+  const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
+  const { data: systemConfig } = useDoc(configRef)
 
-  // Fetch all anomaly and follow-up records across all patients (SP_YCJG & SP_SF)
-  // We use collectionGroup to get all medicalAnomalyRecords across all subcollections
-  const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
-  const { data: allRecords, isLoading: recordsLoading } = useCollection(recordsQuery)
+  const loadCentralData = React.useCallback(async () => {
+    if (!systemConfig?.mysql) return
+    setIsSyncing(true)
+    try {
+      const data = await fetchDataForStats(systemConfig.mysql)
+      setMysqlData(data as any[])
+    } catch (error) {
+      toast({ variant: "destructive", title: "MySQL 连接失败", description: "无法从中心业务库获取实时数据。" })
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [systemConfig, toast])
+
+  React.useEffect(() => {
+    if (systemConfig?.mysql) {
+      loadCentralData()
+    }
+  }, [systemConfig, loadCentralData])
 
   const toggleCol = (id: string) => {
     setSelectedCols(prev => 
@@ -81,40 +102,24 @@ export default function StatsPage() {
     )
   }
 
-  // Synthesize and Join Data
-  const joinedData = React.useMemo(() => {
-    if (!patients || !allRecords) return []
-
-    // Map anomaly records and follow-ups to patients
-    // Flattening logic: one row per anomaly/follow-up event
-    return allRecords.map(record => {
-      const patient = patients.find(p => p.id === record.patientProfileId)
-      return {
-        ...patient,
-        ...record,
-        // Ensure shared keys don't overwrite if needed, but here patientId/archiveNo are primary
-        archiveNo: patient?.id || record.patientProfileId
-      }
-    })
-  }, [patients, allRecords])
-
-  const filteredData = joinedData.filter(row => 
-    Object.values(row).some(val => 
-      String(val).toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredData = React.useMemo(() => {
+    return mysqlData.filter(row => 
+      Object.values(row).some(val => 
+        String(val || "").toLowerCase().includes(searchTerm.toLowerCase())
+      )
     )
-  )
+  }, [mysqlData, searchTerm])
 
   const handleExport = () => {
     if (filteredData.length === 0) return
 
-    // Create CSV content
     const headers = selectedCols.map(id => {
       const found = [...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF].find(c => c.id === id)
       return found?.label || id
     })
 
     const csvRows = filteredData.map(row => 
-      selectedCols.map(col => `"${String(row[col as keyof typeof row] || "").replace(/"/g, '""')}"`).join(",")
+      selectedCols.map(col => `"${String(row[col] || "").replace(/"/g, '""')}"`).join(",")
     )
 
     const csvContent = "\ufeff" + [headers.join(","), ...csvRows].join("\n")
@@ -122,15 +127,12 @@ export default function StatsPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
-    link.setAttribute("download", `医疗数据导出_${new Date().toISOString().split('T')[0]}.csv`)
+    link.setAttribute("download", `中心库业务导出_${new Date().toISOString().split('T')[0]}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
 
-    toast({
-      title: "数据导出成功",
-      description: `已根据自定义设计导出 ${filteredData.length} 条记录。`,
-    })
+    toast({ title: "报表导出成功", description: `已从中心库提取 ${filteredData.length} 条业务记录。` })
   }
 
   const allColumnsList = [...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF]
@@ -140,32 +142,37 @@ export default function StatsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">数据导出管理</h1>
-          <p className="text-muted-foreground">自定义设计导出报表，整合档案、异常与随访信息</p>
+          <p className="text-muted-foreground">基于中心 MySQL 业务库的实时统计与报表导出</p>
         </div>
-        <Button onClick={handleExport} className="gap-2 h-11 px-8 shadow-lg" disabled={filteredData.length === 0}>
-          <FileSpreadsheet className="size-5" />
-          导出为 Excel
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadCentralData} disabled={isSyncing} className="gap-2">
+            {isSyncing ? <Loader2 className="size-4 animate-spin" /> : <Database className="size-4" />}
+            刷新中心数据
+          </Button>
+          <Button onClick={handleExport} className="gap-2 h-11 px-8 shadow-lg" disabled={filteredData.length === 0}>
+            <FileSpreadsheet className="size-5" />
+            导出为 CSV
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Left: Column Designer */}
         <Card className="lg:col-span-1 border-none shadow-md h-fit">
           <CardHeader className="bg-primary/5">
             <CardTitle className="text-lg flex items-center gap-2">
               <Database className="size-5 text-primary" />
               自定义导出设计
             </CardTitle>
-            <CardDescription>勾选需要导出的字段</CardDescription>
+            <CardDescription>勾选中心库字段 (MySQL 8.4)</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <ScrollArea className="h-[600px] pr-4">
               <div className="space-y-6">
                 {Object.entries(COLUMNS).map(([table, cols]) => (
                   <div key={table} className="space-y-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                    <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                       <div className="size-1.5 rounded-full bg-primary" />
-                      {table === "SP_PERSON" ? "档案信息 (SP_PERSON)" : table === "SP_YCJG" ? "异常结果 (SP_YCJG)" : "随访记录 (SP_SF)"}
+                      {table} 核心表
                     </h3>
                     <div className="grid gap-2 pl-2">
                       {cols.map(col => (
@@ -175,12 +182,7 @@ export default function StatsPage() {
                             checked={selectedCols.includes(col.id)} 
                             onCheckedChange={() => toggleCol(col.id)}
                           />
-                          <label 
-                            htmlFor={col.id} 
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          >
-                            {col.label}
-                          </label>
+                          <label htmlFor={col.id} className="text-sm cursor-pointer">{col.label}</label>
                         </div>
                       ))}
                     </div>
@@ -191,14 +193,13 @@ export default function StatsPage() {
           </CardContent>
         </Card>
 
-        {/* Right: Data Preview */}
         <div className="lg:col-span-3 space-y-6">
           <Card className="border-none shadow-md">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl flex items-center gap-2">
                   <TableIcon className="size-5 text-primary" />
-                  数据预览
+                  实时业务预览
                 </CardTitle>
                 <div className="relative w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -212,7 +213,7 @@ export default function StatsPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="rounded-md border-t">
+              <div className="rounded-md border-t overflow-hidden">
                 <Table>
                   <TableHeader className="bg-muted/30">
                     <TableRow>
@@ -230,13 +231,13 @@ export default function StatsPage() {
                           {selectedCols.map(colId => (
                             <TableCell key={`${idx}-${colId}`} className="text-xs max-w-[200px] truncate">
                               {colId === "category" ? (
-                                <Badge variant={row[colId] === "A" ? "destructive" : "secondary"} className="text-[10px] px-1 py-0">
+                                <Badge variant={row[colId] === "A" ? "destructive" : "secondary"}>
                                   {row[colId]}类
                                 </Badge>
-                              ) : colId === "isReExamined" ? (
+                              ) : colId === "isNotified" || colId === "isHealthEducationProvided" || colId === "isReExamined" ? (
                                 row[colId] ? "是" : "否"
                               ) : (
-                                String(row[colId as keyof typeof row] || "-")
+                                String(row[colId] || "-")
                               )}
                             </TableCell>
                           ))}
@@ -245,7 +246,7 @@ export default function StatsPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={selectedCols.length} className="h-48 text-center text-muted-foreground">
-                          {patientsLoading || recordsLoading ? "正在合成内网数据..." : "未找到匹配数据"}
+                          {isSyncing ? "正在从中心库提取数据..." : "中心库暂无匹配记录"}
                         </TableCell>
                       </TableRow>
                     )}
@@ -254,18 +255,6 @@ export default function StatsPage() {
               </div>
             </CardContent>
           </Card>
-          
-          <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-lg border border-primary/10">
-            <div className="p-2 bg-primary/10 rounded-full">
-              <CheckSquare className="size-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-bold">导出统计</p>
-              <p className="text-xs text-muted-foreground">
-                当前预览共 <span className="text-primary font-bold">{filteredData.length}</span> 条记录，包含 <span className="text-primary font-bold">{selectedCols.length}</span> 个自定义设计字段。
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
