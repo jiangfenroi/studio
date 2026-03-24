@@ -30,6 +30,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 
 export default function Home() {
   const db = useFirestore()
@@ -77,9 +78,8 @@ export default function Home() {
     return months.map((month, index) => {
       const monthNum = (index + 1).toString().padStart(2, '0')
       
-      // Filter records that were NOTIFIED in this month of the selected year
       const monthlyRecords = (records || []).filter(r => {
-        const date = r.noticeDate || r.examDate // Fallback to examDate if noticeDate missing
+        const date = r.noticeDate || r.examDate 
         return date && date.startsWith(`${selectedYear}-${monthNum}`)
       })
 
@@ -119,11 +119,25 @@ export default function Home() {
     { label: "全量完成率", value: `${stats.completionRate}%`, icon: FileCheck, color: "text-green-600" },
   ]
 
-  const chartConfig = {
+  const lineChartConfig = {
     rate: {
       label: "随访率 (%)",
       color: "hsl(var(--primary))",
     }
+  }
+
+  const pieChartConfig = {
+    value: {
+      label: "病例数",
+    },
+    "A类 (危急)": {
+      label: "A类 (危急)",
+      color: "hsl(var(--destructive))",
+    },
+    "B类 (重要)": {
+      label: "B类 (重要)",
+      color: "hsl(var(--primary))",
+    },
   }
 
   return (
@@ -184,7 +198,7 @@ export default function Home() {
             </div>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+            <ChartContainer config={lineChartConfig} className="h-[300px] w-full">
               <LineChart data={lineChartData} margin={{ left: 12, right: 12 }}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis 
@@ -219,7 +233,7 @@ export default function Home() {
             <CardDescription>A类 (危急) 与 B类 (重要) 占比</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center pt-0">
-            <div className="h-[240px] w-full">
+            <ChartContainer config={pieChartConfig} className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -238,7 +252,7 @@ export default function Home() {
                   <ChartTooltip content={<ChartTooltipContent />} />
                 </PieChart>
               </ResponsiveContainer>
-            </div>
+            </ChartContainer>
             <div className="grid grid-cols-2 gap-4 mt-4 w-full px-4">
               {pieData.map((item) => (
                 <div key={item.name} className="flex flex-col items-center p-3 rounded-lg bg-muted/30">
