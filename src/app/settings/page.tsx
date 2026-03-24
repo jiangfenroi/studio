@@ -82,7 +82,6 @@ export default function SettingsPage() {
   const [editingUser, setEditingUser] = React.useState<any | null>(null)
   const [userToDelete, setUserToDelete] = React.useState<any | null>(null)
   const [newPassword, setNewPassword] = React.useState("")
-  const [showPassword, setShowPassword] = React.useState(false)
   
   const [formData, setFormData] = React.useState({
     appName: "HealthInsight Registry",
@@ -130,7 +129,6 @@ export default function SettingsPage() {
     
     setDocumentNonBlocking(configRef, updateData, { merge: true })
     
-    // 同步到 MySQL SP_CONFIG
     if (updateData.mysql) {
       syncConfigToMysql(updateData.mysql, updateData);
     }
@@ -166,7 +164,7 @@ export default function SettingsPage() {
       syncStaffToMysql(config.mysql, newUser, 'SAVE');
     }
 
-    toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。注意：新用户需先通过登录页注册。" })
+    toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。" })
   }
 
   const handleConfirmDeleteUser = () => {
@@ -266,7 +264,7 @@ export default function SettingsPage() {
           <Card className="border-none shadow-md">
             <CardHeader className="bg-primary/5">
               <CardTitle>系统名称与品牌</CardTitle>
-              <CardDescription>自定义系统标题及图标。图标文件应放置在PDF根目录中。</CardDescription>
+              <CardDescription>自定义系统标题及图标。</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -279,16 +277,11 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label>图标文件名</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    value={formData.appLogoFileName} 
-                    onChange={e => setFormData({...formData, appLogoFileName: e.target.value})}
-                    placeholder="logo.png"
-                  />
-                  <div className="p-2 bg-muted rounded border border-dashed flex items-center justify-center min-w-[40px]">
-                    <ShieldCheck className="size-4 text-primary" />
-                  </div>
-                </div>
+                <Input 
+                  value={formData.appLogoFileName} 
+                  onChange={e => setFormData({...formData, appLogoFileName: e.target.value})}
+                  placeholder="logo.png"
+                />
               </div>
             </CardContent>
           </Card>
@@ -301,16 +294,12 @@ export default function SettingsPage() {
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-2">
                 <Label>PACS 调用基准地址</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    value={formData.pacsUrlBase} 
-                    onChange={e => setFormData({...formData, pacsUrlBase: e.target.value})}
-                    placeholder="http://172.16.201.61:7242/?ChtId="
-                    className="font-mono text-xs"
-                  />
-                  <Badge variant="outline" className="bg-blue-50">API 集成中</Badge>
-                </div>
-                <p className="text-[10px] text-muted-foreground">系统将自动拼接：[基准地址] + [档案编号]</p>
+                <Input 
+                  value={formData.pacsUrlBase} 
+                  onChange={e => setFormData({...formData, pacsUrlBase: e.target.value})}
+                  placeholder="http://172.16.201.61:7242/?ChtId="
+                  className="font-mono text-xs"
+                />
               </div>
 
               <Separator />
@@ -329,7 +318,6 @@ export default function SettingsPage() {
                     测试连接
                   </Button>
                 </div>
-                <p className="text-[10px] text-muted-foreground">此路径为全院共用，程序将按档案编号自动分级建立二级文件夹。</p>
               </div>
             </CardContent>
           </Card>
@@ -342,53 +330,30 @@ export default function SettingsPage() {
                 <Database className="size-5 text-primary" />
                 MySQL 8.4 业务库配置
               </CardTitle>
-              <CardDescription>配置本系统所需的 MySQL 数据库连接。请确保内网服务器防火墙已放行对应端口。</CardDescription>
+              <CardDescription>配置本系统所需的 MySQL 数据库连接。</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <Label>主机地址</Label>
-                <Input 
-                  value={formData.mysqlHost} 
-                  onChange={e => setFormData({...formData, mysqlHost: e.target.value})}
-                  placeholder="172.17.168.18"
-                />
+                <Input value={formData.mysqlHost} onChange={e => setFormData({...formData, mysqlHost: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>通信端口</Label>
-                <Input 
-                  value={formData.mysqlPort} 
-                  onChange={e => setFormData({...formData, mysqlPort: e.target.value})}
-                  placeholder="10699"
-                />
+                <Input value={formData.mysqlPort} onChange={e => setFormData({...formData, mysqlPort: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>数据库名称</Label>
-                <Input 
-                  value={formData.mysqlDatabase} 
-                  onChange={e => setFormData({...formData, mysqlDatabase: e.target.value})}
-                  placeholder="meditrack_db"
-                />
+                <Input value={formData.mysqlDatabase} onChange={e => setFormData({...formData, mysqlDatabase: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>数据库用户</Label>
-                <Input 
-                  value={formData.mysqlUser} 
-                  onChange={e => setFormData({...formData, mysqlUser: e.target.value})}
-                  placeholder="medi_admin"
-                />
+                <Input value={formData.mysqlUser} onChange={e => setFormData({...formData, mysqlUser: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>连接密码</Label>
-                <Input 
-                  type="password"
-                  value={formData.mysqlPassword} 
-                  onChange={e => setFormData({...formData, mysqlPassword: e.target.value})}
-                />
+                <Input type="password" value={formData.mysqlPassword} onChange={e => setFormData({...formData, mysqlPassword: e.target.value})} />
               </div>
             </CardContent>
-            <CardFooter className="bg-muted/10 py-3 border-t">
-              <p className="text-[10px] text-muted-foreground">注意：修改配置后需“保存全局配置”以同步至 MySQL `SP_CONFIG` 表。</p>
-            </CardFooter>
           </Card>
         </TabsContent>
 
@@ -400,7 +365,7 @@ export default function SettingsPage() {
                   <UserCheck className="size-5 text-primary" />
                   系统账户管理
                 </CardTitle>
-                <CardDescription>管理临床账户基本信息。注意：新用户需先通过登录页完成首次注册。</CardDescription>
+                <CardDescription>管理临床账户基本信息。</CardDescription>
               </div>
               <Button onClick={handleAddUser} size="sm" className="gap-1">
                 <Plus className="size-4" /> 预设新账户
@@ -423,12 +388,10 @@ export default function SettingsPage() {
                     <TableRow key={staff.id} className={staff.jobId === '1058' ? 'bg-primary/5' : ''}>
                       <TableCell className="font-mono text-xs font-bold text-primary">
                         {staff.jobId}
-                        {staff.jobId === '1058' && <Badge variant="default" className="ml-2 scale-75 origin-left">Admin</Badge>}
+                        {staff.jobId === '1058' && <Badge variant="default" className="ml-2">Admin</Badge>}
                       </TableCell>
                       <TableCell className="font-bold">{staff.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{staff.role}</Badge>
-                      </TableCell>
+                      <TableCell><Badge variant="outline">{staff.role}</Badge></TableCell>
                       <TableCell className="text-muted-foreground">{staff.email}</TableCell>
                       <TableCell>
                         <Badge className={staff.status === '在职' ? 'bg-green-500' : 'bg-destructive'}>
@@ -437,10 +400,10 @@ export default function SettingsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setEditingUser(staff)} title="编辑账户">
+                          <Button variant="ghost" size="icon" onClick={() => setEditingUser(staff)}>
                             <Edit className="size-4 text-primary" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setUserToDelete(staff)} title="注销账户">
+                          <Button variant="ghost" size="icon" onClick={() => setUserToDelete(staff)}>
                             <Trash2 className="size-4 text-destructive" />
                           </Button>
                         </div>
@@ -454,7 +417,6 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Dialogs and AlertDialogs preserved and linked to syncStaffToMysql... */}
       <Dialog open={!!editingUser} onOpenChange={o => {!o && setEditingUser(null)}}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>修改账户信息</DialogTitle></DialogHeader>
@@ -496,6 +458,7 @@ export default function SettingsPage() {
       <AlertDialog open={!!userToDelete} onOpenChange={o => !o && setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>确认注销账户？</AlertDialogTitle></AlertDialogHeader>
+          <AlertDialogDescription>此操作将永久移除该临床账户的访问权限。</AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDeleteUser} className="bg-destructive">确认注销</AlertDialogAction>
