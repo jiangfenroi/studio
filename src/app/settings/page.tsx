@@ -15,7 +15,8 @@ import {
   UserCheck,
   KeyRound,
   Eye,
-  EyeOff
+  EyeOff,
+  AlertTriangle
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -44,7 +45,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/table"
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 
 export default function SettingsPage() {
@@ -68,6 +79,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = React.useState("general")
   const [testing, setTesting] = React.useState(false)
   const [editingUser, setEditingUser] = React.useState<any | null>(null)
+  const [userToDelete, setUserToDelete] = React.useState<any | null>(null)
   const [newPassword, setNewPassword] = React.useState("")
   const [showPassword, setShowPassword] = React.useState(false)
   
@@ -144,11 +156,38 @@ export default function SettingsPage() {
     toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。" })
   }
 
-  const handleDeleteUser = (id: string) => {
-    if (confirm("确定要删除该系统账户吗？")) {
-      deleteDocumentNonBlocking(doc(db, "staffProfiles", id))
-      toast({ title: "账号已删除", variant: "destructive" })
+  const handleConfirmDeleteUser = () => {
+    if (!userToDelete) return
+
+    // Protection for root admin
+    if (userToDelete.jobId === '1058') {
+      toast({
+        variant: "destructive",
+        title: "权限受限",
+        description: "内置管理员账号 (1058) 不允许被删除。",
+      })
+      setUserToDelete(null)
+      return
     }
+
+    // Protection for current user
+    if (user?.email === userToDelete.email) {
+      toast({
+        variant: "destructive",
+        title: "操作无效",
+        description: "您不能删除自己当前登录的账户。",
+      })
+      setUserToDelete(null)
+      return
+    }
+
+    deleteDocumentNonBlocking(doc(db, "staffProfiles", userToDelete.id))
+    toast({
+      title: "账号已移除",
+      variant: "destructive",
+      description: `工号 ${userToDelete.jobId} (${userToDelete.name}) 已从系统注销。`,
+    })
+    setUserToDelete(null)
   }
 
   const handleSaveUserEdit = async () => {
@@ -391,7 +430,7 @@ export default function SettingsPage() {
                           <Button variant="ghost" size="icon" onClick={() => setEditingUser(staff)} title="编辑账户">
                             <Edit className="size-4 text-primary" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(staff.id)} title="删除账户">
+                          <Button variant="ghost" size="icon" onClick={() => setUserToDelete(staff)} title="删除账户">
                             <Trash2 className="size-4 text-destructive" />
                           </Button>
                         </div>
@@ -507,6 +546,26 @@ export default function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!userToDelete} onOpenChange={o => !o && setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-destructive" />
+              确认永久注销账户？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除工号为 <span className="font-bold text-foreground">{userToDelete?.jobId} ({userToDelete?.name})</span> 的临床账户吗？此操作将立即剥夺其系统访问权限，且无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>放弃</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteUser} className="bg-destructive hover:bg-destructive/90">
+              确认注销
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
