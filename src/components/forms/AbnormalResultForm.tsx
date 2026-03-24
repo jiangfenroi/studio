@@ -36,7 +36,6 @@ const formSchema = z.object({
   category: z.enum(["A", "B"]),
   details: z.string().min(1, "详情不能为空"),
   disposalAdvice: z.string().min(1, "处置意见不能为空"),
-  isNotified: z.boolean().default(false),
   isHealthEducation: z.boolean().default(true),
   notifier: z.string().min(1, "通知人不能为空"),
   feedback: z.string().optional(),
@@ -70,7 +69,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       category: "A",
       details: "",
       disposalAdvice: "",
-      isNotified: false,
       isHealthEducation: true,
       notifier: "系统管理员",
       feedback: "",
@@ -128,12 +126,15 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
     const anomalyRecordId = `${values.archiveNo}_${values.examNo}`
     const anomalyRef = doc(db, `patientProfiles/${values.archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
     
+    // Explicitly set isNotified to false on initial registration (Duty to Inform)
+    // to ensure it enters the "Pending Follow-up" list.
     setDocumentNonBlocking(anomalyRef, {
       ...values,
       id: anomalyRecordId,
       patientProfileId: values.archiveNo,
       checkupNumber: values.examNo,
       checkupDate: values.examDate,
+      isNotified: false, 
       createdAt: new Date().toISOString()
     }, { merge: true })
 
@@ -380,7 +381,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
               <CalendarIcon className="size-5 text-primary" />
               初始通知记录 (告知义务)
             </CardTitle>
-            <CardDescription>记录首次发现异常后的初步告知情况</CardDescription>
+            <CardDescription>记录首次发现异常后的初步告知情况。注意：此步骤不代表随访结案。</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <FormField

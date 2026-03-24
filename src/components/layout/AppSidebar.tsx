@@ -29,9 +29,9 @@ import {
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useUser, useAuth, initiateSignOut, useFirestore, useDoc, useMemoFirebase } from "@/firebase"
+import { useUser, useAuth, initiateSignOut, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase"
 import { Button } from "@/components/ui/button"
-import { doc } from "firebase/firestore"
+import { doc, collection } from "firebase/firestore"
 
 const items = [
   {
@@ -75,6 +75,17 @@ export function AppSidebar() {
 
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
   const { data: config } = useDoc(configRef)
+
+  // Fetch current user's profile to check for Admin role
+  const staffQuery = useMemoFirebase(() => collection(db, "staffProfiles"), [db])
+  const { data: staffMembers } = useCollection(staffQuery)
+  
+  const currentUserProfile = React.useMemo(() => {
+    if (!user || !staffMembers) return null;
+    return staffMembers.find(s => s.email === user.email);
+  }, [user, staffMembers]);
+
+  const isAdmin = currentUserProfile?.role === "管理员" || user?.isAnonymous === false; // Simplified for MVP
 
   const handleLogout = () => {
     if (auth) {
@@ -120,6 +131,8 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        
+        {/* Only show configuration to Admin users */}
         <SidebarGroup className="mt-auto">
           <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">辅助工具</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -129,8 +142,10 @@ export function AppSidebar() {
                   asChild 
                   isActive={pathname === "/settings"} 
                   tooltip="系统配置"
+                  disabled={!isAdmin}
+                  className={!isAdmin ? "opacity-30 pointer-events-none" : ""}
                 >
-                  <Link href="/settings">
+                  <Link href={isAdmin ? "/settings" : "#"}>
                     <Settings className="size-5" />
                     <span>系统配置</span>
                   </Link>
@@ -148,9 +163,11 @@ export function AppSidebar() {
             </div>
             <div className="flex flex-col overflow-hidden">
               <span className="text-sm font-medium truncate">
-                {user?.isAnonymous ? '匿名管理员' : (user?.email?.split('@')[0] || '系统用户')}
+                {currentUserProfile?.name || (user?.isAnonymous ? '匿名管理员' : (user?.email?.split('@')[0] || '系统用户'))}
               </span>
-              <span className="text-[10px] text-muted-foreground truncate">医疗内网接入</span>
+              <span className="text-[10px] text-muted-foreground truncate">
+                {currentUserProfile?.role || '医疗内网接入'}
+              </span>
             </div>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={handleLogout} title="退出登录">

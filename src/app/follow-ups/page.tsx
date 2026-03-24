@@ -44,17 +44,20 @@ export default function FollowUpsPage() {
       patient: patients.find(p => p.id === r.patientProfileId)
     }))
 
-    // Pending: category A/B, not notified, patient not deceased
+    // Pending: Only show records that have a CATEGORY (A or B) and are not closed.
+    // This avoids listing follow-up history documents as separate tasks.
     const pending = all.filter(t => 
+      t.category && 
       !t.isNotified && 
       t.patient?.status !== '死亡' &&
-      (t.notifiedPerson?.includes(searchTerm) || t.archiveNo?.includes(searchTerm))
+      (t.notifiedPerson?.toLowerCase().includes(searchTerm.toLowerCase()) || t.archiveNo?.toLowerCase().includes(searchTerm.toLowerCase()))
     )
 
     // Closed: notified OR patient deceased
     const closed = all.filter(t => 
+      t.category &&
       (t.isNotified || t.patient?.status === '死亡') &&
-      (t.notifiedPerson?.includes(searchTerm) || t.archiveNo?.includes(searchTerm))
+      (t.notifiedPerson?.toLowerCase().includes(searchTerm.toLowerCase()) || t.archiveNo?.toLowerCase().includes(searchTerm.toLowerCase()))
     )
 
     return { pending, closed }
@@ -116,7 +119,7 @@ export default function FollowUpsPage() {
                         体检日期: <span className="text-foreground font-medium">{task.examDate}</span>
                       </div>
                       <div className="col-span-full mt-2 pt-2 border-t">
-                        <p className="font-semibold text-primary mb-1">异常详情:</p>
+                        <p className="font-semibold text-primary mb-1">异常详情 ({task.category}类):</p>
                         <p className="text-muted-foreground line-clamp-2">{task.details}</p>
                       </div>
                     </div>
@@ -156,7 +159,7 @@ export default function FollowUpsPage() {
                       <Badge className="bg-green-100 text-green-700">已结案</Badge>
                       {task.patient?.status === '死亡' && <Badge variant="destructive">患者已故</Badge>}
                     </div>
-                    <p className="text-sm text-muted-foreground">{task.details}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{task.details}</p>
                   </div>
                   <div className="flex flex-row lg:flex-col gap-3 lg:border-l lg:pl-6">
                     <Button variant="outline" asChild className="gap-2">
