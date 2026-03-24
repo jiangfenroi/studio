@@ -8,7 +8,6 @@ import {
   FileCheck, 
   TrendingUp,
   AlertCircle,
-  CheckCircle2,
   Calendar
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -19,7 +18,7 @@ import {
   ChartLegend,
   ChartLegendContent
 } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Cell, Pie, PieChart } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from "recharts"
 
 const summaryData = [
   { label: "今日新增", value: "12", icon: ShieldAlert, color: "text-primary" },
@@ -63,7 +62,17 @@ const chartConfig = {
 
 export default function Home() {
   const [mounted, setMounted] = React.useState(false)
-  React.useEffect(() => setMounted(true), [])
+  const [currentDate, setCurrentDate] = React.useState("")
+
+  React.useEffect(() => {
+    setMounted(true)
+    setCurrentDate(new Date().toLocaleDateString('zh-CN', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric', 
+      weekday: 'long' 
+    }))
+  }, [])
 
   if (!mounted) return null
 
@@ -72,7 +81,7 @@ export default function Home() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">系统概览</h1>
-          <p className="text-muted-foreground">欢迎回来，今天是 {new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p>
+          <p className="text-muted-foreground">欢迎回来，今天是 {currentDate}</p>
         </div>
         <div className="flex gap-2">
           <Card className="flex items-center px-4 py-2 border-primary/20 bg-primary/5">
