@@ -2,7 +2,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* 移除引起错误的 experimental 键，保持标准配置 */
   typescript: {
     ignoreBuildErrors: true,
   },

@@ -36,7 +36,7 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
         anomalyCategory: record.anomalyCategory,
         anomalyDetails: record.anomalyDetails,
         disposalSuggestions: record.disposalSuggestions,
-        // 告知与宣教核心字段
+        // 告知与宣教核心字段补全
         notifiedPerson: record.notifiedPerson || '',
         notifier: record.notifier || '',
         notificationDate: record.notificationDate || '',
