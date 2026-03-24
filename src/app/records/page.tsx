@@ -12,11 +12,7 @@ import {
   Eye, 
   Plus,
   FileText,
-  Phone,
-  User,
-  Calendar,
-  ClipboardList,
-  CheckCircle2
+  ClipboardList
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -40,7 +36,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
 import {
@@ -78,11 +73,13 @@ export default function RecordsPage() {
   const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
   const { data: records, isLoading } = useCollection(recordsQuery)
 
-  const filteredRecords = (records || []).filter(r => 
-    (r.notifiedPerson?.includes(searchTerm) || 
-     r.archiveNo?.includes(searchTerm) || 
-     r.examNo?.includes(searchTerm))
-  )
+  const filteredRecords = React.useMemo(() => {
+    return (records || []).filter(r => 
+      (r.notifiedPerson?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       r.archiveNo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       r.examNo?.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+  }, [records, searchTerm])
 
   const editForm = useForm({
     resolver: zodResolver(editSchema),
@@ -96,14 +93,15 @@ export default function RecordsPage() {
   React.useEffect(() => {
     if (editingRecord) {
       editForm.reset({
-        details: editingRecord.details,
-        disposalAdvice: editingRecord.disposalAdvice,
+        details: editingRecord.details || "",
+        disposalAdvice: editingRecord.disposalAdvice || "",
         feedback: editingRecord.feedback || "",
       })
     }
   }, [editingRecord, editForm])
 
   const handleEditSave = (values: any) => {
+    if (!editingRecord) return
     const recordRef = doc(db, `patientProfiles/${editingRecord.patientProfileId}/medicalAnomalyRecords`, editingRecord.id)
     updateDocumentNonBlocking(recordRef, values)
     setEditingRecord(null)
@@ -119,18 +117,26 @@ export default function RecordsPage() {
   }
 
   const handleExportCSV = () => {
-    if (!records || records.length === 0) return
+    if (filteredRecords.length === 0) {
+      toast({ title: "无可导出数据", variant: "destructive" })
+      return
+    }
     const headers = ["体检日期", "档案编号", "姓名", "体检号", "异常分类", "详情", "处置意见", "通知人"]
     const rows = filteredRecords.map(r => [
       r.examDate, r.archiveNo, r.notifiedPerson, r.examNo, r.category, 
-      r.details.replace(/,/g, "，"), r.disposalAdvice.replace(/,/g, "，"), r.notifier
+      `"${(r.details || "").replace(/"/g, '""')}"`, 
+      `"${(r.disposalAdvice || "").replace(/"/g, '""')}"`, 
+      r.notifier
     ])
     const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n")
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = `异常结果统计_${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
+    toast({ title: "导出成功", description: "CSV 文件已开始下载。" })
   }
 
   return (
@@ -215,10 +221,10 @@ export default function RecordsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem className="gap-2" onClick={() => setSelectedRecord(record)}>
+                        <DropdownMenuItem className="gap-2" onSelect={() => setSelectedRecord(record)}>
                           <ClipboardList className="size-4" /> 查看完整详情
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2" onClick={() => setEditingRecord(record)}>
+                        <DropdownMenuItem className="gap-2" onSelect={() => setEditingRecord(record)}>
                           <Edit className="size-4" /> 修改记录
                         </DropdownMenuItem>
                         <DropdownMenuItem className="gap-2 text-primary" asChild>
@@ -227,7 +233,7 @@ export default function RecordsPage() {
                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-2 text-destructive" onClick={() => handleDelete(record)}>
+                        <DropdownMenuItem className="gap-2 text-destructive" onSelect={() => handleDelete(record)}>
                           <Trash2 className="size-4" /> 删除该记录
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -266,11 +272,11 @@ export default function RecordsPage() {
             <div className="space-y-4">
               <div className="space-y-1">
                 <p className="text-sm font-bold text-destructive">异常详情</p>
-                <ScrollArea className="h-[100px] border p-3 rounded bg-white text-xs">{selectedRecord?.details}</ScrollArea>
+                <ScrollArea className="h-[100px] border p-3 rounded bg-white text-xs whitespace-pre-wrap">{selectedRecord?.details}</ScrollArea>
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-bold text-amber-600">处置意见</p>
-                <ScrollArea className="h-[100px] border p-3 rounded bg-white text-xs">{selectedRecord?.disposalAdvice}</ScrollArea>
+                <ScrollArea className="h-[100px] border p-3 rounded bg-white text-xs whitespace-pre-wrap">{selectedRecord?.disposalAdvice}</ScrollArea>
               </div>
             </div>
           </div>
@@ -290,7 +296,7 @@ export default function RecordsPage() {
                 <FormItem><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={editForm.control} name="feedback" render={({ field }) => (
-                <FormItem><FormLabel>患者反馈</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>告知反馈</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditingRecord(null)}>取消</Button>

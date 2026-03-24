@@ -4,15 +4,11 @@
 import * as React from "react"
 import { 
   Save, 
-  HardDrive, 
-  FolderOpen, 
   ShieldCheck, 
-  Info, 
   Loader2, 
   Monitor, 
   Database, 
   Users, 
-  Link as LinkIcon,
   Plus,
   Trash2,
   Edit,
@@ -22,7 +18,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -58,20 +53,16 @@ export default function SettingsPage() {
   const db = useFirestore()
   const { toast } = useToast()
   
-  // System Config State
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: config } = useDoc(configRef)
   
-  // User Management State
   const staffQuery = useMemoFirebase(() => collection(db, "staffProfiles"), [db])
   const { data: staffMembers } = useCollection(staffQuery)
   
-  // Local UI States
   const [activeTab, setActiveTab] = React.useState("general")
   const [testing, setTesting] = React.useState(false)
   const [editingUser, setEditingUser] = React.useState<any | null>(null)
   
-  // Form States (Local sync with config)
   const [formData, setFormData] = React.useState({
     appName: "",
     appLogoFileName: "",
@@ -138,11 +129,11 @@ export default function SettingsPage() {
       name: "新员工",
       email: "staff@hospital.com",
       role: "医生",
-      jobId: "待设置",
+      jobId: `STAFF-${Date.now().toString().slice(-4)}`,
       status: "在职"
     }
     addDocumentNonBlocking(collection(db, "staffProfiles"), newUser)
-    toast({ title: "已增加新账号占位", description: "请在列表中修改工号及具体信息。" })
+    toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。" })
   }
 
   const handleDeleteUser = (id: string) => {
@@ -374,7 +365,6 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* User Edit Dialog */}
       <Dialog open={!!editingUser} onOpenChange={o => !o && setEditingUser(null)}>
         <DialogContent>
           <DialogHeader>
@@ -382,12 +372,11 @@ export default function SettingsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">工号 (自定义)</Label>
+              <Label className="text-right">工号</Label>
               <Input 
                 value={editingUser?.jobId} 
                 onChange={e => setEditingUser({...editingUser, jobId: e.target.value})}
                 className="col-span-3 font-mono" 
-                placeholder="例如：HOSP-001"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -433,9 +422,11 @@ export default function SettingsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingUser(null)}>取消</Button>
             <Button onClick={() => {
-              updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
-              setEditingUser(null)
-              toast({ title: "账户信息已同步" })
+              if (editingUser) {
+                updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
+                setEditingUser(null)
+                toast({ title: "账户信息已同步" })
+              }
             }}>
               保存修改
             </Button>

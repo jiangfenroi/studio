@@ -58,7 +58,6 @@ import * as z from "zod"
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
 
-// Patient Schema for Editing
 const patientSchema = z.object({
   id: z.string().min(1, "档案编号不能为空"),
   name: z.string().min(1, "姓名不能为空"),
@@ -97,9 +96,17 @@ export default function PatientsPage() {
     },
   })
 
-  const filteredPatients = (patients || []).filter(p => 
-    p.name?.includes(searchTerm) || p.id?.includes(searchTerm) || p.phoneNumber?.includes(searchTerm) || p.idNumber?.includes(searchTerm)
-  )
+  const filteredPatients = React.useMemo(() => {
+    return (patients || []).filter(p => {
+      const search = searchTerm.toLowerCase();
+      return (
+        p.name?.toLowerCase().includes(search) || 
+        p.id?.toLowerCase().includes(search) || 
+        p.phoneNumber?.toLowerCase().includes(search) || 
+        p.idNumber?.toLowerCase().includes(search)
+      )
+    })
+  }, [patients, searchTerm])
 
   const handleEdit = (patient: any) => {
     setEditingPatient(patient)
@@ -117,7 +124,7 @@ export default function PatientsPage() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("确定要永久删除该患者档案吗？此操作不可逆。")) {
+    if (confirm("确定要永久删除该患者档案吗？此操作不可逆，将同时删除该患者的所有诊疗记录。")) {
       const patientRef = doc(db, "patientProfiles", id)
       deleteDocumentNonBlocking(patientRef)
       toast({
@@ -128,10 +135,13 @@ export default function PatientsPage() {
   }
 
   const handleExportCSV = () => {
-    if (!patients || patients.length === 0) return
+    if (filteredPatients.length === 0) {
+      toast({ title: "无可导出数据", variant: "destructive" })
+      return
+    }
     const headers = ["档案编号", "姓名", "性别", "年龄", "身份证", "电话", "单位", "状态"]
-    const rows = patients.map(p => [
-      p.id, p.name, p.gender, p.age, p.idNumber, p.phoneNumber, p.organization || "-", p.status
+    const rows = filteredPatients.map(p => [
+      p.id, p.name, p.gender, p.age, p.idNumber, p.phoneNumber, `"${(p.organization || "-").replace(/"/g, '""')}"`, p.status
     ])
     const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n")
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
@@ -139,7 +149,10 @@ export default function PatientsPage() {
     const link = document.createElement("a")
     link.href = url
     link.download = `患者档案_${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
+    toast({ title: "导出成功", description: "档案 CSV 已生成。" })
   }
 
   return (
@@ -228,14 +241,14 @@ export default function PatientsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem className="gap-2" onClick={() => handleEdit(patient)}>
+                        <DropdownMenuItem className="gap-2" onSelect={() => handleEdit(patient)}>
                           <Edit className="size-4" /> 修改资料
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2" onClick={() => toast({ title: "正在生成", description: "PDF 导出任务已加入队列。" })}>
+                        <DropdownMenuItem className="gap-2" onSelect={() => toast({ title: "正在生成", description: "PDF 导出任务已加入队列。" })}>
                           <Download className="size-4" /> 导出PDF
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-2 text-destructive" onClick={() => handleDelete(patient.id)}>
+                        <DropdownMenuItem className="gap-2 text-destructive" onSelect={() => handleDelete(patient.id)}>
                           <Trash2 className="size-4" /> 删除档案
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -249,11 +262,6 @@ export default function PatientsPage() {
         {filteredPatients.length === 0 && !isLoading && (
           <div className="py-20 text-center text-muted-foreground">
             未找到匹配的档案记录
-          </div>
-        )}
-        {isLoading && (
-          <div className="py-20 text-center text-muted-foreground">
-            正在读取云端档案...
           </div>
         )}
       </div>
