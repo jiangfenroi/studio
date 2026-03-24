@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "medical-hero",
+      "description": "Professional medical data background",
+      "imageUrl": "https://picsum.photos/seed/health1/1200/400",
+      "imageHint": "medical laboratory"
+    },
+    {
+      "id": "avatar-doctor",
+      "description": "Doctor avatar",
+      "imageUrl": "https://picsum.photos/seed/doc1/100/100",
+      "imageHint": "doctor avatar"
+    }
+  ]
+}
