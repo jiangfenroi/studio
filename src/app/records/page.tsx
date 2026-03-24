@@ -4,7 +4,6 @@
 import * as React from "react"
 import { 
   Search, 
-  Filter, 
   Download, 
   MoreVertical, 
   Edit, 
@@ -92,7 +91,7 @@ export default function RecordsPage() {
   const joinedRecords = React.useMemo(() => {
     if (!rawRecords) return []
     return rawRecords
-      .filter(r => r.anomalyCategory)
+      .filter(r => r.anomalyCategory) // Filter for primary discoveries
       .map(record => {
         const patient = patients?.find(p => p.id === record.patientProfileId)
         return {
@@ -192,7 +191,6 @@ export default function RecordsPage() {
               <TableHead className="font-bold">体检编号</TableHead>
               <TableHead className="font-bold">异常种类</TableHead>
               <TableHead className="font-bold">异常详情 (摘要)</TableHead>
-              <TableHead className="font-bold">通知人</TableHead>
               <TableHead className="font-bold text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -219,7 +217,6 @@ export default function RecordsPage() {
                     {record.anomalyDetails}
                   </p>
                 </TableCell>
-                <TableCell className="text-sm font-medium">{record.notifier}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button variant="ghost" size="icon" className="size-8" onClick={() => setSelectedRecord(record)}>

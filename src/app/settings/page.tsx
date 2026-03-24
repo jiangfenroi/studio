@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react"
@@ -158,6 +159,7 @@ export default function SettingsPage() {
   const handleConfirmDeleteUser = () => {
     if (!userToDelete) return
 
+    // Prevent deletion of root admin 1058
     if (userToDelete.jobId === '1058') {
       toast({
         variant: "destructive",
@@ -168,6 +170,7 @@ export default function SettingsPage() {
       return
     }
 
+    // Prevent self-deletion
     if (user?.email === userToDelete.email) {
       toast({
         variant: "destructive",
@@ -192,6 +195,7 @@ export default function SettingsPage() {
 
     updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
 
+    // Handle password change if provided and it matches the current user context
     if (newPassword && user && (user.email === editingUser.email || user.email?.startsWith(`${editingUser.jobId}@`))) {
       try {
         await updatePassword(user, newPassword)
