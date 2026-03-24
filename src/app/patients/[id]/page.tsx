@@ -17,7 +17,8 @@ import {
   PlusCircle,
   Clock,
   MoreVertical,
-  Trash2
+  Trash2,
+  AlertCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,6 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function PatientProfilePage() {
   const params = useParams()
@@ -90,22 +92,35 @@ export default function PatientProfilePage() {
     }
   }
 
-  if (isPatientLoading) {
+  // Show loading only during initial auth/fetch
+  if (isPatientLoading && !allRecords) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Activity className="size-10 text-primary animate-pulse" />
+          <Activity className="size-10 text-primary animate-spin" />
           <p className="text-sm text-muted-foreground">正在调取电子病历...</p>
         </div>
       </div>
     )
   }
 
-  if (!patient) {
+  // If no patient profile AND no records, then it's truly not found
+  if (!patient && (!allRecords || allRecords.length === 0)) {
     return (
-      <div className="p-8 text-center">
-        <h2 className="text-xl font-bold">未找到档案</h2>
-        <Button onClick={() => router.back()} className="mt-4">返回列表</Button>
+      <div className="p-20 text-center flex flex-col items-center gap-6">
+        <div className="p-4 bg-muted rounded-full">
+          <AlertCircle className="size-12 text-muted-foreground" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">未找到临床档案</h2>
+          <p className="text-muted-foreground text-sm max-w-xs">
+            系统未检索到档案编号为 <span className="font-mono font-bold text-primary">[{id}]</span> 的任何登记信息或临床记录。
+          </p>
+        </div>
+        <Button onClick={() => router.back()} variant="outline" className="gap-2">
+          <ArrowLeft className="size-4" />
+          返回列表
+        </Button>
       </div>
     )
   }
@@ -139,11 +154,11 @@ export default function PatientProfilePage() {
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>录入随访记录 - {patient.name}</DialogTitle>
+                <DialogTitle>录入随访记录 - {patient?.name || '未命名患者'}</DialogTitle>
               </DialogHeader>
               <FollowUpForm 
                 archiveNo={id} 
-                patientName={patient.name} 
+                patientName={patient?.name || "未补录患者"} 
                 anomalyRecordId={clinicalTimeline.find(r => r.type === 'abnormal')?.id || "unknown"}
                 onSuccess={() => {
                   setIsFollowUpOpen(false)
@@ -153,12 +168,24 @@ export default function PatientProfilePage() {
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" className="gap-2">
-            <BadgeCheck className="size-4" />
-            修改基本资料
+          <Button variant="outline" className="gap-2" asChild>
+            <Link href="/patients">
+              <BadgeCheck className="size-4" />
+              进入档案库补录
+            </Link>
           </Button>
         </div>
       </header>
+
+      {!patient?.name && (
+        <Alert className="bg-amber-50 border-amber-200 text-amber-800">
+          <AlertCircle className="size-4 text-amber-600" />
+          <AlertTitle className="font-bold">基本信息缺失</AlertTitle>
+          <AlertDescription>
+            该档案目前仅有临床登记记录，尚未补充人口学基本信息（姓名、性别等）。请在空闲时进入档案中心进行补录。
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1 space-y-6">
@@ -168,11 +195,13 @@ export default function PatientProfilePage() {
                 <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-4 ring-4 ring-white shadow-sm">
                   <User className="size-12 text-primary" />
                 </div>
-                <h2 className="text-2xl font-bold">{patient.name}</h2>
+                <h2 className="text-2xl font-bold">{patient?.name || "待补录患者"}</h2>
                 <div className="flex gap-2 mt-2">
-                  <Badge variant="outline" className="bg-white">{patient.gender} / {patient.age}岁</Badge>
-                  <Badge className={patient.status === '正常' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500'}>
-                    {patient.status}
+                  <Badge variant="outline" className="bg-white">
+                    {patient?.gender || "未知"} / {patient?.age || "--"}岁
+                  </Badge>
+                  <Badge className={patient?.status === '正常' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500'}>
+                    {patient?.status || "状态未知"}
                   </Badge>
                 </div>
               </div>
@@ -183,14 +212,14 @@ export default function PatientProfilePage() {
                   <div className="size-4 text-muted-foreground mt-1" />
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">身份证号</p>
-                    <p className="text-sm font-mono">{patient.idNumber}</p>
+                    <p className="text-sm font-mono">{patient?.idNumber || "未登记"}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Building className="size-4 text-muted-foreground mt-1" />
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">所属单位</p>
-                    <p className="text-sm">{patient.organization || "个人档案"}</p>
+                    <p className="text-sm">{patient?.organization || "个人档案"}</p>
                   </div>
                 </div>
               </div>
@@ -270,7 +299,7 @@ export default function PatientProfilePage() {
                             {event.category}类异常
                           </Badge>
                         )}
-                        {event.followUpPerson && (
+                        {(event.followUpPerson || event.notifier) && (
                           <div className="flex items-center gap-2 mt-4 text-[10px] text-muted-foreground font-medium uppercase">
                             <User className="size-3" />
                             记录人: {event.followUpPerson || event.notifier}
@@ -302,3 +331,4 @@ export default function PatientProfilePage() {
     </div>
   )
 }
+import Link from "next/link"
