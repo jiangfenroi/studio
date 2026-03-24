@@ -4,12 +4,10 @@ service cloud.firestore {
 
     /**
      * MEDICAL ANOMALY RESULT MANAGEMENT SYSTEM - SECURITY POSTURE
-     *
-     * Core Philosophy: 
-     * This ruleset implements a Database-Backed Access Control (DBAC) model for a clinical environment. 
      * 
-     * Prototype Mode:
-     * For this prototype, 'isMedicalStaff' is relaxed to any signed-in user.
+     * Core Philosophy: 
+     * This ruleset implements access control for a clinical environment.
+     * In prototype mode, 'isMedicalStaff' is relaxed to any signed-in user (including anonymous).
      */
 
     // --- Helper Functions ---
@@ -32,16 +30,7 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     /**
-     * @description Collection for storing user roles.
-     */
-    match /roles_medicalStaff/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isMedicalStaff();
-      allow create, update, delete: if false; 
-    }
-
-    /**
-     * @description Global system settings. Public read allowed for initial app config loading.
+     * @description Global system settings. Public read allowed so app can load config immediately.
      */
     match /systemConfig/{configId} {
       allow get: if true;
@@ -63,8 +52,7 @@ service cloud.firestore {
     match /patientProfiles/{patientProfileId} {
       allow get, list: if isMedicalStaff();
       allow create: if isMedicalStaff();
-      allow update: if isExistingMedicalStaff();
-      allow delete: if isExistingMedicalStaff();
+      allow update, delete: if isExistingMedicalStaff();
 
       /**
        * @description Records of significant abnormal results for a specific patient.
@@ -72,17 +60,16 @@ service cloud.firestore {
       match /medicalAnomalyRecords/{medicalAnomalyRecordId} {
         allow get, list: if isMedicalStaff();
         allow create: if isMedicalStaff();
-        allow update: if isExistingMedicalStaff();
-        allow delete: if isExistingMedicalStaff();
-
-        /**
-         * @description Metadata for medical report files nested within anomaly records.
-         */
-        match /medicalReportFiles/{medicalReportFileId} {
-          allow get, list: if isMedicalStaff();
-          allow create, update, delete: if isMedicalStaff();
-        }
+        allow update, delete: if isExistingMedicalStaff();
       }
+    }
+
+    /**
+     * @description Collection Group support for medicalAnomalyRecords.
+     * Required for cross-patient reporting and statistics.
+     */
+    match /{path=**}/medicalAnomalyRecords/{medicalAnomalyRecordId} {
+      allow list: if isMedicalStaff();
     }
   }
 }
