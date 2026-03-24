@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, Settings, Server, UserCheck, Save, UserPlus, Loader2 } from 'lucide-react';
+import { ShieldAlert, LogIn, Settings, UserPlus, Loader2, KeyRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,6 +15,9 @@ import { doc, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { syncStaffToMysql, syncConfigToMysql } from '@/app/actions/mysql-sync';
+
+// 系统预设注册授权码
+const SYSTEM_AUTH_CODE = "HEALTH-INSIGHT-2025";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -26,6 +29,7 @@ export default function LoginPage() {
   const [jobId, setJobId] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [name, setName] = React.useState(''); 
+  const [authCode, setAuthCode] = React.useState('');
   const [activeTab, setActiveTab] = React.useState('login');
   const [isLoading, setIsLoading] = React.useState(false);
   
@@ -67,6 +71,16 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !jobId || !password || !name) return;
     
+    // 校验特定授权编码
+    if (authCode !== SYSTEM_AUTH_CODE) {
+      toast({
+        variant: "destructive",
+        title: "授权码错误",
+        description: "请输入有效的系统验证编码以完成注册。请联系中心管理员获取。",
+      });
+      return;
+    }
+
     setIsLoading(true);
     const internalEmail = `${jobId}@meditrack.local`;
     
@@ -161,19 +175,32 @@ export default function LoginPage() {
               <form onSubmit={handleJobIdSignUp} className="space-y-4">
                 <div className="space-y-2">
                   <Label>姓名</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} required />
+                  <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="请输入您的真实姓名" />
                 </div>
                 <div className="space-y-2">
                   <Label>工号</Label>
-                  <Input value={jobId} onChange={(e) => setJobId(e.target.value)} required />
+                  <Input value={jobId} onChange={(e) => setJobId(e.target.value)} required placeholder="例如：1058" />
                 </div>
                 <div className="space-y-2">
                   <Label>设置密码</Label>
                   <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-primary">
+                    <KeyRound className="size-3" /> 系统授权码
+                  </Label>
+                  <Input 
+                    type="text" 
+                    value={authCode} 
+                    onChange={(e) => setAuthCode(e.target.value)} 
+                    required 
+                    placeholder="请输入授权验证编码"
+                    className="border-primary/30"
+                  />
+                </div>
                 <Button type="submit" variant="secondary" className="w-full h-12 mt-4 shadow-md" disabled={isLoading}>
                   {isLoading ? <Loader2 className="animate-spin" /> : <UserPlus className="mr-2" />}
-                  创建账户
+                  确认注册
                 </Button>
               </form>
             </TabsContent>
