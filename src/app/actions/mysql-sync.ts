@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview MySQL 数据同步核心引擎 (增强型)
- * 采用异步非阻塞逻辑，确保即使 MySQL 离线，前端功能依然完整。
+ * @fileOverview MySQL 数据同步核心引擎
+ * 确保所有临床告知与宣教字段完整同步至业务库。
  */
 
 import mysql from 'mysql2/promise';
@@ -15,8 +15,52 @@ async function getConnection(config: any) {
     user: config.user || 'medi_admin',
     password: config.password || 'AdminPassword123',
     database: config.database || 'meditrack_db',
-    connectTimeout: 5000, // 5秒超时，防止阻塞
+    connectTimeout: 5000,
   });
+}
+
+/**
+ * 同步重要异常结果 (SP_YCJG) - 包含所有告知细节
+ */
+export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
+  if (!config || !config.host) return;
+  let connection;
+  try {
+    connection = await getConnection(config);
+    if (operation === 'SAVE') {
+      const data = {
+        id: record.id,
+        patientProfileId: record.patientProfileId,
+        checkupNumber: record.checkupNumber || record.examNo,
+        checkupDate: record.checkupDate || record.examDate,
+        anomalyCategory: record.anomalyCategory,
+        anomalyDetails: record.anomalyDetails,
+        disposalSuggestions: record.disposalSuggestions,
+        // 告知与宣教核心字段
+        notifiedPerson: record.notifiedPerson || '',
+        notifier: record.notifier || '',
+        notificationDate: record.notificationDate || '',
+        notificationTime: record.notificationTime || '',
+        isNotified: record.isNotified ? 1 : 0,
+        isHealthEducationProvided: record.isHealthEducationProvided ? 1 : 0,
+        notifiedPersonFeedback: record.notifiedPersonFeedback || '',
+        isClosed: record.isClosed ? 1 : 0
+      };
+      const keys = Object.keys(data);
+      const values = Object.values(data);
+      const placeholders = keys.map(() => '?').join(', ');
+      const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
+      
+      const sql = `INSERT INTO SP_YCJG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
+      await connection.execute(sql, values);
+    } else {
+      await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [record.id]);
+    }
+  } catch (err) {
+    console.error('MySQL Sync Error (Anomaly):', err);
+  } finally {
+    if (connection) await connection.end();
+  }
 }
 
 /**
@@ -51,49 +95,6 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
     }
   } catch (err) {
     console.error('MySQL Sync Error (Patient):', err);
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-/**
- * 同步重要异常结果 (SP_YCJG)
- */
-export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
-  if (!config || !config.host) return;
-  let connection;
-  try {
-    connection = await getConnection(config);
-    if (operation === 'SAVE') {
-      const data = {
-        id: record.id,
-        patientProfileId: record.patientProfileId,
-        checkupNumber: record.checkupNumber || record.examNo,
-        checkupDate: record.checkupDate || record.examDate,
-        anomalyCategory: record.anomalyCategory,
-        anomalyDetails: record.anomalyDetails,
-        disposalSuggestions: record.disposalSuggestions,
-        notifiedPerson: record.notifiedPerson || '',
-        notifier: record.notifier,
-        notificationDate: record.notificationDate,
-        notificationTime: record.notificationTime,
-        isNotified: record.isNotified ? 1 : 0,
-        isHealthEducationProvided: record.isHealthEducationProvided ? 1 : 0,
-        notifiedPersonFeedback: record.notifiedPersonFeedback || '',
-        isClosed: record.isClosed ? 1 : 0
-      };
-      const keys = Object.keys(data);
-      const values = Object.values(data);
-      const placeholders = keys.map(() => '?').join(', ');
-      const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      
-      const sql = `INSERT INTO SP_YCJG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
-      await connection.execute(sql, values);
-    } else {
-      await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [record.id]);
-    }
-  } catch (err) {
-    console.error('MySQL Sync Error (Anomaly):', err);
   } finally {
     if (connection) await connection.end();
   }
