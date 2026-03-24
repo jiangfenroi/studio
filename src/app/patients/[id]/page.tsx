@@ -20,7 +20,8 @@ import {
   AlertCircle,
   MapPin,
   Phone,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -88,7 +89,7 @@ export default function PatientProfilePage() {
     if (!allRecords) return []
     return allRecords.map(record => ({
       ...record,
-      type: record.category ? 'abnormal' : 'followup'
+      type: record.anomalyCategory ? 'abnormal' : 'followup'
     }))
   }, [allRecords])
 
@@ -265,40 +266,72 @@ export default function PatientProfilePage() {
                       {event.type === 'abnormal' ? <Stethoscope className="size-4 text-white" /> : <ClipboardCheck className="size-4 text-white" />}
                     </div>
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50 hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="flex justify-between items-start mb-4">
                         <div className="flex flex-col gap-1">
                           <h4 className="text-xl font-bold">
-                            {event.type === 'abnormal' ? (event.details?.split('\n')[0] || '异常登记') : '随访记录'}
+                            {event.type === 'abnormal' ? '重要异常结果发现' : '临床随访记录'}
                           </h4>
                           <span className="text-xs text-muted-foreground font-mono">
-                            {event.examDate || event.followUpDate}
+                            发生日期：{event.examDate || event.followUpDate}
                           </span>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="size-8">
-                              <MoreVertical className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                              className="text-destructive gap-2"
-                              onSelect={() => setRecordToDelete({id: event.id, type: event.type})}
-                            >
-                              <Trash2 className="size-4" />
-                              删除此条记录
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="flex items-center gap-2">
+                          {event.anomalyCategory && (
+                            <Badge variant={event.anomalyCategory === 'A' ? 'destructive' : 'secondary'}>
+                              {event.anomalyCategory}类异常
+                            </Badge>
+                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="size-8">
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                className="text-destructive gap-2"
+                                onSelect={() => setRecordToDelete({id: event.id, type: event.type})}
+                              >
+                                <Trash2 className="size-4" />
+                                删除此条记录
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                      <p className="text-muted-foreground text-sm leading-relaxed mb-4 whitespace-pre-wrap">
-                        {event.details || event.followUpResult}
-                      </p>
-                      {event.category && (
-                        <Badge variant={event.category === 'A' ? 'destructive' : 'secondary'}>
-                          {event.category}类异常
-                        </Badge>
-                      )}
+
+                      <div className="space-y-4">
+                        <div className="p-4 bg-muted/20 rounded-lg">
+                          <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">医学详情</p>
+                          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                            {event.anomalyDetails || event.followUpResult}
+                          </p>
+                        </div>
+                        
+                        {event.type === 'abnormal' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-3 border rounded-lg bg-blue-50/30">
+                              <p className="text-[10px] text-blue-600 uppercase font-bold mb-1">处置意见</p>
+                              <p className="text-xs">{event.disposalSuggestions}</p>
+                            </div>
+                            <div className="p-3 border rounded-lg bg-amber-50/30">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-[10px] text-amber-600 uppercase font-bold">初始告知反馈</p>
+                                <Badge variant="outline" className="text-[8px] h-4 bg-white">
+                                  {event.notificationDate}
+                                </Badge>
+                              </div>
+                              <p className="text-xs">{event.notifiedPersonFeedback || "登记时未录入反馈"}</p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {event.type === 'followup' && event.isClosureRecord && (
+                          <Badge className="bg-green-500 hover:bg-green-600 gap-1">
+                            <BadgeCheck className="size-3" /> 临床随访结案
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

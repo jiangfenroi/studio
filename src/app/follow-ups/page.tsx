@@ -38,18 +38,18 @@ export default function FollowUpsPage() {
     if (!allRecords || !patients) return { pending: [], closed: [] }
 
     const today = startOfDay(new Date())
-    const anomalies = allRecords.filter(r => r.category) 
+    const anomalies = allRecords.filter(r => r.anomalyCategory) 
     const followUps = allRecords.filter(r => r.associatedAnomalyId)
 
     const processed = anomalies.map(anomaly => {
       const patient = patients.find(p => p.id === anomaly.patientProfileId)
       const history = followUps.filter(f => f.associatedAnomalyId === anomaly.id)
       
-      const noticeDate = anomaly.noticeDate ? parseISO(anomaly.noticeDate) : null
+      const notificationDate = anomaly.notificationDate ? parseISO(anomaly.notificationDate) : null
       const examDate = anomaly.examDate ? parseISO(anomaly.examDate) : null
       const nextDate = anomaly.nextFollowUpDate ? parseISO(anomaly.nextFollowUpDate) : null
       
-      const isSevenDaysPassed = noticeDate ? isAfter(today, addDays(noticeDate, 7)) : false
+      const isSevenDaysPassed = notificationDate ? isAfter(today, addDays(notificationDate, 7)) : false
       const isOneYearPassed = examDate ? isAfter(today, addYears(examDate, 1)) : false
       const isNextDateReached = nextDate ? isAfter(today, nextDate) : false
 
@@ -58,7 +58,8 @@ export default function FollowUpsPage() {
       let isTaskPending = false
       let reason = ""
 
-      if (!anomaly.isNotified && patient?.status !== '死亡') {
+      // Logic: If not closed, check if conditions are met to become pending
+      if (!anomaly.isClosed && patient?.status !== '死亡') {
         if (isOneYearPassed) {
           isTaskPending = true
           reason = "年度定期随访"
@@ -87,7 +88,7 @@ export default function FollowUpsPage() {
 
     return {
       pending: filtered.filter(t => t.isTaskPending),
-      closed: filtered.filter(t => t.isNotified || t.patient?.status === '死亡')
+      closed: filtered.filter(t => t.isClosed || t.patient?.status === '死亡')
     }
   }, [allRecords, patients, searchTerm])
 
@@ -138,11 +139,11 @@ export default function FollowUpsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-[10px] text-muted-foreground font-bold uppercase">体检编号</p>
-                        <p>{task.examNo}</p>
+                        <p>{task.checkupNumber}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground font-bold uppercase">异常详情</p>
-                        <p className="line-clamp-1">{task.details}</p>
+                        <p className="line-clamp-1">{task.anomalyDetails}</p>
                       </div>
                     </div>
                   </div>

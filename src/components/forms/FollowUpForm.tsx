@@ -53,12 +53,10 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
   const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string, category: string, checkDate: string}[]>([])
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Fetch system config for path
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: systemConfig } = useDoc(configRef)
   const basePath = systemConfig?.pdfStoragePath || "//172.17.126.18/e:/pic"
 
-  // Fetch staff profile to get the real name for followUpPerson
   const staffQuery = useMemoFirebase(() => collection(db, "staffProfiles"), [db])
   const { data: staff } = useCollection(staffQuery)
   
@@ -82,7 +80,6 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
     },
   })
 
-  // Update followUpPerson when staff data is loaded
   React.useEffect(() => {
     if (currentStaff?.name) {
       form.setValue("followUpPerson", currentStaff.name)
@@ -114,11 +111,9 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
     const isValid = await form.trigger()
     if (!isValid) return
 
-    // 1. Create Follow-up Interaction Record (History item)
     const interactionId = `followup_${Date.now()}`
     const followUpRef = doc(db, `patientProfiles/${archiveNo}/medicalAnomalyRecords`, interactionId)
     
-    // Calculate Next Follow Up Date if specified
     let nextFollowUpDate = ""
     if (values.nextFollowUpInterval !== "none") {
       const baseDate = new Date()
@@ -137,16 +132,14 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
       createdAt: new Date().toISOString()
     }, { merge: true })
 
-    // 2. Update the parent Anomaly Record's Lifecycle
     const parentRecordRef = doc(db, `patientProfiles/${archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
     updateDocumentNonBlocking(parentRecordRef, {
-      isNotified: shouldCloseCase, // Closed if shouldCloseCase is true
+      isClosed: shouldCloseCase,
       nextFollowUpDate: nextFollowUpDate,
       lastFollowUpAt: new Date().toISOString(),
       lastFollowUpResult: values.followUpResult
     })
 
-    // 3. Create File Metadata Records
     for (const file of uploadedFiles) {
       const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
       const fileData = {
@@ -173,7 +166,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
           <AlertTitle className="text-primary font-bold">临床随访上下文</AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
             正在为档案 <span className="font-bold text-foreground">[{archiveNo}] {patientName}</span> 录入随访。
-            录入结果后，系统将更新该条异常结果的生命周期。
+            结案后，该异常结果将不再出现在待办列表中，直至达到下个周期。
           </AlertDescription>
         </Alert>
 
@@ -183,7 +176,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
               <User className="size-5 text-primary" />
               随访核心信息
             </CardTitle>
-            <CardDescription>请输入回访反馈详情。系统将自动记录记录人及时间。</CardDescription>
+            <CardDescription>请输入回访反馈详情。此记录将被计为一条正式随访。</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <FormField control={form.control} name="followUpPerson" render={({ field }) => (
@@ -211,7 +204,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
             <div className="col-span-full">
               <FormField control={form.control} name="followUpResult" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>随访情况反馈 (结案/进展描述)</FormLabel>
+                  <FormLabel>随访情况反馈 (正式记录)</FormLabel>
                   <FormControl><Textarea placeholder="请输入详细的医疗随访描述..." className="min-h-[120px]" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -307,7 +300,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
         <div className="flex justify-end gap-4 pb-10">
           <Button type="button" variant="outline" size="lg" onClick={() => handleAction(false)} className="gap-2 border-primary text-primary hover:bg-primary/5">
             <Save className="size-4" />
-            保存并继续随访 (未结案)
+            保存随访 (暂不结案)
           </Button>
           <Button type="button" size="lg" onClick={() => handleAction(true)} className="px-12 gap-2 shadow-xl bg-primary">
             <CheckCircle2 className="size-5" />

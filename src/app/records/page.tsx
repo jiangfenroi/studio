@@ -70,9 +70,9 @@ import * as z from "zod"
 import { useToast } from "@/hooks/use-toast"
 
 const editSchema = z.object({
-  details: z.string().min(1, "详情不能为空"),
-  disposalAdvice: z.string().min(1, "处置意见不能为空"),
-  feedback: z.string().optional(),
+  anomalyDetails: z.string().min(1, "详情不能为空"),
+  disposalSuggestions: z.string().min(1, "处置意见不能为空"),
+  notifiedPersonFeedback: z.string().optional(),
 })
 
 export default function RecordsPage() {
@@ -83,51 +83,51 @@ export default function RecordsPage() {
   const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
   const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
 
-  // Fetch all anomaly records
   const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
   const { data: rawRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
 
-  // Fetch all patient profiles to join demographics
   const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
   const { data: patients } = useCollection(patientsQuery)
 
   const joinedRecords = React.useMemo(() => {
     if (!rawRecords) return []
-    return rawRecords.map(record => {
-      const patient = patients?.find(p => p.id === record.patientProfileId)
-      return {
-        ...record,
-        patientName: patient?.name || "未补录",
-        patientGender: patient?.gender || "-",
-        patientAge: patient?.age || "-",
-        patientPhone: patient?.phoneNumber || "-",
-      }
-    })
+    return rawRecords
+      .filter(r => r.anomalyCategory)
+      .map(record => {
+        const patient = patients?.find(p => p.id === record.patientProfileId)
+        return {
+          ...record,
+          patientName: patient?.name || "未补录",
+          patientGender: patient?.gender || "-",
+          patientAge: patient?.age || "-",
+          patientPhone: patient?.phoneNumber || "-",
+        }
+      })
   }, [rawRecords, patients])
 
   const filteredRecords = React.useMemo(() => {
     return joinedRecords.filter(r => 
       (r.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
        r.archiveNo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       r.examNo?.toLowerCase().includes(searchTerm.toLowerCase()))
-    ).sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
+       r.checkupNumber?.toLowerCase().includes(searchTerm.toLowerCase()))
+    ).sort((a, b) => new Date(b.checkupDate).getTime() - new Date(a.checkupDate).getTime())
   }, [joinedRecords, searchTerm])
 
   const editForm = useForm({
     resolver: zodResolver(editSchema),
     defaultValues: {
-      details: "",
-      disposalAdvice: "",
-      feedback: "",
+      anomalyDetails: "",
+      disposalSuggestions: "",
+      notifiedPersonFeedback: "",
     }
   })
 
   React.useEffect(() => {
     if (editingRecord) {
       editForm.reset({
-        details: editingRecord.details || "",
-        disposalAdvice: editingRecord.disposalAdvice || "",
-        feedback: editingRecord.feedback || "",
+        anomalyDetails: editingRecord.anomalyDetails || "",
+        disposalSuggestions: editingRecord.disposalSuggestions || "",
+        notifiedPersonFeedback: editingRecord.notifiedPersonFeedback || "",
       })
     }
   }, [editingRecord, editForm])
@@ -179,10 +179,6 @@ export default function RecordsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button variant="secondary" className="gap-2 h-11 px-6">
-          <Filter className="size-4" />
-          高级筛选
-        </Button>
       </div>
 
       <div className="bg-white rounded-xl shadow-lg border overflow-hidden">
@@ -203,7 +199,7 @@ export default function RecordsPage() {
           <TableBody>
             {filteredRecords.map((record) => (
               <TableRow key={record.id} className="hover:bg-muted/5 group">
-                <TableCell className="font-medium whitespace-nowrap">{record.examDate}</TableCell>
+                <TableCell className="font-medium whitespace-nowrap">{record.checkupDate}</TableCell>
                 <TableCell>
                   <div className="flex flex-col">
                     <span className="font-bold text-primary">{record.patientName}</span>
@@ -212,15 +208,15 @@ export default function RecordsPage() {
                 </TableCell>
                 <TableCell>{record.patientGender} / {record.patientAge}</TableCell>
                 <TableCell className="text-xs">{record.patientPhone}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">{record.examNo}</TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">{record.checkupNumber}</TableCell>
                 <TableCell>
-                  <Badge variant={record.category === 'A' ? 'destructive' : 'secondary'} className="font-bold px-3">
-                    {record.category}类
+                  <Badge variant={record.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="font-bold px-3">
+                    {record.anomalyCategory}类
                   </Badge>
                 </TableCell>
                 <TableCell className="max-w-[200px]">
-                  <p className="truncate text-xs text-muted-foreground" title={record.details}>
-                    {record.details}
+                  <p className="truncate text-xs text-muted-foreground" title={record.anomalyDetails}>
+                    {record.anomalyDetails}
                   </p>
                 </TableCell>
                 <TableCell className="text-sm font-medium">{record.notifier}</TableCell>
@@ -271,8 +267,8 @@ export default function RecordsPage() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-2xl flex items-center gap-3">
-              <Badge variant={selectedRecord?.category === 'A' ? 'destructive' : 'secondary'}>
-                {selectedRecord?.category}类结果
+              <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'secondary'}>
+                {selectedRecord?.anomalyCategory}类结果
               </Badge>
               临床记录详情
             </DialogTitle>
@@ -280,19 +276,19 @@ export default function RecordsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
             <div className="bg-muted/30 p-4 rounded-lg space-y-4 md:col-span-1">
               <div><p className="text-[10px] text-muted-foreground uppercase font-bold">患者档案</p><p className="font-bold text-lg">{selectedRecord?.patientName}</p></div>
-              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">档案/体检号</p><p className="text-xs font-mono">{selectedRecord?.archiveNo}<br/>{selectedRecord?.examNo}</p></div>
-              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">体检日期</p><p className="text-xs">{selectedRecord?.examDate}</p></div>
+              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">档案/体检号</p><p className="text-xs font-mono">{selectedRecord?.archiveNo}<br/>{selectedRecord?.checkupNumber}</p></div>
+              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">体检日期</p><p className="text-xs">{selectedRecord?.checkupDate}</p></div>
               <Separator />
-              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">通知反馈</p><p className="text-xs italic">{selectedRecord?.feedback || "暂无反馈记录"}</p></div>
+              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">登记时初始告知反馈</p><p className="text-xs italic">{selectedRecord?.notifiedPersonFeedback || "登记时未录入反馈"}</p></div>
             </div>
             <div className="space-y-6 md:col-span-2">
               <div className="space-y-2">
                 <p className="text-sm font-bold text-destructive flex items-center gap-2">医学异常发现</p>
-                <ScrollArea className="h-[120px] border p-4 rounded-xl bg-white text-sm leading-relaxed whitespace-pre-wrap">{selectedRecord?.details}</ScrollArea>
+                <ScrollArea className="h-[120px] border p-4 rounded-xl bg-white text-sm leading-relaxed whitespace-pre-wrap">{selectedRecord?.anomalyDetails}</ScrollArea>
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-bold text-primary flex items-center gap-2">临床处置建议</p>
-                <ScrollArea className="h-[120px] border p-4 rounded-xl bg-white text-sm leading-relaxed whitespace-pre-wrap">{selectedRecord?.disposalAdvice}</ScrollArea>
+                <ScrollArea className="h-[120px] border p-4 rounded-xl bg-white text-sm leading-relaxed whitespace-pre-wrap">{selectedRecord?.disposalSuggestions}</ScrollArea>
               </div>
             </div>
           </div>
@@ -305,14 +301,14 @@ export default function RecordsPage() {
           <DialogHeader><DialogTitle>临床结果维护</DialogTitle></DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleEditSave)} className="space-y-4">
-              <FormField control={editForm.control} name="details" render={({ field }) => (
+              <FormField control={editForm.control} name="anomalyDetails" render={({ field }) => (
                 <FormItem><FormLabel>医学异常发现</FormLabel><FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField control={editForm.control} name="disposalAdvice" render={({ field }) => (
+              <FormField control={editForm.control} name="disposalSuggestions" render={({ field }) => (
                 <FormItem><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField control={editForm.control} name="feedback" render={({ field }) => (
-                <FormItem><FormLabel>最新告知反馈</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              <FormField control={editForm.control} name="notifiedPersonFeedback" render={({ field }) => (
+                <FormItem><FormLabel>初始告知反馈 (补录/修改)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={() => setEditingRecord(null)}>取消</Button>

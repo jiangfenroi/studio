@@ -33,15 +33,15 @@ const formSchema = z.object({
   examNo: z.string().length(12, "体检编号必须为12位"),
   examDate: z.string().min(1, "体检日期不能为空"),
   notifiedPerson: z.string().min(1, "被通知人不能为空"),
-  category: z.enum(["A", "B"]),
-  details: z.string().min(1, "详情不能为空"),
-  disposalAdvice: z.string().min(1, "处置意见不能为空"),
+  anomalyCategory: z.enum(["A", "B"]),
+  anomalyDetails: z.string().min(1, "详情不能为空"),
+  disposalSuggestions: z.string().min(1, "处置意见不能为空"),
   isNotified: z.boolean().default(true),
-  isHealthEducation: z.boolean().default(true),
+  isHealthEducationProvided: z.boolean().default(true),
   notifier: z.string().min(1, "通知人不能为空"),
-  feedback: z.string().optional(),
-  noticeDate: z.string().min(1, "通知日期不能为空"),
-  noticeTime: z.string().min(1, "通知时间不能为空"),
+  notifiedPersonFeedback: z.string().optional(),
+  notificationDate: z.string().min(1, "通知日期不能为空"),
+  notificationTime: z.string().min(1, "通知时间不能为空"),
   reportCategory: z.string().default("体检报告"),
   reportCheckDate: z.string().optional(),
 })
@@ -61,7 +61,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   const { data: systemConfig } = useDoc(configRef)
   const basePath = systemConfig?.pdfStoragePath || "//172.17.126.18/e:/pic"
 
-  // Fetch staff profile for default notifier
   const staffQuery = useMemoFirebase(() => collection(db, "staffProfiles"), [db])
   const { data: staff } = useCollection(staffQuery)
   const currentStaff = React.useMemo(() => staff?.find(s => s.email === user?.email), [staff, user])
@@ -73,21 +72,20 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       examNo: "",
       examDate: "",
       notifiedPerson: "",
-      category: "A",
-      details: "",
-      disposalAdvice: "",
+      anomalyCategory: "A",
+      anomalyDetails: "",
+      disposalSuggestions: "",
       isNotified: true,
-      isHealthEducation: true,
+      isHealthEducationProvided: true,
       notifier: currentStaff?.name || "系统管理员",
-      feedback: "",
-      noticeDate: format(new Date(), "yyyy-MM-dd"),
-      noticeTime: format(new Date(), "HH:mm"),
+      notifiedPersonFeedback: "",
+      notificationDate: format(new Date(), "yyyy-MM-dd"),
+      notificationTime: format(new Date(), "HH:mm"),
       reportCategory: "体检报告",
       reportCheckDate: format(new Date(), "yyyy-MM-dd"),
     },
   })
 
-  // Set notifier when staff profile loads
   React.useEffect(() => {
     if (currentStaff?.name) {
       form.setValue("notifier", currentStaff.name)
@@ -97,7 +95,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   const watchExamNo = form.watch("examNo")
   const watchArchiveNo = form.watch("archiveNo")
 
-  // Auto-populate examDate from examNo
   React.useEffect(() => {
     if (watchExamNo && watchExamNo.length >= 8) {
       const year = watchExamNo.substring(0, 4)
@@ -142,7 +139,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
     const anomalyRecordId = `${values.archiveNo}_${values.examNo}_${Date.now().toString().slice(-4)}`
     const anomalyRef = doc(db, `patientProfiles/${values.archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
     
-    // Initial entry ensures patient profile exists
     const patientRef = doc(db, "patientProfiles", values.archiveNo)
     setDocumentNonBlocking(patientRef, { id: values.archiveNo }, { merge: true })
 
@@ -152,10 +148,10 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       patientProfileId: values.archiveNo,
       checkupNumber: values.examNo,
       checkupDate: values.examDate,
+      isClosed: false,
       createdAt: new Date().toISOString()
     }, { merge: true })
 
-    // Save File metadata
     for (const file of uploadedFiles) {
       const fileId = `${anomalyRecordId}_file_${Date.now()}`
       const fileData = {
@@ -230,7 +226,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             <div className="col-span-full border-t pt-4">
               <FormField
                 control={form.control}
-                name="category"
+                name="anomalyCategory"
                 render={({ field }) => (
                   <FormItem className="space-y-3">
                     <FormLabel>异常结果类别</FormLabel>
@@ -265,7 +261,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
-                name="details"
+                name="anomalyDetails"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>异常结果详情</FormLabel>
@@ -278,7 +274,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
               />
               <FormField
                 control={form.control}
-                name="disposalAdvice"
+                name="disposalSuggestions"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>处置意见</FormLabel>
@@ -357,7 +353,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
               <CalendarIcon className="size-5 text-primary" />
               3. 初始告知情况
             </CardTitle>
-            <CardDescription>记录临床告知义务的履行情况</CardDescription>
+            <CardDescription>记录临床告知义务的履行情况（注意：此反馈不计入随访记录）</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <FormField
@@ -384,7 +380,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             />
             <FormField
               control={form.control}
-              name="noticeDate"
+              name="notificationDate"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>通知日期</FormLabel>
@@ -395,7 +391,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             />
             <FormField
               control={form.control}
-              name="noticeTime"
+              name="notificationTime"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>通知时间</FormLabel>
@@ -416,7 +412,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             />
             <FormField
               control={form.control}
-              name="isHealthEducation"
+              name="isHealthEducationProvided"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-muted/20">
                   <div className="space-y-0.5"><FormLabel>是否健康宣教</FormLabel></div>
@@ -427,10 +423,10 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             <div className="col-span-full">
               <FormField
                 control={form.control}
-                name="feedback"
+                name="notifiedPersonFeedback"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>被通知人反馈</FormLabel>
+                    <FormLabel>被通知人反馈 (初始)</FormLabel>
                     <FormControl><Input placeholder="记录沟通反馈结果..." {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
