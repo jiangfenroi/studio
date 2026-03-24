@@ -13,7 +13,8 @@ import {
   MoreVertical,
   FileSpreadsheet,
   CheckCircle2,
-  Trash2
+  Trash2,
+  FileDown
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -119,12 +120,12 @@ export default function PatientsPage() {
     setEditingPatient(null)
     toast({
       title: "档案更新成功",
-      description: `患者 ${values.name} 的信息已同步至数据库。`,
+      description: `患者 ${values.name} 的信息已同步。`,
     })
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("确定要永久删除该患者档案吗？此操作不可逆，将同时删除该患者在系统中登记的所有异常结果及随访记录。")) {
+    if (confirm("确定要删除该患者档案吗？将同时删除其所有异常结果及随访记录。")) {
       const patientRef = doc(db, "patientProfiles", id)
       deleteDocumentNonBlocking(patientRef)
       toast({
@@ -134,11 +135,21 @@ export default function PatientsPage() {
     }
   }
 
+  const handleDownloadTemplate = () => {
+    const headers = ["档案编号*", "姓名*", "性别(男/女/其他)*", "年龄*", "身份证号*", "单位", "地址", "电话*", "状态(正常/死亡/无法联系)*"]
+    const csvContent = "\ufeff" + headers.join(",")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `档案导入模板.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const handleExportCSV = () => {
-    if (filteredPatients.length === 0) {
-      toast({ title: "无可导出数据", variant: "destructive" })
-      return
-    }
+    if (filteredPatients.length === 0) return
     const headers = ["档案编号", "姓名", "性别", "年龄", "身份证", "电话", "单位", "状态"]
     const rows = filteredPatients.map(p => [
       p.id, p.name, p.gender, p.age, p.idNumber, p.phoneNumber, `"${(p.organization || "-").replace(/"/g, '""')}"`, p.status
@@ -148,11 +159,10 @@ export default function PatientsPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `患者档案_${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `患者档案导出_${new Date().toISOString().split('T')[0]}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    toast({ title: "导出成功", description: "档案 CSV 已生成。" })
   }
 
   return (
@@ -160,14 +170,18 @@ export default function PatientsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">档案中心</h1>
-          <p className="text-muted-foreground">管理全院患者健康档案，支持批量导入与信息维护</p>
+          <p className="text-muted-foreground">管理全院患者健康档案，档案编号为最高级识别码</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleDownloadTemplate}>
+            <FileDown className="size-4" />
+            下载模板
+          </Button>
           <Button variant="outline" className="gap-2" onClick={handleExportCSV}>
             <FileSpreadsheet className="size-4" />
             导出档案
           </Button>
-          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "功能开发中", description: "Excel 导入功能正在对接 MySQL 核心库。" })}>
+          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "功能开发中", description: "Excel 批量导入正在适配。" })}>
             <Upload className="size-4" />
             批量导入
           </Button>
@@ -184,16 +198,12 @@ export default function PatientsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input 
-            placeholder="搜索姓名、档案编号、手机号、身份证号..." 
+            placeholder="搜索姓名、档案编号、手机号..." 
             className="pl-10 h-11" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button variant="secondary" className="gap-2 h-11 px-6">
-          <Filter className="size-4" />
-          高级筛选
-        </Button>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -203,7 +213,6 @@ export default function PatientsPage() {
               <TableHead className="w-[120px]">档案编号</TableHead>
               <TableHead>姓名</TableHead>
               <TableHead>性别/年龄</TableHead>
-              <TableHead>身份证号</TableHead>
               <TableHead>联系电话</TableHead>
               <TableHead>单位</TableHead>
               <TableHead>状态</TableHead>
@@ -216,20 +225,18 @@ export default function PatientsPage() {
                 <TableCell className="font-bold text-primary">{patient.id}</TableCell>
                 <TableCell className="font-medium">{patient.name}</TableCell>
                 <TableCell>{patient.gender} / {patient.age}岁</TableCell>
-                <TableCell className="font-mono text-xs">{patient.idNumber}</TableCell>
                 <TableCell className="text-sm">{patient.phoneNumber}</TableCell>
-                <TableCell className="text-muted-foreground max-w-[150px] truncate">{patient.organization || '无'}</TableCell>
+                <TableCell className="text-muted-foreground truncate max-w-[150px]">{patient.organization || '无'}</TableCell>
                 <TableCell>
                   <Badge 
                     variant={patient.status === '正常' ? 'default' : patient.status === '死亡' ? 'destructive' : 'secondary'}
-                    className="font-medium"
                   >
                     {patient.status}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" asChild title="查看档案">
+                    <Button variant="ghost" size="icon" asChild title="电子病历">
                       <Link href={`/patients/${patient.id}`}>
                         <Eye className="size-4" />
                       </Link>
@@ -240,16 +247,13 @@ export default function PatientsPage() {
                           <MoreVertical className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem className="gap-2" onSelect={() => handleEdit(patient)}>
-                          <Edit className="size-4" /> 修改资料
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2" onSelect={() => toast({ title: "正在生成", description: "PDF 导出任务已加入队列。" })}>
-                          <Download className="size-4" /> 导出PDF
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => handleEdit(patient)}>
+                          <Edit className="size-4 mr-2" /> 修改资料
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-2 text-destructive" onSelect={() => handleDelete(patient.id)}>
-                          <Trash2 className="size-4" /> 删除档案
+                        <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(patient.id)}>
+                          <Trash2 className="size-4 mr-2" /> 删除档案
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -259,11 +263,6 @@ export default function PatientsPage() {
             ))}
           </TableBody>
         </Table>
-        {filteredPatients.length === 0 && !isLoading && (
-          <div className="py-20 text-center text-muted-foreground">
-            未找到匹配的档案记录
-          </div>
-        )}
       </div>
 
       <Dialog open={!!editingPatient} onOpenChange={(open) => !open && setEditingPatient(null)}>
@@ -271,7 +270,7 @@ export default function PatientsPage() {
           <DialogHeader>
             <DialogTitle>编辑患者健康档案</DialogTitle>
             <DialogDescription>
-              档案编号: <span className="font-bold text-primary">{editingPatient?.id}</span>。修改后将同步至系统数据库。
+              档案编号: <span className="font-bold text-primary">{editingPatient?.id}</span>
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -284,7 +283,7 @@ export default function PatientsPage() {
                   <FormItem>
                     <FormLabel>性别</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="选择性别" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="男">男</SelectItem>
                         <SelectItem value="女">女</SelectItem>
@@ -306,7 +305,7 @@ export default function PatientsPage() {
                   <FormItem>
                     <FormLabel>当前状态</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="选择状态" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="正常">正常</SelectItem>
                         <SelectItem value="死亡">死亡</SelectItem>
@@ -326,12 +325,9 @@ export default function PatientsPage() {
                   )} />
                 </div>
               </div>
-              <DialogFooter className="mt-6">
+              <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditingPatient(null)}>取消</Button>
-                <Button type="submit" className="gap-2">
-                  <CheckCircle2 className="size-4" />
-                  保存修改
-                </Button>
+                <Button type="submit">保存修改</Button>
               </DialogFooter>
             </form>
           </Form>

@@ -18,7 +18,9 @@ import {
   Clock,
   MoreVertical,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  MapPin,
+  Phone
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,6 +39,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import Link from "next/link"
 
 export default function PatientProfilePage() {
   const params = useParams()
@@ -57,6 +60,18 @@ export default function PatientProfilePage() {
     [db, id]
   )
   const { data: allRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
+
+  // Fetch Associated Files
+  const filesQuery = useMemoFirebase(() => 
+    query(collection(db, "medicalReportFiles"), orderBy("checkDate", "desc")), 
+    [db]
+  )
+  const { data: allFiles } = useCollection(filesQuery)
+  
+  const associatedFiles = React.useMemo(() => {
+    if (!allFiles) return []
+    return allFiles.filter(f => f.patientProfileId === id)
+  }, [allFiles, id])
 
   // Fetch PACS config
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
@@ -92,41 +107,16 @@ export default function PatientProfilePage() {
     }
   }
 
-  // Show loading only during initial auth/fetch
   if (isPatientLoading && !allRecords) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Activity className="size-10 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">正在调取电子病历...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // If no patient profile AND no records, then it's truly not found
-  if (!patient && (!allRecords || allRecords.length === 0)) {
-    return (
-      <div className="p-20 text-center flex flex-col items-center gap-6">
-        <div className="p-4 bg-muted rounded-full">
-          <AlertCircle className="size-12 text-muted-foreground" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold">未找到临床档案</h2>
-          <p className="text-muted-foreground text-sm max-w-xs">
-            系统未检索到档案编号为 <span className="font-mono font-bold text-primary">[{id}]</span> 的任何登记信息或临床记录。
-          </p>
-        </div>
-        <Button onClick={() => router.back()} variant="outline" className="gap-2">
-          <ArrowLeft className="size-4" />
-          返回列表
-        </Button>
+        <Activity className="size-10 text-primary animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -171,18 +161,28 @@ export default function PatientProfilePage() {
           <Button variant="outline" className="gap-2" asChild>
             <Link href="/patients">
               <BadgeCheck className="size-4" />
-              进入档案库补录
+              返回档案库
             </Link>
           </Button>
         </div>
       </header>
+
+      {patient?.status === '死亡' && (
+        <Alert variant="destructive" className="bg-red-50 border-red-200">
+          <AlertCircle className="size-4" />
+          <AlertTitle>临床结案提示</AlertTitle>
+          <AlertDescription>
+            该患者状态已标记为“死亡”，后续随访任务已自动终止并转入结案库。
+          </AlertDescription>
+        </Alert>
+      )}
 
       {!patient?.name && (
         <Alert className="bg-amber-50 border-amber-200 text-amber-800">
           <AlertCircle className="size-4 text-amber-600" />
           <AlertTitle className="font-bold">基本信息缺失</AlertTitle>
           <AlertDescription>
-            该档案目前仅有临床登记记录，尚未补充人口学基本信息（姓名、性别等）。请在空闲时进入档案中心进行补录。
+            该档案目前仅有临床登记记录，尚未补充人口学基本信息。
           </AlertDescription>
         </Alert>
       )}
@@ -209,10 +209,10 @@ export default function PatientProfilePage() {
             <CardContent className="pt-6 space-y-5">
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="size-4 text-muted-foreground mt-1" />
+                  <MapPin className="size-4 text-muted-foreground mt-1" />
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">身份证号</p>
-                    <p className="text-sm font-mono">{patient?.idNumber || "未登记"}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">住址</p>
+                    <p className="text-sm">{patient?.address || "未登记"}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -220,6 +220,13 @@ export default function PatientProfilePage() {
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">所属单位</p>
                     <p className="text-sm">{patient?.organization || "个人档案"}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Phone className="size-4 text-muted-foreground mt-1" />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">联系电话</p>
+                    <p className="text-sm">{patient?.phoneNumber || "未登记"}</p>
                   </div>
                 </div>
               </div>
@@ -230,7 +237,8 @@ export default function PatientProfilePage() {
                   <span className="text-sm font-bold text-blue-900">临床摘要</span>
                 </div>
                 <p className="text-xs text-blue-700 leading-relaxed">
-                  最后随访时间：{clinicalTimeline.find(r => r.type === 'followup')?.followUpDate || "无记录"}。PACS 路径已按照中心配置同步。
+                  最后随访时间：{clinicalTimeline.find(r => r.type === 'followup')?.followUpDate || "无记录"}。
+                  共关联报告文件 {associatedFiles.length} 份。
                 </p>
               </div>
             </CardContent>
@@ -240,89 +248,96 @@ export default function PatientProfilePage() {
         <div className="lg:col-span-3 space-y-6">
           <Tabs defaultValue="timeline" className="w-full">
             <TabsList className="w-full justify-start h-12 bg-white border-b rounded-none px-0 gap-8">
-              <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2 h-full text-base gap-2">
+              <TabsTrigger value="timeline" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full text-base gap-2">
                 <History className="size-4" />
                 病程/随访时间轴
               </TabsTrigger>
-              <TabsTrigger value="files" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2 h-full text-base gap-2">
+              <TabsTrigger value="files" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full text-base gap-2">
                 <FileText className="size-4" />
-                关联报告库 (PDF)
+                报告库 ({associatedFiles.length})
               </TabsTrigger>
             </TabsList>
             
             <TabsContent value="timeline" className="mt-8">
-              {isRecordsLoading ? (
-                <div className="flex justify-center py-10">
-                  <Clock className="animate-spin size-6 text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="relative pl-8 ml-4 border-l-2 border-primary/10 space-y-10">
-                  {clinicalTimeline.map((event, idx) => (
-                    <div key={idx} className="relative">
-                      <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow-md flex items-center justify-center ${
-                        event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'
-                      }`}>
-                        {event.type === 'abnormal' ? <Stethoscope className="size-4 text-white" /> : <ClipboardCheck className="size-4 text-white" />}
-                      </div>
-                      <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50 hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex flex-col gap-1">
-                            <h4 className="text-xl font-bold text-foreground">
-                              {event.type === 'abnormal' ? (event.details?.split('\n')[0] || '重要异常发现') : '随访反馈记录'}
-                            </h4>
-                            <span className="text-xs text-muted-foreground font-mono">
-                              {event.examDate || event.followUpDate}
-                            </span>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="size-8">
-                                <MoreVertical className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem 
-                                className="text-destructive gap-2"
-                                onSelect={() => handleDeleteRecord(event.id, event.type)}
-                              >
-                                <Trash2 className="size-4" />
-                                删除此条记录
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+              <div className="relative pl-8 ml-4 border-l-2 border-primary/10 space-y-10">
+                {clinicalTimeline.map((event, idx) => (
+                  <div key={idx} className="relative">
+                    <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow-md flex items-center justify-center ${
+                      event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'
+                    }`}>
+                      {event.type === 'abnormal' ? <Stethoscope className="size-4 text-white" /> : <ClipboardCheck className="size-4 text-white" />}
+                    </div>
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex flex-col gap-1">
+                          <h4 className="text-xl font-bold">
+                            {event.type === 'abnormal' ? (event.details?.split('\n')[0] || '异常登记') : '随访记录'}
+                          </h4>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {event.examDate || event.followUpDate}
+                          </span>
                         </div>
-                        <p className="text-muted-foreground text-sm leading-relaxed mb-4 whitespace-pre-wrap">
-                          {event.details || event.followUpResult}
-                        </p>
-                        {event.category && (
-                          <Badge variant={event.category === 'A' ? 'destructive' : 'secondary'}>
-                            {event.category}类异常
-                          </Badge>
-                        )}
-                        {(event.followUpPerson || event.notifier) && (
-                          <div className="flex items-center gap-2 mt-4 text-[10px] text-muted-foreground font-medium uppercase">
-                            <User className="size-3" />
-                            记录人: {event.followUpPerson || event.notifier}
-                          </div>
-                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="size-8">
+                              <MoreVertical className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              className="text-destructive gap-2"
+                              onSelect={() => handleDeleteRecord(event.id, event.type)}
+                            >
+                              <Trash2 className="size-4" />
+                              删除此条记录
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
+                      <p className="text-muted-foreground text-sm leading-relaxed mb-4 whitespace-pre-wrap">
+                        {event.details || event.followUpResult}
+                      </p>
+                      {event.category && (
+                        <Badge variant={event.category === 'A' ? 'destructive' : 'secondary'}>
+                          {event.category}类异常
+                        </Badge>
+                      )}
                     </div>
-                  ))}
-                  {clinicalTimeline.length === 0 && (
-                    <div className="text-center py-10 bg-muted/20 rounded-lg border-dashed border-2">
-                      <p className="text-muted-foreground">暂无病程记录</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                ))}
+                {clinicalTimeline.length === 0 && (
+                  <div className="text-center py-20 text-muted-foreground">
+                    <History className="size-12 mx-auto opacity-20 mb-4" />
+                    <p>暂无病程记录</p>
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="files" className="mt-8">
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="col-span-full py-10 text-center text-muted-foreground">
-                    <FileText className="size-12 mx-auto mb-4 opacity-20" />
-                    <p>请点击相应病程记录查看详情以下载 PDF 报告</p>
-                  </div>
+                  {associatedFiles.map((file) => (
+                    <Card key={file.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4 flex items-center gap-4">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <FileText className="size-6 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold truncate" title={file.fileName}>{file.fileName}</p>
+                          <p className="text-[10px] text-muted-foreground">{file.reportCategory} • {file.checkDate}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => window.open(file.fullPath, '_blank')}>
+                          <ExternalLink className="size-4" />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {associatedFiles.length === 0 && (
+                    <div className="col-span-full py-20 text-center text-muted-foreground">
+                      <FileText className="size-12 mx-auto mb-4 opacity-20" />
+                      <p>该档案暂未关联 PDF 报告文件</p>
+                    </div>
+                  )}
                </div>
             </TabsContent>
           </Tabs>
@@ -331,4 +346,3 @@ export default function PatientProfilePage() {
     </div>
   )
 }
-import Link from "next/link"
