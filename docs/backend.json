@@ -1,0 +1,250 @@
+{
+  "entities": {
+    "PatientProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PatientProfile",
+      "type": "object",
+      "description": "Represents the personal information of a patient identified by their unique archive number. This entity stores core demographic and contact details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PatientProfile entity, corresponding to the patient's archive number. (Primary Key)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the patient."
+        },
+        "gender": {
+          "type": "string",
+          "description": "The gender of the patient."
+        },
+        "age": {
+          "type": "number",
+          "description": "The age of the patient."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The contact phone number of the patient."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "gender",
+        "age",
+        "phoneNumber"
+      ]
+    },
+    "MedicalAnomalyRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MedicalAnomalyRecord",
+      "type": "object",
+      "description": "Records details of a significant abnormal result found during a medical checkup, including notification and suggested actions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MedicalAnomalyRecord entity. (Primary Key)"
+        },
+        "patientProfileId": {
+          "type": "string",
+          "description": "Reference to the PatientProfile entity's ID (archiveNumber). (Relationship: PatientProfile 1:N MedicalAnomalyRecord)"
+        },
+        "checkupNumber": {
+          "type": "string",
+          "description": "The 12-digit checkup identification number, where the first 8 digits represent the date (YYYYMMDD)."
+        },
+        "checkupDate": {
+          "type": "string",
+          "description": "The date when the medical checkup was performed.",
+          "format": "date"
+        },
+        "notifiedPerson": {
+          "type": "string",
+          "description": "The name of the person who was notified about the anomaly."
+        },
+        "anomalyCategory": {
+          "type": "string",
+          "description": "The category of the important anomaly result (A or B). A: requires immediate clinical intervention. B: requires further clinical examination or treatment."
+        },
+        "anomalyDetails": {
+          "type": "string",
+          "description": "Detailed description of the important anomaly result."
+        },
+        "disposalSuggestions": {
+          "type": "string",
+          "description": "Suggestions or recommendations for the disposal or management of the anomaly."
+        },
+        "isNotified": {
+          "type": "boolean",
+          "description": "Indicates whether the notified person has been informed about the anomaly. Defaults to true."
+        },
+        "isHealthEducationProvided": {
+          "type": "boolean",
+          "description": "Indicates whether health education has been provided regarding the anomaly. Defaults to true."
+        },
+        "notifier": {
+          "type": "string",
+          "description": "The name of the user who performed the notification (usually the system logged-in user)."
+        },
+        "notifiedPersonFeedback": {
+          "type": "string",
+          "description": "Feedback received from the notified person regarding the anomaly."
+        },
+        "notificationDate": {
+          "type": "string",
+          "description": "The date when the notification was made.",
+          "format": "date"
+        },
+        "notificationTime": {
+          "type": "string",
+          "description": "The time when the notification was made.",
+          "format": "time"
+        }
+      },
+      "required": [
+        "id",
+        "patientProfileId",
+        "checkupNumber",
+        "checkupDate",
+        "notifiedPerson",
+        "anomalyCategory",
+        "anomalyDetails",
+        "disposalSuggestions",
+        "isNotified",
+        "isHealthEducationProvided",
+        "notifier",
+        "notificationDate",
+        "notificationTime"
+      ]
+    },
+    "MedicalReportFile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MedicalReportFile",
+      "type": "object",
+      "description": "Stores metadata and links for uploaded PDF medical reports associated with a specific anomaly record.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MedicalReportFile entity. (Primary Key)"
+        },
+        "medicalAnomalyRecordId": {
+          "type": "string",
+          "description": "Reference to the MedicalAnomalyRecord entity's ID to which this report belongs. (Relationship: MedicalAnomalyRecord 1:N MedicalReportFile)"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The original name of the uploaded report file."
+        },
+        "filePath": {
+          "type": "string",
+          "description": "The internal path or URI where the report file is stored.",
+          "format": "uri"
+        },
+        "checkDate": {
+          "type": "string",
+          "description": "The date indicated on the medical report itself, representing when the checkup for this report occurred.",
+          "format": "date"
+        },
+        "fileCategory": {
+          "type": "string",
+          "description": "The category of the uploaded file, e.g., '体检报告' (Medical Report)."
+        }
+      },
+      "required": [
+        "id",
+        "medicalAnomalyRecordId",
+        "fileName",
+        "filePath",
+        "checkDate",
+        "fileCategory"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/roles_medicalStaff/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/user"
+          },
+          "description": "Collection for storing user roles. The existence of a document with a user's ID (`userId`) in this collection indicates they are a medical staff member with access privileges to patient data. This is used for Database-Backed Access Control (DBAC).",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the medical staff member, corresponding to `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/patientProfiles/{patientProfileId}",
+        "definition": {
+          "entityName": "PatientProfile",
+          "schema": {
+            "$ref": "#/backend/entities/PatientProfile"
+          },
+          "description": "Top-level collection for storing essential demographic and contact information for each patient. Access is granted to all authenticated medical staff.",
+          "params": [
+            {
+              "name": "patientProfileId",
+              "description": "The unique identifier for the PatientProfile, corresponding to the patient's archive number."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}",
+        "definition": {
+          "entityName": "MedicalAnomalyRecord",
+          "schema": {
+            "$ref": "#/backend/entities/MedicalAnomalyRecord"
+          },
+          "description": "Subcollection under a specific patient profile, storing details of significant abnormal medical checkup results. Each record includes a denormalized `patientProfileId` for authorization independence and data integrity, ensuring it links correctly to its parent patient. Access is granted to all authenticated medical staff.",
+          "params": [
+            {
+              "name": "patientProfileId",
+              "description": "The unique identifier of the parent PatientProfile."
+            },
+            {
+              "name": "medicalAnomalyRecordId",
+              "description": "The unique identifier for the MedicalAnomalyRecord."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}/medicalReportFiles/{medicalReportFileId}",
+        "definition": {
+          "entityName": "MedicalReportFile",
+          "schema": {
+            "$ref": "#/backend/entities/MedicalReportFile"
+          },
+          "description": "Subcollection under a specific medical anomaly record, storing metadata and links to uploaded PDF medical reports. Each file record includes a denormalized `medicalAnomalyRecordId` for authorization independence and data integrity. Access is granted to all authenticated medical staff.",
+          "params": [
+            {
+              "name": "patientProfileId",
+              "description": "The unique identifier of the grandparent PatientProfile."
+            },
+            {
+              "name": "medicalAnomalyRecordId",
+              "description": "The unique identifier of the parent MedicalAnomalyRecord."
+            },
+            {
+              "name": "medicalReportFileId",
+              "description": "The unique identifier for the MedicalReportFile."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support a \"Medical Anomaly Result Management System\" by following core design principles for security, scalability, and debuggability. The primary authorization model assumes a role-based access for all medical staff, meaning any authenticated medical staff user can access and manage all patient data.\n\n**Authorization Independence (CRITICAL):** This structure explicitly avoids hierarchical authorization dependencies that would require `get()` calls in security rules. Instead, access is determined by checking if the authenticated user (`request.auth.uid`) is a recognized `medicalStaff` member via a simple `exists()` check on a dedicated `/roles_medicalStaff` collection. For subcollections, the parent IDs (`patientProfileId`, `medicalAnomalyRecordId`) are inherently part of the document path, ensuring contextual integrity without additional `get()` operations. Data denormalization for authorization attributes is not strictly necessary in this model, as access is broadly granted to all staff, rather than specific per-patient or per-record ownership.\n\n**Clarity of Intent (Debuggability):** The collection paths are highly semantic and mirror the logical relationships between entities. For example, anomaly records for a patient are nested under that patient's profile: `/patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}`. This makes the data hierarchy transparent and directly informs security rule construction, making authorization logic easy to understand and debug.\n\n**DBAC (No Custom Claims):** User roles are managed within the database using a dedicated `/roles_medicalStaff/{userId}` collection. The mere existence of a document with the user's UID in this collection grants them `medicalStaff` permissions, which can then be checked using `exists(/databases/$(database)/documents/roles_medicalStaff/$(request.auth.uid))`. This adheres to the principle of Database-Backed Access Control.\n\n**QAPs (Rules are not Filters):** This structure inherently supports secure `list` operations. Since `medicalStaff` have broad access, a `list` operation on `/patientProfiles` will return all patient profiles that the authorized user can access. Similarly, `list` operations on `/patientProfiles/{patientProfileId}/medicalAnomalyRecords` will securely return all anomaly records for a *specific* patient profile, because the `isMedicalStaff()` check applies consistently. The rules ensure that requests are validated against the requested path segments, preventing unauthorized filtering or data exposure.\n\n**Invariants:** The hierarchical path structure helps maintain data integrity and ownership relationships. For instance, a `MedicalAnomalyRecord` implicitly belongs to a `PatientProfile` via its path, and corresponding `patientProfileId` in the document ensures consistency. This makes it straightforward to enforce rules like \"a new anomaly record's `patientProfileId` must match the `patientProfileId` in its path.\"\n\n**Structural Segregation:** Each collection (`/patientProfiles`, `/medicalAnomalyRecords`, `/medicalReportFiles`) holds documents of a homogeneous security posture (all accessible by medical staff), simplifying security rules significantly. There is no mixing of public/private or different permission levels within a single collection.\n\n**Access Modeling:** Path-based ownership is used for `PatientProfile`, and then extended hierarchically for `MedicalAnomalyRecord` and `MedicalReportFile`, aligning with the 1:N relationships. This is the most secure and debuggable pattern for nested, user-associated data in Firestore."
+  }
+}
