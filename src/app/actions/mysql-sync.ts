@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview MySQL 数据同步核心引擎
- * 确保所有临床告知与宣教字段完整同步至业务库。
+ * @fileOverview MySQL 数据同步与实时计算引擎
+ * 确保所有临床数据直接从 MySQL 获取，不留存本地缓存。
  */
 
 import mysql from 'mysql2/promise';
@@ -19,7 +19,7 @@ async function getConnection(config: any) {
 }
 
 /**
- * 获取首页实时统计概览 - 直接从 MySQL 聚合计算
+ * 首页实时统计 - 直接从 MySQL 物理表聚合计算，确保数据唯一准确
  */
 export async function fetchHomeStats(config: any) {
   if (!config || !config.host) return null;
@@ -27,24 +27,24 @@ export async function fetchHomeStats(config: any) {
   try {
     connection = await getConnection(config);
     
-    // 1. 患者总数 (SP_PERSON)
+    // 1. 患者总数
     const [patientRows]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
     
-    // 2. 今日新增异常 (SP_YCJG)
+    // 2. 今日新增异常
     const today = new Date().toISOString().split('T')[0];
     const [todayRows]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE checkupDate = ?', [today]);
     
-    // 3. 待随访任务 (isNotified = 0)
+    // 3. 待随访任务 (未告知且未结案)
     const [pendingRows]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE isNotified = 0 AND isClosed = 0');
     
-    // 4. 全量完成率
+    // 4. 全量告知完成率
     const [totalAnomalies]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG');
     const [notifiedAnomalies]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE isNotified = 1');
     const totalCount = totalAnomalies[0].count || 0;
     const notifiedCount = notifiedAnomalies[0].count || 0;
     const completionRate = totalCount > 0 ? Math.round((notifiedCount / totalCount) * 100) : 0;
 
-    // 5. 年度趋势 (随访率)
+    // 5. 年度趋势 (随访率分布)
     const currentYear = new Date().getFullYear();
     const [trendRows]: any = await connection.execute(`
       SELECT 
@@ -56,10 +56,10 @@ export async function fetchHomeStats(config: any) {
       GROUP BY MONTH(checkupDate)
     `, [currentYear]);
 
-    // 6. 异常分类分布
+    // 6. 异常分类实时占比
     const [catRows]: any = await connection.execute('SELECT anomalyCategory as category, COUNT(*) as count FROM SP_YCJG GROUP BY anomalyCategory');
 
-    // 7. 最近待办
+    // 7. 最近待办任务明细
     const [recentTasks]: any = await connection.execute(`
       SELECT y.*, p.name as patientName 
       FROM SP_YCJG y
@@ -79,7 +79,7 @@ export async function fetchHomeStats(config: any) {
       recentTasks: recentTasks
     };
   } catch (err) {
-    console.error('MySQL Home Stats Error:', err);
+    console.error('MySQL Home Stats Sync Failed:', err);
     return null;
   } finally {
     if (connection) await connection.end();
@@ -87,8 +87,35 @@ export async function fetchHomeStats(config: any) {
 }
 
 /**
- * 同步重要异常结果 (SP_YCJG) - 包含所有告知细节
+ * 数据统计报表 - 联表实时查询，不使用任何本地缓存
  */
+export async function fetchDataForStats(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `
+      SELECT 
+        p.archiveNo, p.name, p.gender, p.age, p.idNumber, p.organization, p.phoneNumber, p.status as patientStatus,
+        y.checkupNumber as examNo, y.checkupDate as examDate, y.anomalyCategory as category, y.anomalyDetails as details, 
+        y.disposalSuggestions as disposalAdvice, y.notifier, y.notificationDate, y.notificationTime, 
+        y.notifiedPerson, y.isNotified, y.isHealthEducationProvided, y.notifiedPersonFeedback,
+        f.followUpDate, f.followUpResult, f.followUpPerson, f.isReExamined
+      FROM SP_PERSON p
+      LEFT JOIN SP_YCJG y ON p.archiveNo = y.patientProfileId
+      LEFT JOIN SP_SF f ON y.id = f.associatedAnomalyId
+      ORDER BY y.checkupDate DESC
+    `;
+    const [rows] = await connection.execute(sql);
+    return rows;
+  } catch (err) {
+    console.error('MySQL Stats Fetch Failed:', err);
+    return [];
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -110,13 +137,13 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
         isNotified: record.isNotified ? 1 : 0,
         isHealthEducationProvided: record.isHealthEducationProvided ? 1 : 0,
         notifiedPersonFeedback: record.notifiedPersonFeedback || '',
-        isClosed: record.isClosed ? 1 : 0
+        isClosed: record.isClosed ? 1 : 0,
+        createdAt: record.createdAt || new Date().toISOString()
       };
       const keys = Object.keys(data);
       const values = Object.values(data);
       const placeholders = keys.map(() => '?').join(', ');
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      
       const sql = `INSERT INTO SP_YCJG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
     } else {
@@ -129,38 +156,6 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
   }
 }
 
-/**
- * 获取统计报表数据 - 联表查询
- */
-export async function fetchDataForStats(config: any) {
-  if (!config || !config.host) return [];
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const sql = `
-      SELECT 
-        p.archiveNo, p.name, p.gender, p.age, p.idNumber, p.organization, p.phoneNumber, p.status as patientStatus,
-        y.checkupNumber as examNo, y.checkupDate as examDate, y.anomalyCategory as category, y.anomalyDetails as details, 
-        y.disposalSuggestions as disposalAdvice, y.notifier, y.notificationDate, y.notificationTime, 
-        y.notifiedPerson, y.isNotified, y.isHealthEducationProvided, y.notifiedPersonFeedback,
-        f.followUpDate, f.followUpResult, f.followUpPerson, f.isReExamined
-      FROM SP_PERSON p
-      LEFT JOIN SP_YCJG y ON p.archiveNo = y.patientProfileId
-      LEFT JOIN SP_SF f ON y.id = f.associatedAnomalyId
-    `;
-    const [rows] = await connection.execute(sql);
-    return rows;
-  } catch (err) {
-    console.error('MySQL Fetch Stats Error:', err);
-    return [];
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-/**
- * 同步患者档案 (SP_PERSON)
- */
 export async function syncPatientToMysql(config: any, patient: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -182,7 +177,6 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
       const values = Object.values(data);
       const placeholders = keys.map(() => '?').join(', ');
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      
       const sql = `INSERT INTO SP_PERSON (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
     } else {
@@ -195,9 +189,6 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
   }
 }
 
-/**
- * 同步随访记录 (SP_SF)
- */
 export async function syncFollowUpToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -218,7 +209,6 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
       const values = Object.values(data);
       const placeholders = keys.map(() => '?').join(', ');
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      
       const sql = `INSERT INTO SP_SF (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
     } else {
@@ -231,9 +221,6 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
   }
 }
 
-/**
- * 同步账户信息 (SP_STAFF)
- */
 export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -251,7 +238,6 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
       const values = Object.values(data);
       const placeholders = keys.map(() => '?').join(', ');
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      
       const sql = `INSERT INTO SP_STAFF (jobId, name, email, role, status) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
     } else {
@@ -264,9 +250,6 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
   }
 }
 
-/**
- * 同步全局配置 (SP_CONFIG)
- */
 export async function syncConfigToMysql(config: any, systemConfig: any) {
   if (!config || !config.host) return;
   let connection;
@@ -283,7 +266,6 @@ export async function syncConfigToMysql(config: any, systemConfig: any) {
     const values = Object.values(data);
     const placeholders = keys.map(() => '?').join(', ');
     const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-    
     const sql = `INSERT INTO SP_CONFIG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
     await connection.execute(sql, values);
   } catch (err) {

@@ -2,14 +2,9 @@
 
 import * as React from "react"
 import { 
-  Download, 
   FileSpreadsheet, 
-  Filter, 
   Table as TableIcon, 
-  CheckSquare, 
-  Square,
   Search,
-  ChevronRight,
   Database,
   Loader2
 } from "lucide-react"
@@ -32,7 +27,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { fetchDataForStats } from "@/app/actions/mysql-sync"
 
-// 对应中心 MySQL (SP_PERSON, SP_YCJG, SP_SF) 的完整字段设计
 const COLUMNS = {
   SP_PERSON: [
     { id: "archiveNo", label: "档案编号" },
@@ -84,7 +78,7 @@ export default function StatsPage() {
       const data = await fetchDataForStats(systemConfig.mysql)
       setMysqlData(data as any[])
     } catch (error) {
-      toast({ variant: "destructive", title: "MySQL 连接失败", description: "无法从中心业务库获取实时数据。" })
+      toast({ variant: "destructive", title: "MySQL 连接失败" })
     } finally {
       setIsSyncing(false)
     }
@@ -97,52 +91,40 @@ export default function StatsPage() {
   }, [systemConfig, loadCentralData])
 
   const toggleCol = (id: string) => {
-    setSelectedCols(prev => 
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-    )
+    setSelectedCols(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
   }
 
   const filteredData = React.useMemo(() => {
     return mysqlData.filter(row => 
-      Object.values(row).some(val => 
-        String(val || "").toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      Object.values(row).some(val => String(val || "").toLowerCase().includes(searchTerm.toLowerCase()))
     )
   }, [mysqlData, searchTerm])
 
   const handleExport = () => {
     if (filteredData.length === 0) return
-
-    const headers = selectedCols.map(id => {
-      const found = [...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF].find(c => c.id === id)
-      return found?.label || id
-    })
-
+    const allCols = [...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF]
+    const headers = selectedCols.map(id => allCols.find(c => c.id === id)?.label || id)
     const csvRows = filteredData.map(row => 
       selectedCols.map(col => `"${String(row[col] || "").replace(/"/g, '""')}"`).join(",")
     )
-
     const csvContent = "\ufeff" + [headers.join(","), ...csvRows].join("\n")
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute("download", `中心库业务导出_${new Date().toISOString().split('T')[0]}.csv`)
+    link.href = url
+    link.download = `临床统计导出_${new Date().toISOString().split('T')[0]}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-
-    toast({ title: "报表导出成功", description: `已从中心库提取 ${filteredData.length} 条业务记录。` })
+    toast({ title: "报表已导出" })
   }
-
-  const allColumnsList = [...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF]
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">数据导出管理</h1>
-          <p className="text-muted-foreground">基于中心 MySQL 业务库的实时统计与报表导出</p>
+          <p className="text-muted-foreground">基于中心 MySQL 业务库的实时统计</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={loadCentralData} disabled={isSyncing} className="gap-2">
@@ -151,111 +133,63 @@ export default function StatsPage() {
           </Button>
           <Button onClick={handleExport} className="gap-2 h-11 px-8 shadow-lg" disabled={filteredData.length === 0}>
             <FileSpreadsheet className="size-5" />
-            导出为 CSV
+            导出报表
           </Button>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <Card className="lg:col-span-1 border-none shadow-md h-fit">
-          <CardHeader className="bg-primary/5">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Database className="size-5 text-primary" />
-              自定义导出设计
-            </CardTitle>
-            <CardDescription>勾选中心库字段 (MySQL 8.4)</CardDescription>
-          </CardHeader>
+          <CardHeader className="bg-primary/5"><CardTitle className="text-lg">字段筛选</CardTitle></CardHeader>
           <CardContent className="pt-6">
-            <ScrollArea className="h-[600px] pr-4">
-              <div className="space-y-6">
-                {Object.entries(COLUMNS).map(([table, cols]) => (
-                  <div key={table} className="space-y-3">
-                    <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                      <div className="size-1.5 rounded-full bg-primary" />
-                      {table} 核心表
-                    </h3>
-                    <div className="grid gap-2 pl-2">
-                      {cols.map(col => (
-                        <div key={col.id} className="flex items-center space-x-2">
-                          <Checkbox 
-                            id={col.id} 
-                            checked={selectedCols.includes(col.id)} 
-                            onCheckedChange={() => toggleCol(col.id)}
-                          />
-                          <label htmlFor={col.id} className="text-sm cursor-pointer">{col.label}</label>
-                        </div>
-                      ))}
+            <ScrollArea className="h-[500px] pr-4">
+              {Object.entries(COLUMNS).map(([table, cols]) => (
+                <div key={table} className="mb-6">
+                  <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-2">{table} 表</h3>
+                  {cols.map(col => (
+                    <div key={col.id} className="flex items-center space-x-2 mb-2">
+                      <Checkbox id={col.id} checked={selectedCols.includes(col.id)} onCheckedChange={() => toggleCol(col.id)} />
+                      <label htmlFor={col.id} className="text-sm cursor-pointer">{col.label}</label>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ))}
             </ScrollArea>
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-3 space-y-6">
-          <Card className="border-none shadow-md">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <TableIcon className="size-5 text-primary" />
-                  实时业务预览
-                </CardTitle>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="在预览中搜索..." 
-                    className="pl-9 h-9" 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="rounded-md border-t overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-muted/30">
-                    <TableRow>
-                      {selectedCols.map(colId => (
-                        <TableHead key={colId} className="whitespace-nowrap font-bold">
-                          {allColumnsList.find(c => c.id === colId)?.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.length > 0 ? (
-                      filteredData.map((row, idx) => (
-                        <TableRow key={idx}>
-                          {selectedCols.map(colId => (
-                            <TableCell key={`${idx}-${colId}`} className="text-xs max-w-[200px] truncate">
-                              {colId === "category" ? (
-                                <Badge variant={row[colId] === "A" ? "destructive" : "secondary"}>
-                                  {row[colId]}类
-                                </Badge>
-                              ) : colId === "isNotified" || colId === "isHealthEducationProvided" || colId === "isReExamined" ? (
-                                row[colId] ? "是" : "否"
-                              ) : (
-                                String(row[colId] || "-")
-                              )}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={selectedCols.length} className="h-48 text-center text-muted-foreground">
-                          {isSyncing ? "正在从中心库提取数据..." : "中心库暂无匹配记录"}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="lg:col-span-3 border-none shadow-md">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2"><TableIcon className="size-5 text-primary" /> 实时业务预览</CardTitle>
+              <Input placeholder="搜索预览内容..." className="w-64" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  {selectedCols.map(colId => (
+                    <TableHead key={colId} className="whitespace-nowrap font-bold">
+                      {[...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF].find(c => c.id === colId)?.label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredData.map((row, idx) => (
+                  <TableRow key={idx}>
+                    {selectedCols.map(colId => (
+                      <TableCell key={colId} className="text-xs truncate max-w-[150px]">
+                        {colId === 'category' ? <Badge variant={row[colId] === 'A' ? 'destructive' : 'secondary'}>{row[colId]}</Badge> : String(row[colId] || "-")}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

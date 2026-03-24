@@ -20,7 +20,7 @@ export function initializeFirebase() {
 
     const sdks = getSdks(firebaseApp);
     
-    // 强制设置为会话持久化：关闭标签页或重新运行程序即自动退出登录
+    // 强制设置为会话持久化：关闭标签页或重启程序即自动退出登录，且不驻留后台
     setPersistence(sdks.auth, browserSessionPersistence).catch((err) => {
       console.error("Auth persistence setup failed:", err);
     });
