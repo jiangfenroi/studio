@@ -15,12 +15,12 @@ import {
   Stethoscope,
   ClipboardCheck,
   PlusCircle,
-  Clock,
   MoreVertical,
   Trash2,
   AlertCircle,
   MapPin,
-  Phone
+  Phone,
+  AlertTriangle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,6 +31,16 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { FollowUpForm } from "@/components/forms/FollowUpForm"
 import {
   DropdownMenu,
@@ -47,21 +57,19 @@ export default function PatientProfilePage() {
   const db = useFirestore()
   const { toast } = useToast()
   const [isFollowUpOpen, setIsFollowUpOpen] = React.useState(false)
+  const [recordToDelete, setRecordToDelete] = React.useState<{id: string, type: string} | null>(null)
   
   const id = params.id as string
 
-  // Fetch Patient Profile
   const patientRef = useMemoFirebase(() => doc(db, "patientProfiles", id), [db, id])
   const { data: patient, isLoading: isPatientLoading } = useDoc(patientRef)
 
-  // Fetch All Records (Anomalies and Follow-ups)
   const recordsQuery = useMemoFirebase(() => 
     query(collection(db, "patientProfiles", id, "medicalAnomalyRecords"), orderBy("createdAt", "desc")), 
     [db, id]
   )
   const { data: allRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
 
-  // Fetch Associated Files
   const filesQuery = useMemoFirebase(() => 
     query(collection(db, "medicalReportFiles"), orderBy("checkDate", "desc")), 
     [db]
@@ -73,11 +81,9 @@ export default function PatientProfilePage() {
     return allFiles.filter(f => f.patientProfileId === id)
   }, [allFiles, id])
 
-  // Fetch PACS config
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
   const { data: config } = useDoc(configRef)
 
-  // Synthesize Timeline
   const clinicalTimeline = React.useMemo(() => {
     if (!allRecords) return []
     return allRecords.map(record => ({
@@ -96,15 +102,16 @@ export default function PatientProfilePage() {
     })
   }
 
-  const handleDeleteRecord = (recordId: string, type: string) => {
-    if (confirm(`确定要删除这条${type === 'abnormal' ? '异常结果' : '随访'}记录吗？此操作不可撤销。`)) {
-      const recordRef = doc(db, "patientProfiles", id, "medicalAnomalyRecords", recordId)
-      deleteDocumentNonBlocking(recordRef)
-      toast({
-        title: "记录已删除",
-        variant: "destructive"
-      })
-    }
+  const confirmDeleteRecord = () => {
+    if (!recordToDelete) return
+    const recordRef = doc(db, "patientProfiles", id, "medicalAnomalyRecords", recordToDelete.id)
+    deleteDocumentNonBlocking(recordRef)
+    setRecordToDelete(null)
+    toast({
+      title: "记录已删除",
+      variant: "destructive",
+      description: "该临床事件已从时间轴中移除。"
+    })
   }
 
   if (isPatientLoading && !allRecords) {
@@ -173,16 +180,6 @@ export default function PatientProfilePage() {
           <AlertTitle>临床结案提示</AlertTitle>
           <AlertDescription>
             该患者状态已标记为“死亡”，后续随访任务已自动终止并转入结案库。
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {!patient?.name && (
-        <Alert className="bg-amber-50 border-amber-200 text-amber-800">
-          <AlertCircle className="size-4 text-amber-600" />
-          <AlertTitle className="font-bold">基本信息缺失</AlertTitle>
-          <AlertDescription>
-            该档案目前仅有临床登记记录，尚未补充人口学基本信息。
           </AlertDescription>
         </Alert>
       )}
@@ -286,7 +283,7 @@ export default function PatientProfilePage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem 
                               className="text-destructive gap-2"
-                              onSelect={() => handleDeleteRecord(event.id, event.type)}
+                              onSelect={() => setRecordToDelete({id: event.id, type: event.type})}
                             >
                               <Trash2 className="size-4" />
                               删除此条记录
@@ -343,6 +340,24 @@ export default function PatientProfilePage() {
           </Tabs>
         </div>
       </div>
+
+      <AlertDialog open={!!recordToDelete} onOpenChange={(open) => !open && setRecordToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-destructive" />
+              确认删除病程记录？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这条{recordToDelete?.type === 'abnormal' ? '异常结果' : '随访'}记录吗？此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteRecord} className="bg-destructive hover:bg-destructive/90">确认删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

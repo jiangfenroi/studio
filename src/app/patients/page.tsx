@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   Trash2,
   FileDown,
-  Plus
+  Plus,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -26,7 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,16 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Form,
   FormControl,
@@ -79,6 +90,7 @@ export default function PatientsPage() {
   const [searchTerm, setSearchTerm] = React.useState("")
   const [editingPatient, setEditingPatient] = React.useState<PatientFormValues | null>(null)
   const [isAddingNew, setIsAddingNew] = React.useState(false)
+  const [patientIdToDelete, setPatientIdToDelete] = React.useState<string | null>(null)
   const { toast } = useToast()
 
   const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
@@ -133,28 +145,25 @@ export default function PatientsPage() {
 
   const onSubmit = (values: PatientFormValues) => {
     const patientRef = doc(db, "patientProfiles", values.id)
-    
-    // For both add and edit, we use setDocument with merge to allow supplementing existing records
     setDocumentNonBlocking(patientRef, values, { merge: true })
-    
     setEditingPatient(null)
     setIsAddingNew(false)
-    
     toast({
       title: isAddingNew ? "新档案已创建" : "档案更新成功",
       description: `患者 ${values.name} 的信息已同步。`,
     })
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm("确定要删除该患者档案吗？将同时删除其所有异常结果及随访记录。")) {
-      const patientRef = doc(db, "patientProfiles", id)
-      deleteDocumentNonBlocking(patientRef)
-      toast({
-        title: "档案已删除",
-        variant: "destructive"
-      })
-    }
+  const confirmDeletePatient = () => {
+    if (!patientIdToDelete) return
+    const patientRef = doc(db, "patientProfiles", patientIdToDelete)
+    deleteDocumentNonBlocking(patientRef)
+    setPatientIdToDelete(null)
+    toast({
+      title: "档案已删除",
+      variant: "destructive",
+      description: "该患者档案及关联数据已被移除。"
+    })
   }
 
   const handleDownloadTemplate = () => {
@@ -282,7 +291,7 @@ export default function PatientsPage() {
                           <Edit className="size-4 mr-2" /> 补录/修改资料
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(patient.id)}>
+                        <DropdownMenuItem className="text-destructive" onSelect={() => setPatientIdToDelete(patient.id)}>
                           <Trash2 className="size-4 mr-2" /> 删除档案
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -391,6 +400,24 @@ export default function PatientsPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!patientIdToDelete} onOpenChange={(open) => !open && setPatientIdToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-destructive" />
+              确认永久删除档案？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作将同时删除该患者的所有异常结果记录及随访记录。该操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeletePatient} className="bg-destructive hover:bg-destructive/90">确认删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

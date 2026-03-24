@@ -12,7 +12,8 @@ import {
   Eye, 
   Plus,
   FileText,
-  ClipboardList
+  ClipboardList,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Form,
   FormControl,
@@ -70,6 +81,7 @@ export default function RecordsPage() {
   const [searchTerm, setSearchTerm] = React.useState("")
   const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null)
   const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
+  const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
 
   // Fetch all anomaly records
   const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
@@ -77,7 +89,7 @@ export default function RecordsPage() {
 
   // Fetch all patient profiles to join demographics
   const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
-  const { data: patients, isLoading: isPatientsLoading } = useCollection(patientsQuery)
+  const { data: patients } = useCollection(patientsQuery)
 
   const joinedRecords = React.useMemo(() => {
     if (!rawRecords) return []
@@ -128,12 +140,12 @@ export default function RecordsPage() {
     toast({ title: "修改成功", description: "异常结果记录已更新。" })
   }
 
-  const handleDelete = (record: any) => {
-    if (confirm("确定要删除这条异常结果记录吗？此操作将永久移除相关数据。")) {
-      const recordRef = doc(db, `patientProfiles/${record.patientProfileId}/medicalAnomalyRecords`, record.id)
-      deleteDocumentNonBlocking(recordRef)
-      toast({ title: "已撤销登记", variant: "destructive" })
-    }
+  const confirmDelete = () => {
+    if (!recordToDelete) return
+    const recordRef = doc(db, `patientProfiles/${recordToDelete.patientProfileId}/medicalAnomalyRecords`, recordToDelete.id)
+    deleteDocumentNonBlocking(recordRef)
+    setRecordToDelete(null)
+    toast({ title: "已撤销登记", variant: "destructive", description: "该条医学异常记录已被移除。" })
   }
 
   return (
@@ -236,7 +248,7 @@ export default function RecordsPage() {
                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-2 text-destructive" onSelect={() => handleDelete(record)}>
+                        <DropdownMenuItem className="gap-2 text-destructive" onSelect={() => setRecordToDelete(record)}>
                           <Trash2 className="size-4" /> 撤销登记
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -310,6 +322,24 @@ export default function RecordsPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!recordToDelete} onOpenChange={(open) => !open && setRecordToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-destructive" />
+              确认撤销临床登记？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这条异常结果记录吗？此操作将永久移除相关数据，且无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">确认撤销</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
