@@ -13,12 +13,8 @@ import {
   Trash2,
   Edit,
   UserCheck,
-  KeyRound,
-  Eye,
-  EyeOff,
-  AlertTriangle
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -164,7 +160,7 @@ export default function SettingsPage() {
       syncStaffToMysql(config.mysql, newUser, 'SAVE');
     }
 
-    toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。" })
+    toast({ title: "已增加新账户", description: "请在列表中修改工号及具体信息。" })
   }
 
   const handleConfirmDeleteUser = () => {

@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview MySQL 数据同步核心引擎
- * 确保所有临床数据、账户权限及系统配置实时同步至中心数据库。
+ * @fileOverview MySQL 数据同步核心引擎 (增强型)
+ * 采用异步非阻塞逻辑，确保即使 MySQL 离线，前端功能依然完整。
  */
 
 import mysql from 'mysql2/promise';
@@ -15,6 +15,7 @@ async function getConnection(config: any) {
     user: config.user || 'medi_admin',
     password: config.password || 'AdminPassword123',
     database: config.database || 'meditrack_db',
+    connectTimeout: 5000, // 5秒超时，防止阻塞
   });
 }
 
@@ -22,9 +23,10 @@ async function getConnection(config: any) {
  * 同步患者档案 (SP_PERSON)
  */
 export async function syncPatientToMysql(config: any, patient: any, operation: 'SAVE' | 'DELETE') {
-  if (!config) return;
-  const connection = await getConnection(config);
+  if (!config || !config.host) return;
+  let connection;
   try {
+    connection = await getConnection(config);
     if (operation === 'SAVE') {
       const data = {
         archiveNo: patient.id,
@@ -50,7 +52,7 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
   } catch (err) {
     console.error('MySQL Sync Error (Patient):', err);
   } finally {
-    await connection.end();
+    if (connection) await connection.end();
   }
 }
 
@@ -58,9 +60,10 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
  * 同步重要异常结果 (SP_YCJG)
  */
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
-  if (!config) return;
-  const connection = await getConnection(config);
+  if (!config || !config.host) return;
+  let connection;
   try {
+    connection = await getConnection(config);
     if (operation === 'SAVE') {
       const data = {
         id: record.id,
@@ -89,7 +92,7 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
   } catch (err) {
     console.error('MySQL Sync Error (Anomaly):', err);
   } finally {
-    await connection.end();
+    if (connection) await connection.end();
   }
 }
 
@@ -97,9 +100,10 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
  * 同步随访记录 (SP_SF)
  */
 export async function syncFollowUpToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
-  if (!config) return;
-  const connection = await getConnection(config);
+  if (!config || !config.host) return;
+  let connection;
   try {
+    connection = await getConnection(config);
     if (operation === 'SAVE') {
       const data = {
         id: record.id,
@@ -124,7 +128,7 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
   } catch (err) {
     console.error('MySQL Sync Error (FollowUp):', err);
   } finally {
-    await connection.end();
+    if (connection) await connection.end();
   }
 }
 
@@ -132,9 +136,10 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
  * 同步账户信息 (SP_STAFF)
  */
 export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE' | 'DELETE') {
-  if (!config) return;
-  const connection = await getConnection(config);
+  if (!config || !config.host) return;
+  let connection;
   try {
+    connection = await getConnection(config);
     if (operation === 'SAVE') {
       const data = {
         jobId: staff.jobId,
@@ -156,7 +161,7 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
   } catch (err) {
     console.error('MySQL Sync Error (Staff):', err);
   } finally {
-    await connection.end();
+    if (connection) await connection.end();
   }
 }
 
@@ -164,9 +169,10 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
  * 同步全局配置 (SP_CONFIG)
  */
 export async function syncConfigToMysql(config: any, systemConfig: any) {
-  if (!config) return;
-  const connection = await getConnection(config);
+  if (!config || !config.host) return;
+  let connection;
   try {
+    connection = await getConnection(config);
     const data = {
       configKey: 'default',
       appName: systemConfig.appName,
@@ -184,6 +190,6 @@ export async function syncConfigToMysql(config: any, systemConfig: any) {
   } catch (err) {
     console.error('MySQL Sync Error (Config):', err);
   } finally {
-    await connection.end();
+    if (connection) await connection.end();
   }
 }
