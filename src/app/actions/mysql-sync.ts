@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview MySQL 数据同步与实时计算引擎 (高性能版)
- * 采用并发查询机制，显著提升首页统计同步速度。
+ * 采用并发查询机制，确保临床数据在中心业务库的唯一性与准确性。
  */
 
 import mysql from 'mysql2/promise';
@@ -14,12 +14,12 @@ async function getConnection(config: any) {
     user: config.user || 'medi_admin',
     password: config.password || 'AdminPassword123',
     database: config.database || 'meditrack_db',
-    connectTimeout: 3000, // 缩短超时时间以提高响应感知
+    connectTimeout: 3000, 
   });
 }
 
 /**
- * 首页实时统计 - 并发聚合计算，确保同步速度
+ * 首页实时统计 - 并发聚合计算，确保数据来源于中心 MySQL
  */
 export async function fetchHomeStats(config: any) {
   if (!config || !config.host) return null;
@@ -29,7 +29,6 @@ export async function fetchHomeStats(config: any) {
     const today = new Date().toISOString().split('T')[0];
     const currentYear = new Date().getFullYear();
 
-    // 使用 Promise.all 并发执行所有统计查询，大幅降低延迟
     const [
       [patientRows],
       [todayRows],
@@ -79,7 +78,7 @@ export async function fetchHomeStats(config: any) {
       recentTasks: recentTasks
     };
   } catch (err) {
-    console.error('MySQL 并发同步失败:', err);
+    console.error('MySQL 首页同步失败:', err);
     return null;
   } finally {
     if (connection) await connection.end();
@@ -87,7 +86,7 @@ export async function fetchHomeStats(config: any) {
 }
 
 /**
- * 数据统计报表 - 联表实时查询
+ * 数据统计报表 - 联表实时查询，补全所有告知与宣教字段
  */
 export async function fetchDataForStats(config: any) {
   if (!config || !config.host) return [];
@@ -109,7 +108,7 @@ export async function fetchDataForStats(config: any) {
     const [rows] = await connection.execute(sql);
     return rows;
   } catch (err) {
-    console.error('MySQL 报表同步失败:', err);
+    console.error('MySQL 报表数据抓取失败:', err);
     return [];
   } finally {
     if (connection) await connection.end();

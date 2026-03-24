@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -69,7 +68,7 @@ import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { useFirestore, useCollection, useMemoFirebase, useDoc, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useDoc, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, useUser } from "@/firebase"
 import { collection, doc, collectionGroup, query } from "firebase/firestore"
 import { differenceInYears, parseISO } from "date-fns"
 import { syncPatientToMysql } from "@/app/actions/mysql-sync"
@@ -90,6 +89,7 @@ type PatientFormValues = z.infer<typeof patientSchema>
 
 export default function PatientsPage() {
   const db = useFirestore()
+  const { user } = useUser()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [editingPatient, setEditingPatient] = React.useState<PatientFormValues | null>(null)
   const [isAddingNew, setIsAddingNew] = React.useState(false)
@@ -99,10 +99,17 @@ export default function PatientsPage() {
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: systemConfig } = useDoc(configRef)
 
-  const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
+  // 关键修复：增加身份守卫
+  const patientsQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return collection(db, "patientProfiles");
+  }, [db, user])
   const { data: patients, isLoading } = useCollection(patientsQuery)
 
-  const allRecordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
+  const allRecordsQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return query(collectionGroup(db, "medicalAnomalyRecords"));
+  }, [db, user])
   const { data: allRecords } = useCollection(allRecordsQuery)
 
   const form = useForm<PatientFormValues>({
@@ -209,7 +216,6 @@ export default function PatientsPage() {
     const patientRef = doc(db, "patientProfiles", values.id)
     setDocumentNonBlocking(patientRef, values, { merge: true })
     
-    // 同步到 MySQL
     if (systemConfig?.mysql) {
       syncPatientToMysql(systemConfig.mysql, values, 'SAVE');
     }
@@ -227,7 +233,6 @@ export default function PatientsPage() {
     const patientRef = doc(db, "patientProfiles", patientIdToDelete)
     deleteDocumentNonBlocking(patientRef)
     
-    // 同步到 MySQL
     if (systemConfig?.mysql) {
       syncPatientToMysql(systemConfig.mysql, { id: patientIdToDelete }, 'DELETE');
     }

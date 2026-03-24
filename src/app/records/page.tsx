@@ -60,7 +60,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirestore, useCollection, useMemoFirebase, useDoc, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useDoc, deleteDocumentNonBlocking, updateDocumentNonBlocking, useUser } from "@/firebase"
 import { collectionGroup, query, doc, collection } from "firebase/firestore"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -76,6 +76,7 @@ const editSchema = z.object({
 
 export default function RecordsPage() {
   const db = useFirestore()
+  const { user } = useUser()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null)
@@ -85,10 +86,17 @@ export default function RecordsPage() {
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: systemConfig } = useDoc(configRef)
 
-  const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
+  // 关键修复：增加 user 身份守卫，防止 Missing or insufficient permissions 报错
+  const recordsQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return query(collectionGroup(db, "medicalAnomalyRecords"));
+  }, [db, user])
   const { data: rawRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
 
-  const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
+  const patientsQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return collection(db, "patientProfiles");
+  }, [db, user])
   const { data: patients } = useCollection(patientsQuery)
 
   const joinedRecords = React.useMemo(() => {
@@ -139,7 +147,6 @@ export default function RecordsPage() {
     const recordRef = doc(db, "patientProfiles", editingRecord.patientProfileId, "medicalAnomalyRecords", editingRecord.id)
     updateDocumentNonBlocking(recordRef, values)
     
-    // 同步到 MySQL
     if (systemConfig?.mysql) {
       syncAnomalyToMysql(systemConfig.mysql, { ...editingRecord, ...values }, 'SAVE');
     }
@@ -153,7 +160,6 @@ export default function RecordsPage() {
     const recordRef = doc(db, "patientProfiles", recordToDelete.patientProfileId, "medicalAnomalyRecords", recordToDelete.id)
     deleteDocumentNonBlocking(recordRef)
     
-    // 同步到 MySQL
     if (systemConfig?.mysql) {
       syncAnomalyToMysql(systemConfig.mysql, { id: recordToDelete.id }, 'DELETE');
     }
