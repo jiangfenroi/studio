@@ -2,16 +2,16 @@
 'use client';
 
 import * as React from 'react';
-import { useAuth, useUser, initiateEmailSignIn, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUser, initiateEmailSignIn, initiateEmailSignUp, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, UserCircle, Settings, Save, Database, Server, UserCheck } from 'lucide-react';
+import { ShieldAlert, LogIn, Settings, Server, UserCheck, Save, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -20,8 +20,11 @@ export default function LoginPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
+  
   const [jobId, setJobId] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [name, setName] = React.useState(''); // For signup
+  const [activeTab, setActiveTab] = React.useState('login');
   
   // Local states for settings dialog
   const [mysqlConfig, setMysqlConfig] = React.useState({
@@ -41,27 +44,42 @@ export default function LoginPage() {
   const handleJobIdLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (auth && jobId && password) {
-      // Internal mapping for hospital Job ID
       const internalEmail = `${jobId}@meditrack.local`;
       initiateEmailSignIn(auth, internalEmail, password);
+    }
+  };
+
+  const handleJobIdSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (auth && jobId && password && name) {
+      const internalEmail = `${jobId}@meditrack.local`;
       
-      // Specifically ensure Admin 1058 exists in the profiles
-      if (jobId === '1058') {
-        const adminProfileRef = doc(db, 'staffProfiles', 'admin_1058');
-        setDocumentNonBlocking(adminProfileRef, {
-          jobId: '1058',
-          name: '姜锋',
-          role: '管理员',
-          email: internalEmail,
-          status: '在职'
-        }, { merge: true });
-      }
+      // 1. Create the Auth account
+      initiateEmailSignUp(auth, internalEmail, password);
+      
+      // 2. Create the Staff Profile in Firestore
+      const isAdmin = jobId === '1058';
+      const staffRef = doc(db, 'staffProfiles', `staff_${jobId}`);
+      
+      // We don't await because of non-blocking patterns, but we can use setDoc directly for initialization
+      setDoc(staffRef, {
+        jobId,
+        name,
+        role: isAdmin ? '管理员' : '医生',
+        email: internalEmail,
+        status: '在职'
+      }, { merge: true }).then(() => {
+        toast({
+          title: "账户已创建",
+          description: `工号 ${jobId} (${name}) 已成功注册。`,
+        });
+      });
     }
   };
 
   const handleSaveConfig = () => {
     const configRef = doc(db, 'systemConfig', 'default');
-    setDocumentNonBlocking(configRef, {
+    setDoc(configRef, {
       mysql: mysqlConfig,
       lastUpdated: new Date().toISOString()
     }, { merge: true });
@@ -92,39 +110,96 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleJobIdLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="jobId" className="flex items-center gap-2">
-                <UserCheck className="size-4" />
-                工号 (Job ID)
-              </Label>
-              <Input
-                id="jobId"
-                type="text"
-                placeholder="请输入工号"
-                value={jobId}
-                onChange={(e) => setJobId(e.target.value)}
-                required
-                className="h-11 font-mono"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">登录密码</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="请输入密码"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="h-11"
-              />
-            </div>
-            <Button type="submit" className="w-full gap-2 text-lg h-12 mt-4 shadow-md">
-              <LogIn className="size-5" />
-              立即登录
-            </Button>
-          </form>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login">登 录</TabsTrigger>
+              <TabsTrigger value="signup">注 册</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="login">
+              <form onSubmit={handleJobIdLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="jobId" className="flex items-center gap-2">
+                    <UserCheck className="size-4" />
+                    工号 (Job ID)
+                  </Label>
+                  <Input
+                    id="jobId"
+                    type="text"
+                    placeholder="请输入工号"
+                    value={jobId}
+                    onChange={(e) => setJobId(e.target.value)}
+                    required
+                    className="h-11 font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">登录密码</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="请输入密码"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="h-11"
+                  />
+                </div>
+                <Button type="submit" className="w-full gap-2 text-lg h-12 mt-4 shadow-md">
+                  <LogIn className="size-5" />
+                  立即登录
+                </Button>
+              </form>
+            </TabsContent>
+            
+            <TabsContent value="signup">
+              <form onSubmit={handleJobIdSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-name">姓名</Label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="请输入真实姓名"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-jobId">工号 (Job ID)</Label>
+                  <Input
+                    id="signup-jobId"
+                    type="text"
+                    placeholder="请输入工号"
+                    value={jobId}
+                    onChange={(e) => setJobId(e.target.value)}
+                    required
+                    className="h-11 font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">设置密码</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    placeholder="设置登录密码"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="h-11"
+                  />
+                </div>
+                <Button type="submit" variant="secondary" className="w-full gap-2 text-lg h-12 mt-4 shadow-md">
+                  <UserPlus className="size-5" />
+                  创建账户
+                </Button>
+                <p className="text-[10px] text-center text-muted-foreground mt-2">
+                  提示：管理员账户 (1058) 注册后将自动获得系统管理权限。
+                </p>
+              </form>
+            </TabsContent>
+          </Tabs>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <div className="flex justify-center w-full">
