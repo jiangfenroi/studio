@@ -36,18 +36,14 @@
           "type": "string",
           "enum": ["正常", "死亡", "无法联系"],
           "default": "正常"
-        },
-        "lastExamDate": {
-          "type": "string",
-          "format": "date"
         }
       },
-      "required": ["id", "name", "gender", "age", "phoneNumber", "status"]
+      "required": ["id", "status"]
     },
     "MedicalAnomalyRecord": {
       "title": "MedicalAnomalyRecord",
       "type": "object",
-      "description": "Records details of a significant abnormal result found during a medical checkup.",
+      "description": "Records clinical events, including initial abnormal findings and subsequent professional follow-ups.",
       "properties": {
         "id": {
           "type": "string"
@@ -56,18 +52,21 @@
           "type": "string"
         },
         "checkupNumber": {
-          "type": "string"
+          "type": "string",
+          "description": "12-digit exam number."
         },
         "checkupDate": {
           "type": "string",
           "format": "date"
         },
-        "notifiedPerson": {
-          "type": "string"
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
         },
         "anomalyCategory": {
           "type": "string",
-          "enum": ["A", "B"]
+          "enum": ["A", "B"],
+          "description": "Present for initial findings."
         },
         "anomalyDetails": {
           "type": "string"
@@ -78,30 +77,54 @@
         "isNotified": {
           "type": "boolean"
         },
-        "isHealthEducationProvided": {
-          "type": "boolean"
-        },
-        "notifier": {
+        "notifiedPerson": {
           "type": "string"
         },
         "notifiedPersonFeedback": {
           "type": "string"
         },
+        "notifier": {
+          "type": "string"
+        },
         "notificationDate": {
-          "type": "string",
-          "format": "date"
+          "type": "string"
         },
         "notificationTime": {
+          "type": "string"
+        },
+        "associatedAnomalyId": {
           "type": "string",
-          "format": "time"
+          "description": "Present for follow-up records, links to the original anomaly."
+        },
+        "followUpResult": {
+          "type": "string"
+        },
+        "followUpPerson": {
+          "type": "string"
+        },
+        "followUpDate": {
+          "type": "string"
+        },
+        "followUpTime": {
+          "type": "string"
+        },
+        "isReExamined": {
+          "type": "boolean"
+        },
+        "nextFollowUpDate": {
+          "type": "string",
+          "description": "Manually set date for the next follow-up."
+        },
+        "isClosed": {
+          "type": "boolean",
+          "description": "True if the clinical task is finalized."
         }
-      },
-      "required": ["id", "patientProfileId", "checkupNumber", "checkupDate"]
+      }
     },
     "MedicalReportFile": {
       "title": "MedicalReportFile",
       "type": "object",
-      "description": "Stores metadata and links for uploaded PDF medical reports with hierarchical path logic.",
+      "description": "Metadata for uploaded medical reports.",
       "properties": {
         "id": {
           "type": "string"
@@ -110,19 +133,13 @@
           "type": "string"
         },
         "associatedRecordId": {
-          "type": "string",
-          "description": "Reference to either a MedicalAnomalyRecord or a FollowUpRecord."
+          "type": "string"
         },
         "fileName": {
           "type": "string"
         },
-        "basePath": {
-          "type": "string",
-          "description": "The root storage path configured in settings."
-        },
         "fullPath": {
-          "type": "string",
-          "description": "Computed path: basePath/archiveNo/reportCategory/fileName"
+          "type": "string"
         },
         "checkDate": {
           "type": "string",
@@ -130,65 +147,22 @@
         },
         "reportCategory": {
           "type": "string",
-          "enum": ["体检报告", "影像报告", "病理报告", "内镜报告"]
-        }
-      },
-      "required": ["id", "patientProfileId", "fileName", "fullPath", "checkDate", "reportCategory"]
-    },
-    "SystemConfig": {
-      "title": "SystemConfig",
-      "type": "object",
-      "description": "Global system settings including PDF storage paths and app branding.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "default": "default"
-        },
-        "appName": {
-          "type": "string",
-          "description": "Customized system name."
-        },
-        "appLogoFileName": {
-          "type": "string",
-          "description": "Logo filename stored in the root of the PDF storage path."
-        },
-        "pdfStoragePath": {
-          "type": "string",
-          "description": "The designated internal network path for PDF storage."
-        },
-        "pacsUrlBase": {
-          "type": "string",
-          "description": "Base URL for PACS integration (e.g., http://172.16.201.61:7242/?ChtId=)."
-        },
-        "mysql": {
-          "type": "object",
-          "properties": {
-            "host": { "type": "string" },
-            "port": { "type": "string" },
-            "user": { "type": "string" },
-            "password": { "type": "string" },
-            "database": { "type": "string" }
-          }
-        },
-        "lastUpdated": {
-          "type": "string",
-          "format": "date-time"
+          "enum": ["体检报告", "影像检查报告", "病理检查报告", "内镜报告"]
         }
       }
     },
     "StaffProfile": {
       "title": "StaffProfile",
       "type": "object",
-      "description": "Metadata for system users/clinical staff.",
+      "description": "Metadata for system users.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["管理员", "医生", "护士"] },
         "jobId": { "type": "string" },
+        "role": { "type": "string", "enum": ["管理员", "医生", "护士"] },
         "status": { "type": "string", "enum": ["在职", "离职"] }
-      },
-      "required": ["id", "name", "email", "role"]
+      }
     }
   },
   "auth": {
@@ -197,23 +171,23 @@
   "firestore": {
     "/systemConfig/{configId}": {
       "schema": "#/backend/entities/SystemConfig",
-      "description": "Global settings for the application."
+      "description": "Global settings."
     },
     "/staffProfiles/{staffId}": {
       "schema": "#/backend/entities/StaffProfile",
-      "description": "Clinical staff and system user metadata."
+      "description": "User profiles."
     },
     "/patientProfiles/{patientProfileId}": {
       "schema": "#/backend/entities/PatientProfile",
-      "description": "Top-level collection for patient profiles."
+      "description": "Top-level patient documents."
     },
-    "/patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}": {
+    "/patientProfiles/{patientProfileId}/medicalAnomalyRecords/{recordId}": {
       "schema": "#/backend/entities/MedicalAnomalyRecord",
-      "description": "Subcollection for anomaly records."
+      "description": "Subcollection for all clinical interactions."
     },
     "/medicalReportFiles/{fileId}": {
       "schema": "#/backend/entities/MedicalReportFile",
-      "description": "Flattened access for reporting and linking files."
+      "description": "Flattened report index."
     }
   }
 }
