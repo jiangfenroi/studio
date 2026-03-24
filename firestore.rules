@@ -1,73 +1,41 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
      * MEDICAL ANOMALY RESULT MANAGEMENT SYSTEM - SECURITY POSTURE
-     * 
-     * Core Philosophy: 
-     * This ruleset implements access control for a clinical environment.
-     * In prototype mode, 'isMedicalStaff' is relaxed to any signed-in user (including anonymous).
      */
 
-    // --- Helper Functions ---
-
-    /** @description Checks if the request is from an authenticated user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Relaxed staff check for prototype: any signed-in user is considered staff. */
     function isMedicalStaff() {
       return isSignedIn();
     }
 
-    /** @description Combined check for staff status and existence of the document for updates/deletes. */
-    function isExistingMedicalStaff() {
-      return isMedicalStaff() && resource != null;
-    }
-
-    // --- Collection Rules ---
-
-    /**
-     * @description Global system settings. Public read allowed so app can load config immediately.
-     */
     match /systemConfig/{configId} {
-      allow get: if true;
-      allow list, write: if isMedicalStaff();
+      allow read: if true;
+      allow write: if isMedicalStaff();
     }
 
-    /**
-     * @description Flat collection for medical report metadata.
-     */
+    match /staffProfiles/{staffId} {
+      allow read, write: if isMedicalStaff();
+    }
+
     match /medicalReportFiles/{fileId} {
-      allow get, list: if isMedicalStaff();
-      allow create: if isMedicalStaff();
-      allow update, delete: if isExistingMedicalStaff();
+      allow read, write: if isMedicalStaff();
     }
 
-    /**
-     * @description Core patient demographic information.
-     */
     match /patientProfiles/{patientProfileId} {
-      allow get, list: if isMedicalStaff();
-      allow create: if isMedicalStaff();
-      allow update, delete: if isExistingMedicalStaff();
+      allow read, write: if isMedicalStaff();
 
-      /**
-       * @description Records of significant abnormal results for a specific patient.
-       */
       match /medicalAnomalyRecords/{medicalAnomalyRecordId} {
-        allow get, list: if isMedicalStaff();
-        allow create: if isMedicalStaff();
-        allow update, delete: if isExistingMedicalStaff();
+        allow read, write: if isMedicalStaff();
       }
     }
 
-    /**
-     * @description Collection Group support for medicalAnomalyRecords.
-     * Required for cross-patient reporting and statistics.
-     */
     match /{path=**}/medicalAnomalyRecords/{medicalAnomalyRecordId} {
       allow list: if isMedicalStaff();
     }

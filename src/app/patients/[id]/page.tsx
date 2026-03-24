@@ -29,13 +29,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useFirestore, useDoc, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
 
 export default function PatientProfilePage() {
   const params = useParams()
   const router = useRouter()
+  const db = useFirestore()
   const { toast } = useToast()
   
   const id = params.id as string
+
+  // Fetch PACS config
+  const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
+  const { data: config } = useDoc(configRef)
 
   // Mock patient detailed data
   const patient = {
@@ -51,7 +58,6 @@ export default function PatientProfilePage() {
     lastExam: '2025-01-01'
   }
 
-  // Unified clinical timeline
   const clinicalTimeline = [
     { 
       type: 'abnormal', 
@@ -70,29 +76,13 @@ export default function PatientProfilePage() {
       title: '第1次随访 (告知义务)', 
       description: '已电话通知患者本人及其家属。家属表示已知情，近期会带患者前往三甲医院呼吸内科复查。',
       tags: ['已通知', '宣教完成'],
-    },
-    { 
-      type: 'followup', 
-      date: '2025-02-15', 
-      title: '第2次随访 (复查反馈)', 
-      description: '患者反馈已在省人民医院完成复查。结节稳定，医生建议半年后复查CT。',
-      tags: ['复查完成'],
-      files: [
-        { name: '20250212_省医病理检查.pdf', category: '病理检查报告' }
-      ]
-    },
-    { 
-      type: 'abnormal', 
-      date: '2024-05-12', 
-      title: '空腹血糖 7.2mmol/L - B类', 
-      description: '既往体检发现血糖异常。建议日常饮食控制。',
-      tags: ['B类'],
     }
   ]
 
   const handleOpenPACS = () => {
-    // Logic as per requirement: http://172.16.201.61:7242/?ChtId=档案编号
-    const pacsUrl = `http://172.16.201.61:7242/?ChtId=${id}`
+    // Dynamic URL from config
+    const pacsBase = config?.pacsUrlBase || "http://172.16.201.61:7242/?ChtId="
+    const pacsUrl = `${pacsBase}${id}`
     window.open(pacsUrl, '_blank')
     toast({
       title: "正在外呼PACS系统",
@@ -127,7 +117,6 @@ export default function PatientProfilePage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Left: Enhanced Profile Info */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="shadow-md border-none overflow-hidden">
             <CardHeader className="bg-primary/5 pb-8">
@@ -147,10 +136,10 @@ export default function PatientProfilePage() {
             <CardContent className="pt-6 space-y-5">
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <ShieldAlert className="size-4 text-muted-foreground mt-1" />
+                  <Phone className="size-4 text-muted-foreground mt-1" />
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">身份证号</p>
-                    <p className="font-mono text-sm">{patient.idNumber}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">联系电话</p>
+                    <p className="text-sm">{patient.phone}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -160,47 +149,21 @@ export default function PatientProfilePage() {
                     <p className="text-sm">{patient.org}</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <Phone className="size-4 text-muted-foreground mt-1" />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">联系电话</p>
-                    <p className="text-sm">{patient.phone}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <MapPin className="size-4 text-muted-foreground mt-1" />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">家庭住址</p>
-                    <p className="text-xs leading-relaxed">{patient.address}</p>
-                  </div>
-                </div>
               </div>
-              
               <Separator />
-              
               <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
                 <div className="flex items-center gap-2 mb-2">
                   <Activity className="size-4 text-blue-600" />
                   <span className="text-sm font-bold text-blue-900">临床摘要</span>
                 </div>
                 <p className="text-xs text-blue-700 leading-relaxed">
-                  患者存在肺部实性结节风险（A类），随访闭环中。最后体检日期：{patient.lastExam}。
+                  最后体检日期：{patient.lastExam}。PACS 路径已按照中心配置同步。
                 </p>
               </div>
             </CardContent>
           </Card>
-
-          <Card className="border-none shadow-sm bg-amber-50/30">
-            <CardContent className="p-4 flex items-center gap-3">
-              <AlertTriangle className="size-5 text-amber-600 shrink-0" />
-              <p className="text-xs text-amber-700">
-                注意：档案编号为系统最高标识。若状态更新为“死亡”，系统将自动结案所有随访。
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Right: Clinical Timeline & Files */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs defaultValue="timeline" className="w-full">
             <TabsList className="w-full justify-start h-12 bg-white border-b rounded-none px-0 gap-8">
@@ -218,72 +181,18 @@ export default function PatientProfilePage() {
               <div className="relative pl-8 ml-4 border-l-2 border-primary/10 space-y-10">
                 {clinicalTimeline.map((event, idx) => (
                   <div key={idx} className="relative">
-                    {/* Event Node Icon */}
                     <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow-md flex items-center justify-center ${
                       event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'
                     }`}>
                       {event.type === 'abnormal' ? <Stethoscope className="size-4 text-white" /> : <ClipboardCheck className="size-4 text-white" />}
                     </div>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">{event.date}</span>
-                          {event.tags?.map(tag => (
-                            <Badge key={tag} variant="secondary" className="text-[10px] font-bold px-2 py-0">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50">
-                        <h4 className="text-xl font-bold text-foreground mb-2">{event.title}</h4>
-                        <p className="text-muted-foreground text-sm leading-relaxed mb-4">{event.description}</p>
-                        
-                        {event.files && (
-                          <div className="flex flex-wrap gap-3 pt-3 border-t">
-                            {event.files.map((file, fIdx) => (
-                              <Button key={fIdx} variant="outline" size="sm" className="h-8 gap-2 bg-muted/30 hover:bg-primary/5 border-none text-xs">
-                                <FileText className="size-3 text-primary" />
-                                {file.name}
-                                <Separator orientation="vertical" className="h-3" />
-                                <span className="text-primary hover:underline">查看</span>
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50">
+                      <h4 className="text-xl font-bold text-foreground mb-2">{event.title}</h4>
+                      <p className="text-muted-foreground text-sm leading-relaxed mb-4">{event.description}</p>
                     </div>
                   </div>
                 ))}
               </div>
-            </TabsContent>
-            
-            <TabsContent value="files" className="mt-6">
-              <Card className="border-none shadow-sm overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-                  {clinicalTimeline.flatMap(h => h.files || []).map((file, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-white border rounded-lg hover:border-primary/30 transition-all group">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-lg bg-primary/5 group-hover:bg-primary/10 transition-colors">
-                          <FileText className="size-6 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-sm">{file.name}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className="text-[10px] px-1 py-0">{file.category}</Badge>
-                            <span className="text-[10px] text-muted-foreground">关联日期: 2025-01-01</span>
-                          </div>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="icon" className="text-primary">
-                        <Download className="size-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </Card>
             </TabsContent>
           </Tabs>
         </div>
