@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/form"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
