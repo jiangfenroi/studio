@@ -2,16 +2,17 @@
 'use client';
 
 import * as React from 'react';
-import { useAuth, useUser, initiateEmailSignIn, initiateEmailSignUp, useFirestore } from '@/firebase';
+import { useAuth, useUser, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, Settings, Server, UserCheck, Save, UserPlus } from 'lucide-react';
+import { ShieldAlert, LogIn, Settings, Server, UserCheck, Save, UserPlus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { doc, setDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -23,10 +24,10 @@ export default function LoginPage() {
   
   const [jobId, setJobId] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [name, setName] = React.useState(''); // For signup
+  const [name, setName] = React.useState(''); 
   const [activeTab, setActiveTab] = React.useState('login');
+  const [isLoading, setIsLoading] = React.useState(false);
   
-  // Local states for settings dialog
   const [mysqlConfig, setMysqlConfig] = React.useState({
     host: '172.17.168.18',
     port: '10699',
@@ -36,44 +37,66 @@ export default function LoginPage() {
   });
 
   React.useEffect(() => {
-    if (user) {
+    if (user && !isLoading) {
       router.push('/');
     }
-  }, [user, router]);
+  }, [user, router, isLoading]);
 
-  const handleJobIdLogin = (e: React.FormEvent) => {
+  const handleJobIdLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (auth && jobId && password) {
-      const internalEmail = `${jobId}@meditrack.local`;
-      initiateEmailSignIn(auth, internalEmail, password);
+    if (!auth || !jobId || !password) return;
+    
+    setIsLoading(true);
+    const internalEmail = `${jobId}@meditrack.local`;
+    
+    try {
+      await signInWithEmailAndPassword(auth, internalEmail, password);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "登录失败",
+        description: "请检查工号或密码是否正确。",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleJobIdSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (auth && jobId && password && name) {
-      const internalEmail = `${jobId}@meditrack.local`;
+    if (!auth || !jobId || !password || !name) return;
+    
+    setIsLoading(true);
+    const internalEmail = `${jobId}@meditrack.local`;
+    
+    try {
+      // 1. Create the Auth account and wait for completion
+      await createUserWithEmailAndPassword(auth, internalEmail, password);
       
-      // 1. Create the Auth account
-      initiateEmailSignUp(auth, internalEmail, password);
-      
-      // 2. Create the Staff Profile in Firestore
+      // 2. Once authenticated, create the Staff Profile in Firestore
       const isAdmin = jobId === '1058';
       const staffRef = doc(db, 'staffProfiles', `staff_${jobId}`);
       
-      // We don't await because of non-blocking patterns, but we can use setDoc directly for initialization
-      setDoc(staffRef, {
+      await setDoc(staffRef, {
         jobId,
-        name,
+        name: isAdmin ? '姜锋' : name,
         role: isAdmin ? '管理员' : '医生',
         email: internalEmail,
         status: '在职'
-      }, { merge: true }).then(() => {
-        toast({
-          title: "账户已创建",
-          description: `工号 ${jobId} (${name}) 已成功注册。`,
-        });
+      }, { merge: true });
+
+      toast({
+        title: "账户已创建",
+        description: `工号 ${jobId} 已成功注册并分配权限。`,
       });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "注册失败",
+        description: error.message || "该工号可能已被占用或密码强度不足。",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -112,8 +135,8 @@ export default function LoginPage() {
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">登 录</TabsTrigger>
-              <TabsTrigger value="signup">注 册</TabsTrigger>
+              <TabsTrigger value="login" disabled={isLoading}>登 录</TabsTrigger>
+              <TabsTrigger value="signup" disabled={isLoading}>注 册</TabsTrigger>
             </TabsList>
             
             <TabsContent value="login">
@@ -130,6 +153,7 @@ export default function LoginPage() {
                     value={jobId}
                     onChange={(e) => setJobId(e.target.value)}
                     required
+                    disabled={isLoading}
                     className="h-11 font-mono"
                   />
                 </div>
@@ -142,11 +166,12 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={isLoading}
                     className="h-11"
                   />
                 </div>
-                <Button type="submit" className="w-full gap-2 text-lg h-12 mt-4 shadow-md">
-                  <LogIn className="size-5" />
+                <Button type="submit" className="w-full gap-2 text-lg h-12 mt-4 shadow-md" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="size-5 animate-spin" /> : <LogIn className="size-5" />}
                   立即登录
                 </Button>
               </form>
@@ -163,6 +188,7 @@ export default function LoginPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
+                    disabled={isLoading}
                     className="h-11"
                   />
                 </div>
@@ -175,6 +201,7 @@ export default function LoginPage() {
                     value={jobId}
                     onChange={(e) => setJobId(e.target.value)}
                     required
+                    disabled={isLoading}
                     className="h-11 font-mono"
                   />
                 </div>
@@ -183,15 +210,16 @@ export default function LoginPage() {
                   <Input
                     id="signup-password"
                     type="password"
-                    placeholder="设置登录密码"
+                    placeholder="至少6位字符"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={isLoading}
                     className="h-11"
                   />
                 </div>
-                <Button type="submit" variant="secondary" className="w-full gap-2 text-lg h-12 mt-4 shadow-md">
-                  <UserPlus className="size-5" />
+                <Button type="submit" variant="secondary" className="w-full gap-2 text-lg h-12 mt-4 shadow-md" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="size-5 animate-spin" /> : <UserPlus className="size-5" />}
                   创建账户
                 </Button>
                 <p className="text-[10px] text-center text-muted-foreground mt-2">
@@ -245,7 +273,7 @@ export default function LoginPage() {
             </Dialog>
           </div>
           <p className="text-center text-[10px] text-muted-foreground">
-            临床系统安全监控中 • 登录操作将被审计
+            临床系统安全监控中 • 注册与登录均受审计
           </p>
         </CardFooter>
       </Card>

@@ -147,19 +147,18 @@ export default function SettingsPage() {
   const handleAddUser = () => {
     const newUser = {
       name: "新员工",
-      email: "staff@hospital.local",
+      email: "staff@meditrack.local",
       role: "医生",
       jobId: `STAFF-${Date.now().toString().slice(-4)}`,
       status: "在职"
     }
     addDocumentNonBlocking(collection(db, "staffProfiles"), newUser)
-    toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。" })
+    toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。注意：新用户需先通过登录页注册。" })
   }
 
   const handleConfirmDeleteUser = () => {
     if (!userToDelete) return
 
-    // Prevent deletion of root admin 1058
     if (userToDelete.jobId === '1058') {
       toast({
         variant: "destructive",
@@ -170,7 +169,6 @@ export default function SettingsPage() {
       return
     }
 
-    // Prevent self-deletion
     if (user?.email === userToDelete.email) {
       toast({
         variant: "destructive",
@@ -195,7 +193,6 @@ export default function SettingsPage() {
 
     updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
 
-    // Handle password change if provided and it matches the current user context
     if (newPassword && user && (user.email === editingUser.email || user.email?.startsWith(`${editingUser.jobId}@`))) {
       try {
         await updatePassword(user, newPassword)
@@ -389,10 +386,10 @@ export default function SettingsPage() {
                   <UserCheck className="size-5 text-primary" />
                   系统账户管理
                 </CardTitle>
-                <CardDescription>添加或修改临床医生、护士及管理员账户信息。</CardDescription>
+                <CardDescription>管理临床账户基本信息。注意：新用户需先通过登录页完成首次注册。</CardDescription>
               </div>
               <Button onClick={handleAddUser} size="sm" className="gap-1">
-                <Plus className="size-4" /> 新增账户
+                <Plus className="size-4" /> 预设新账户
               </Button>
             </CardHeader>
             <CardContent className="p-0">
@@ -429,7 +426,7 @@ export default function SettingsPage() {
                           <Button variant="ghost" size="icon" onClick={() => setEditingUser(staff)} title="编辑账户">
                             <Edit className="size-4 text-primary" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setUserToDelete(staff)} title="删除账户">
+                          <Button variant="ghost" size="icon" onClick={() => setUserToDelete(staff)} title="注销账户">
                             <Trash2 className="size-4 text-destructive" />
                           </Button>
                         </div>
@@ -472,6 +469,7 @@ export default function SettingsPage() {
                   value={editingUser?.jobId} 
                   onChange={e => setEditingUser({...editingUser, jobId: e.target.value})}
                   className="col-span-3 font-mono" 
+                  disabled={editingUser?.jobId === '1058'}
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -532,7 +530,7 @@ export default function SettingsPage() {
                 </Button>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                提示：仅当修改当前登录账号（工号：{user?.email?.split('@')[0]}）时密码更新才会生效。
+                提示：仅支持修改当前登录账号（工号：{user?.email?.split('@')[0]}）的密码。
               </p>
             </div>
           </div>
