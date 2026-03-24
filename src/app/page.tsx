@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Calendar,
   ArrowRight,
-  ChevronDown
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
@@ -31,6 +30,27 @@ import {
   SelectValue 
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+
+const lineChartConfig = {
+  rate: {
+    label: "随访率 (%)",
+    color: "hsl(var(--primary))",
+  }
+}
+
+const pieChartConfig = {
+  value: {
+    label: "病例数",
+  },
+  "A类 (危急)": {
+    label: "A类 (危急)",
+    color: "hsl(var(--destructive))",
+  },
+  "B类 (重要)": {
+    label: "B类 (重要)",
+    color: "hsl(var(--primary))",
+  },
+}
 
 export default function Home() {
   const db = useFirestore()
@@ -118,27 +138,6 @@ export default function Home() {
     { label: "已登记患者", value: stats.totalPatients.toLocaleString(), icon: Users, color: "text-blue-600" },
     { label: "全量完成率", value: `${stats.completionRate}%`, icon: FileCheck, color: "text-green-600" },
   ]
-
-  const lineChartConfig = {
-    rate: {
-      label: "随访率 (%)",
-      color: "hsl(var(--primary))",
-    }
-  }
-
-  const pieChartConfig = {
-    value: {
-      label: "病例数",
-    },
-    "A类 (危急)": {
-      label: "A类 (危急)",
-      color: "hsl(var(--destructive))",
-    },
-    "B类 (重要)": {
-      label: "B类 (重要)",
-      color: "hsl(var(--primary))",
-    },
-  }
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-700">

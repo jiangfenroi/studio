@@ -6,6 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { User, ArrowRight, SkipForward } from "lucide-react"
+import { useFirestore, setDocumentNonBlocking } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,11 +24,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
 const patientSchema = z.object({
-  archiveNo: z.string(),
+  id: z.string(),
   name: z.string().min(1, "姓名不能为空"),
   gender: z.enum(["男", "女", "其他"]),
   age: z.coerce.number().min(0).max(150),
-  phone: z.string().min(1, "电话不能为空"),
+  phoneNumber: z.string().min(1, "电话不能为空"),
+  status: z.enum(["正常", "死亡", "无法联系"]).default("正常"),
 })
 
 interface PatientInfoFormProps {
@@ -35,19 +39,30 @@ interface PatientInfoFormProps {
 }
 
 export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFormProps) {
+  const db = useFirestore()
+  const { toast } = useToast()
+  
   const form = useForm<z.infer<typeof patientSchema>>({
     resolver: zodResolver(patientSchema),
     defaultValues: {
-      archiveNo: archiveNo,
+      id: archiveNo,
       name: "",
       gender: "男",
       age: 0,
-      phone: "",
+      phoneNumber: "",
+      status: "正常",
     },
   })
 
   function onSubmit(values: z.infer<typeof patientSchema>) {
-    console.log("Saving patient info:", values)
+    const patientRef = doc(db, "patientProfiles", archiveNo)
+    setDocumentNonBlocking(patientRef, values, { merge: true })
+    
+    toast({
+      title: "档案已更新",
+      description: `患者 ${values.name} 的基本信息已成功补充。`,
+    })
+    
     onComplete()
   }
 
@@ -116,7 +131,7 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
               />
               <FormField
                 control={form.control}
-                name="phone"
+                name="phoneNumber"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>联系电话</FormLabel>
