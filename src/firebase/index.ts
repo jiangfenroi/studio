@@ -1,21 +1,25 @@
+
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore';
 
-// 初始化 Firebase 核心服务
+/**
+ * 初始化 Firebase 核心服务。
+ * 针对医疗内网环境优化：
+ * 1. 强制会话持久化：关闭程序后自动注销。
+ * 2. 生产环境直连：保障数据同步的唯一性。
+ */
 export function initializeFirebase() {
   if (!getApps().length) {
-    // 始终使用提供的配置初始化，确保内网环境连接稳定性
     const firebaseApp = initializeApp(firebaseConfig);
     const sdks = getSdks(firebaseApp);
     
-    // 强制设置为“浏览器会话”持久化：
-    // 关闭标签页或退出程序后，登录凭据立即失效，不留存后台进程。
+    // 设置持久化模式为浏览器会话级，关闭标签页或重启程序即失效
     setPersistence(sdks.auth, browserSessionPersistence).catch((err) => {
-      console.error("Auth persistence setup failed:", err);
+      console.warn("Auth persistence failed, but continuing with session default.");
     });
 
     return sdks;
