@@ -1,10 +1,9 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/layout/AppSidebar';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { Shell } from '@/components/layout/Shell';
 
 export const metadata: Metadata = {
   title: 'HealthInsight Registry - 重要异常结果管理系统',
@@ -25,16 +24,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background">
         <FirebaseClientProvider>
-          <SidebarProvider>
-            <div className="flex min-h-screen w-full">
-              <AppSidebar />
-              <SidebarInset className="flex-1 overflow-auto">
-                <main className="min-h-full">
-                  {children}
-                </main>
-              </SidebarInset>
-            </div>
-          </SidebarProvider>
+          <Shell>
+            {children}
+          </Shell>
           <Toaster />
         </FirebaseClientProvider>
       </body>

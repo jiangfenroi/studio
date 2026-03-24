@@ -10,7 +10,9 @@ import {
   Settings, 
   ShieldAlert,
   Home,
-  Clock
+  Clock,
+  LogOut,
+  User
 } from "lucide-react"
 import {
   Sidebar,
@@ -25,7 +27,9 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useUser, useAuth, initiateSignOut } from "@/firebase"
+import { Button } from "@/components/ui/button"
 
 const items = [
   {
@@ -62,6 +66,16 @@ const items = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user } = useUser()
+  const auth = useAuth()
+
+  const handleLogout = () => {
+    if (auth) {
+      initiateSignOut(auth)
+      router.push("/login")
+    }
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -119,14 +133,21 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t p-4 group-data-[collapsible=icon]:hidden">
-        <div className="flex items-center gap-3">
-          <div className="size-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary">
-            管
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="size-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary shrink-0">
+              <User className="size-4" />
+            </div>
+            <div className="flex flex-col overflow-hidden">
+              <span className="text-sm font-medium truncate">
+                {user?.isAnonymous ? '匿名管理员' : (user?.email?.split('@')[0] || '系统用户')}
+              </span>
+              <span className="text-[10px] text-muted-foreground truncate">内网模式</span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">管理员用户</span>
-            <span className="text-xs text-muted-foreground">内网环境 • 离线模式</span>
-          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={handleLogout} title="退出登录">
+            <LogOut className="size-4" />
+          </Button>
         </div>
       </SidebarFooter>
     </Sidebar>
