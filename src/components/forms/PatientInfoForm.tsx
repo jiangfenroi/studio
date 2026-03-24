@@ -5,7 +5,7 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { User, ArrowRight, SkipForward } from "lucide-react"
+import { User, ArrowRight, SkipForward, Phone, CreditCard } from "lucide-react"
 import { useFirestore, setDocumentNonBlocking } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
@@ -28,7 +28,8 @@ const patientSchema = z.object({
   name: z.string().min(1, "姓名不能为空"),
   gender: z.enum(["男", "女", "其他"]),
   age: z.coerce.number().min(0).max(150),
-  phoneNumber: z.string().min(1, "电话不能为空"),
+  phoneNumber: z.string().min(1, "联系电话不能为空"),
+  idNumber: z.string().min(1, "身份证号不能为空"),
   status: z.enum(["正常", "死亡", "无法联系"]).default("正常"),
 })
 
@@ -50,6 +51,7 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
       gender: "男",
       age: 0,
       phoneNumber: "",
+      idNumber: "",
       status: "正常",
     },
   })
@@ -59,8 +61,8 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
     setDocumentNonBlocking(patientRef, values, { merge: true })
     
     toast({
-      title: "档案已更新",
-      description: `患者 ${values.name} 的基本信息已成功补充。`,
+      title: "档案已补充",
+      description: `患者 ${values.name} 的基本信息已成功同步。`,
     })
     
     onComplete()
@@ -70,26 +72,28 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
     <div className="animate-in fade-in slide-in-from-right-4 duration-500">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <Card className="shadow-xl border-primary/20">
-            <CardHeader className="bg-primary text-primary-foreground rounded-t-lg">
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <User className="size-6" />
-                个人档案信息补充
-              </CardTitle>
-              <CardDescription className="text-primary-foreground/80">
-                档案编号：{archiveNo}。补充完善患者基本资料以便于后续随访。
-              </CardDescription>
+          <Card className="shadow-2xl border-none ring-1 ring-primary/20">
+            <CardHeader className="bg-primary text-primary-foreground rounded-t-xl py-8">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/20 rounded-full">
+                  <User className="size-8" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl">补充个人健康档案</CardTitle>
+                  <CardDescription className="text-primary-foreground/80 font-medium">
+                    正在为档案编号 <span className="underline decoration-white/40">{archiveNo}</span> 完善人口学信息
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="pt-8 grid grid-cols-1 md:grid-cols-2 gap-8 px-10">
+            <CardContent className="pt-10 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8 px-10">
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>姓名</FormLabel>
-                    <FormControl>
-                      <Input placeholder="患者姓名" {...field} className="text-lg h-12" />
-                    </FormControl>
+                    <FormLabel className="text-primary font-bold">姓名</FormLabel>
+                    <FormControl><Input placeholder="姓名" {...field} className="h-12 text-lg border-primary/20 focus:border-primary" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -99,13 +103,9 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
                 name="gender"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>性别</FormLabel>
+                    <FormLabel className="text-primary font-bold">性别</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="text-lg h-12">
-                          <SelectValue placeholder="选择性别" />
-                        </SelectTrigger>
-                      </FormControl>
+                      <FormControl><SelectTrigger className="h-12 text-lg border-primary/20"><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="男">男</SelectItem>
                         <SelectItem value="女">女</SelectItem>
@@ -121,10 +121,8 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
                 name="age"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>年龄</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} className="text-lg h-12" />
-                    </FormControl>
+                    <FormLabel className="text-primary font-bold">年龄</FormLabel>
+                    <FormControl><Input type="number" {...field} className="h-12 text-lg border-primary/20" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -134,22 +132,37 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
                 name="phoneNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>联系电话</FormLabel>
-                    <FormControl>
-                      <Input placeholder="手机号或座机号" {...field} className="text-lg h-12" />
-                    </FormControl>
+                    <FormLabel className="text-primary font-bold flex items-center gap-2">
+                      <Phone className="size-4" /> 联系电话
+                    </FormLabel>
+                    <FormControl><Input placeholder="11位手机号或座机" {...field} className="h-12 text-lg border-primary/20" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <div className="col-span-full">
+                <FormField
+                  control={form.control}
+                  name="idNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-primary font-bold flex items-center gap-2">
+                        <CreditCard className="size-4" /> 身份证号
+                      </FormLabel>
+                      <FormControl><Input placeholder="18位身份证号码" {...field} className="h-12 text-lg font-mono border-primary/20" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </CardContent>
-            <div className="flex justify-between items-center px-10 pb-10 pt-4">
-              <Button type="button" variant="ghost" onClick={onSkip} className="gap-2 text-muted-foreground">
+            <div className="flex justify-between items-center px-10 pb-10 mt-6">
+              <Button type="button" variant="ghost" onClick={onSkip} className="gap-2 text-muted-foreground hover:text-primary transition-colors">
                 <SkipForward className="size-4" />
-                跳过，稍后补录
+                跳过补充，直接进入结果列表
               </Button>
-              <Button type="submit" size="lg" className="px-12 gap-2 text-lg">
-                完成并保存
+              <Button type="submit" size="lg" className="px-16 gap-3 text-lg shadow-lg hover:scale-[1.02] transition-transform">
+                保存并同步
                 <ArrowRight className="size-5" />
               </Button>
             </div>
