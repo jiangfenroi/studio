@@ -4,14 +4,12 @@
 import * as React from "react"
 import { 
   Search, 
-  Filter, 
-  Clock,
-  CheckCircle2,
-  ArrowRight,
   AlertTriangle,
-  History,
   Activity,
-  UserX
+  UserX,
+  Calendar,
+  ClipboardList,
+  Clock
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -20,8 +18,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, query } from "firebase/firestore"
-import { format, addDays, addYears, isAfter, parseISO, startOfDay } from "date-fns"
+import { collectionGroup, query, collection } from "firebase/firestore"
+import { addDays, addYears, isAfter, parseISO, startOfDay, format } from "date-fns"
 
 export default function FollowUpsPage() {
   const db = useFirestore()
@@ -38,7 +36,10 @@ export default function FollowUpsPage() {
     if (!allRecords || !patients) return { pending: [], closed: [] }
 
     const today = startOfDay(new Date())
+    
+    // Original anomalies (those with categories)
     const anomalies = allRecords.filter(r => r.anomalyCategory) 
+    // Professional follow-ups (those linked to an anomaly)
     const followUps = allRecords.filter(r => r.associatedAnomalyId)
 
     const processed = anomalies.map(anomaly => {
@@ -46,19 +47,23 @@ export default function FollowUpsPage() {
       const history = followUps.filter(f => f.associatedAnomalyId === anomaly.id)
       
       const notificationDate = anomaly.notificationDate ? parseISO(anomaly.notificationDate) : null
-      const examDate = anomaly.examDate ? parseISO(anomaly.examDate) : null
+      const examDate = anomaly.checkupDate ? parseISO(anomaly.checkupDate) : null
       const nextDate = anomaly.nextFollowUpDate ? parseISO(anomaly.nextFollowUpDate) : null
       
+      // Rule: 7 days after notification
       const isSevenDaysPassed = notificationDate ? isAfter(today, addDays(notificationDate, 7)) : false
+      // Rule: 1 year after examination
       const isOneYearPassed = examDate ? isAfter(today, addYears(examDate, 1)) : false
-      const isNextDateReached = nextDate ? isAfter(today, nextDate) : false
+      // Rule: Manual next date reached
+      const isNextDateReached = nextDate ? (isAfter(today, nextDate) || format(today, 'yyyy-MM-dd') === format(nextDate, 'yyyy-MM-dd')) : false
 
+      // Check if any professional follow-up exists (excluding initial registration)
       const hasProfessionalFollowUp = history.length > 0
       
       let isTaskPending = false
       let reason = ""
 
-      // Logic: If not closed, check if conditions are met to become pending
+      // Logic: If not explicitly closed and patient is alive
       if (!anomaly.isClosed && patient?.status !== '死亡') {
         if (isOneYearPassed) {
           isTaskPending = true
@@ -68,7 +73,7 @@ export default function FollowUpsPage() {
           reason = "预约随访期至"
         } else if (isSevenDaysPassed && !hasProfessionalFollowUp) {
           isTaskPending = true
-          reason = "超期未随访 (7日)"
+          reason = "通知超期未随访 (7日)"
         }
       }
 
@@ -82,21 +87,21 @@ export default function FollowUpsPage() {
     })
 
     const filtered = processed.filter(t => 
-      t.notifiedPerson?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      t.patient?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
       t.archiveNo?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     return {
       pending: filtered.filter(t => t.isTaskPending),
-      closed: filtered.filter(t => t.isClosed || t.patient?.status === '死亡')
+      closed: filtered.filter(t => !t.isTaskPending || t.isClosed || t.patient?.status === '死亡')
     }
   }, [allRecords, patients, searchTerm])
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       <header>
-        <h1 className="text-3xl font-bold text-primary">随访管理</h1>
-        <p className="text-muted-foreground">根据通知日期、复查周期及生命状态自动更新的任务清单</p>
+        <h1 className="text-3xl font-bold text-primary">随访任务管理</h1>
+        <p className="text-muted-foreground">基于 7日通知窗口、年度周期及预约日期的自动触发系统</p>
       </header>
 
       <div className="flex flex-col md:flex-row gap-4">
@@ -124,35 +129,46 @@ export default function FollowUpsPage() {
 
         <TabsContent value="pending" className="mt-6 space-y-4">
           {tasks.pending.map((task) => (
-            <Card key={task.id} className="border-l-4 border-l-amber-500 bg-white">
+            <Card key={task.id} className="border-l-4 border-l-amber-500 bg-white hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center gap-6">
                   <div className="flex-1 space-y-4">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-xl font-bold">{task.notifiedPerson}</h3>
-                      <Badge variant="outline">{task.patient?.gender} / {task.patient?.age}岁</Badge>
+                      <h3 className="text-xl font-bold">{task.patient?.name || "未补录患者"}</h3>
+                      <Badge variant="outline">{task.patient?.gender || '-'} / {task.patient?.age || '--'}岁</Badge>
                       <Badge className="bg-amber-100 text-amber-700">
-                        <AlertTriangle className="size-3 mr-1" />
+                        <Clock className="size-3 mr-1" />
                         {task.pendingReason}
                       </Badge>
+                      <Badge variant={task.anomalyCategory === 'A' ? 'destructive' : 'secondary'}>
+                        {task.anomalyCategory}类异常
+                      </Badge>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
                       <div>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">体检编号</p>
-                        <p>{task.checkupNumber}</p>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">档案/体检号</p>
+                        <p className="font-mono">{task.archiveNo}<br/><span className="text-muted-foreground">{task.checkupNumber}</span></p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">异常详情</p>
-                        <p className="line-clamp-1">{task.anomalyDetails}</p>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">联系电话</p>
+                        <p>{task.patient?.phoneNumber || "未登记"}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">异常发现与反馈</p>
+                        <p className="line-clamp-2 text-xs">
+                          <span className="font-bold text-destructive">详情：</span>{task.anomalyDetails}<br/>
+                          <span className="font-bold text-primary">反馈：</span>{task.notifiedPersonFeedback || "无"}
+                        </p>
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-row lg:flex-col gap-3 lg:border-l lg:pl-6 min-w-[140px]">
-                    <Button asChild className="gap-2">
+                    <Button asChild className="gap-2 bg-primary hover:bg-primary/90">
                       <Link href={`/follow-ups/${task.id}/record`}>录入随访</Link>
                     </Button>
-                    <Button variant="outline" asChild>
-                      <Link href={`/patients/${task.archiveNo}`}>病历档案</Link>
+                    <Button variant="outline" asChild className="gap-2">
+                      <Link href={`/patients/${task.archiveNo}`}>档案详情</Link>
                     </Button>
                   </div>
                 </div>
@@ -160,33 +176,37 @@ export default function FollowUpsPage() {
             </Card>
           ))}
           {tasks.pending.length === 0 && !isLoading && (
-            <div className="py-20 text-center border-dashed border-2 rounded-xl">
+            <div className="py-24 text-center border-dashed border-2 rounded-xl bg-muted/20">
               <Activity className="size-12 mx-auto text-muted-foreground opacity-20 mb-4" />
-              <p className="text-muted-foreground">目前无待随访任务</p>
+              <p className="text-muted-foreground">目前无待处理的临床随访任务</p>
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="closed" className="mt-6 space-y-4">
           {tasks.closed.map((task) => (
-            <Card key={task.id} className="border-l-4 border-l-green-500 bg-green-50/10">
+            <Card key={task.id} className="border-l-4 border-l-green-500 bg-white">
               <CardContent className="p-6">
                 <div className="flex justify-between items-center">
                   <div className="space-y-2">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-xl font-bold">{task.notifiedPerson}</h3>
+                      <h3 className="text-xl font-bold">{task.patient?.name || "未知"}</h3>
                       {task.patient?.status === '死亡' ? (
                         <Badge variant="destructive" className="gap-1">
-                          <UserX className="size-3" /> 患者已故 (自动结案)
+                          <UserX className="size-3" /> 患者已故 (自动终止)
                         </Badge>
                       ) : (
-                        <Badge className="bg-green-100 text-green-700">已结案</Badge>
+                        <Badge className="bg-green-100 text-green-700">已结案/历史记录</Badge>
                       )}
+                      <Badge variant="outline">ID: {task.archiveNo}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">档案号: {task.archiveNo}</p>
+                    <p className="text-xs text-muted-foreground">体检日期: {task.checkupDate} • 最近随访: {task.lastFollowUpAt ? format(parseISO(task.lastFollowUpAt), 'yyyy-MM-dd') : '无'}</p>
                   </div>
-                  <Button variant="ghost" asChild>
-                    <Link href={`/patients/${task.archiveNo}`}>查看归档</Link>
+                  <Button variant="ghost" asChild className="gap-2">
+                    <Link href={`/patients/${task.archiveNo}`}>
+                      <ClipboardList className="size-4" />
+                      查看完整病历
+                    </Link>
                   </Button>
                 </div>
               </CardContent>
