@@ -19,6 +19,74 @@ async function getConnection(config: any) {
 }
 
 /**
+ * 获取首页实时统计概览 - 直接从 MySQL 聚合计算
+ */
+export async function fetchHomeStats(config: any) {
+  if (!config || !config.host) return null;
+  let connection;
+  try {
+    connection = await getConnection(config);
+    
+    // 1. 患者总数 (SP_PERSON)
+    const [patientRows]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
+    
+    // 2. 今日新增异常 (SP_YCJG)
+    const today = new Date().toISOString().split('T')[0];
+    const [todayRows]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE checkupDate = ?', [today]);
+    
+    // 3. 待随访任务 (isNotified = 0)
+    const [pendingRows]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE isNotified = 0 AND isClosed = 0');
+    
+    // 4. 全量完成率
+    const [totalAnomalies]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG');
+    const [notifiedAnomalies]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE isNotified = 1');
+    const totalCount = totalAnomalies[0].count || 0;
+    const notifiedCount = notifiedAnomalies[0].count || 0;
+    const completionRate = totalCount > 0 ? Math.round((notifiedCount / totalCount) * 100) : 0;
+
+    // 5. 年度趋势 (随访率)
+    const currentYear = new Date().getFullYear();
+    const [trendRows]: any = await connection.execute(`
+      SELECT 
+        MONTH(checkupDate) as month,
+        COUNT(*) as total,
+        SUM(isNotified) as notified
+      FROM SP_YCJG 
+      WHERE YEAR(checkupDate) = ?
+      GROUP BY MONTH(checkupDate)
+    `, [currentYear]);
+
+    // 6. 异常分类分布
+    const [catRows]: any = await connection.execute('SELECT anomalyCategory as category, COUNT(*) as count FROM SP_YCJG GROUP BY anomalyCategory');
+
+    // 7. 最近待办
+    const [recentTasks]: any = await connection.execute(`
+      SELECT y.*, p.name as patientName 
+      FROM SP_YCJG y
+      LEFT JOIN SP_PERSON p ON y.patientProfileId = p.archiveNo
+      WHERE y.isNotified = 0 AND y.isClosed = 0
+      ORDER BY y.createdAt DESC
+      LIMIT 5
+    `);
+
+    return {
+      totalPatients: patientRows[0].count,
+      todayNew: todayRows[0].count,
+      pendingTasks: pendingRows[0].count,
+      completionRate,
+      trend: trendRows,
+      categories: catRows,
+      recentTasks: recentTasks
+    };
+  } catch (err) {
+    console.error('MySQL Home Stats Error:', err);
+    return null;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+/**
  * 同步重要异常结果 (SP_YCJG) - 包含所有告知细节
  */
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
@@ -69,7 +137,6 @@ export async function fetchDataForStats(config: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    // 联表查询：档案 (SP_PERSON) + 异常结果 (SP_YCJG) + 随访记录 (SP_SF)
     const sql = `
       SELECT 
         p.archiveNo, p.name, p.gender, p.age, p.idNumber, p.organization, p.phoneNumber, p.status as patientStatus,

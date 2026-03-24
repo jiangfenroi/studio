@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,7 +9,8 @@ import {
   AlertCircle,
   Calendar,
   ArrowRight,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
@@ -19,8 +19,8 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart, ResponsiveContainer } from "recharts"
-import { useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, collectionGroup, query, doc } from "firebase/firestore"
+import { useFirestore, useMemoFirebase, useDoc } from "@/firebase"
+import { doc } from "firebase/firestore"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { 
@@ -31,6 +31,7 @@ import {
   SelectValue 
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { fetchHomeStats } from "@/app/actions/mysql-sync"
 
 const lineChartConfig = {
   rate: {
@@ -56,18 +57,26 @@ const pieChartConfig = {
 export default function Home() {
   const db = useFirestore()
   const [mounted, setMounted] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(true)
   const [currentDate, setCurrentDate] = React.useState("")
   const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear().toString())
-
-  // Real-time data fetching
-  const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
-  const { data: patients } = useCollection(patientsQuery)
-
-  const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
-  const { data: records, isLoading } = useCollection(recordsQuery)
+  const [mysqlStats, setMysqlStats] = React.useState<any>(null)
 
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
   const { data: config } = useDoc(configRef)
+
+  const loadData = React.useCallback(async () => {
+    if (!config?.mysql) return
+    setIsLoading(true)
+    try {
+      const data = await fetchHomeStats(config.mysql)
+      setMysqlStats(data)
+    } catch (err) {
+      console.error("Home MySQL Data Load Failed")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [config])
 
   React.useEffect(() => {
     setMounted(true)
@@ -79,62 +88,37 @@ export default function Home() {
     }))
   }, [])
 
-  // Analytical Calculations
-  const stats = React.useMemo(() => {
-    if (!records || !mounted) return { today: 0, pending: 0, totalPatients: 0, completionRate: 0 }
-    
-    // Safely get today's date string on client only
-    const todayStr = new Date().toISOString().split('T')[0]
-    return {
-      today: records.filter(r => r.examDate === todayStr).length,
-      pending: records.filter(r => !r.isNotified).length,
-      totalPatients: patients?.length || 0,
-      completionRate: records.length > 0 
-        ? Math.round((records.filter(r => r.isNotified).length / records.length) * 100) 
-        : 0
+  React.useEffect(() => {
+    if (mounted && config) {
+      loadData()
     }
-  }, [records, patients, mounted])
+  }, [mounted, config, loadData])
 
+  // Analytical Calculations based on MySQL Stats
   const lineChartData = React.useMemo(() => {
-    if (!mounted) return []
+    if (!mysqlStats?.trend) return []
     const months = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
     return months.map((month, index) => {
-      const monthNum = (index + 1).toString().padStart(2, '0')
-      
-      const monthlyRecords = (records || []).filter(r => {
-        const date = r.noticeDate || r.examDate 
-        return date && date.startsWith(`${selectedYear}-${monthNum}`)
-      })
-
-      const closed = monthlyRecords.filter(r => r.isNotified).length
-      const total = monthlyRecords.length
-
+      const monthNum = index + 1
+      const monthData = mysqlStats.trend.find((t: any) => t.month === monthNum)
+      const total = monthData?.total || 0
+      const notified = monthData?.notified || 0
       return {
         month,
-        rate: total > 0 ? Math.round((closed / total) * 100) : 0
+        rate: total > 0 ? Math.round((notified / total) * 100) : 0
       }
     })
-  }, [records, selectedYear, mounted])
+  }, [mysqlStats])
 
   const pieData = React.useMemo(() => {
-    if (!records || !mounted) return []
-    const aCount = records.filter(r => r.category === 'A').length
-    const bCount = records.filter(r => r.category === 'B').length
-    return [
-      { name: "A类 (危急)", value: aCount, fill: "hsl(var(--destructive))" },
-      { name: "B类 (重要)", value: bCount, fill: "hsl(var(--primary))" },
-    ]
-  }, [records, mounted])
+    if (!mysqlStats?.categories) return []
+    return mysqlStats.categories.map((c: any) => ({
+      name: `${c.category}类 (${c.category === 'A' ? '危急' : '重要'})`,
+      value: c.count,
+      fill: c.category === 'A' ? "hsl(var(--destructive))" : "hsl(var(--primary))"
+    }))
+  }, [mysqlStats])
 
-  const recentTasks = React.useMemo(() => {
-    if (!mounted) return []
-    return (records || [])
-      .filter(r => !r.isNotified)
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-      .slice(0, 5)
-  }, [records, mounted])
-
-  // Prevent hydration mismatch by rendering nothing on server
   if (!mounted) return (
     <div className="flex h-screen items-center justify-center">
       <Activity className="size-8 animate-spin text-primary opacity-20" />
@@ -142,10 +126,10 @@ export default function Home() {
   )
 
   const summaryData = [
-    { label: "今日新增", value: stats.today.toString(), icon: ShieldAlert, color: "text-primary" },
-    { label: "待随访任务", value: stats.pending.toString(), icon: AlertCircle, color: "text-destructive" },
-    { label: "已登记患者", value: stats.totalPatients.toLocaleString(), icon: Users, color: "text-blue-600" },
-    { label: "全量完成率", value: `${stats.completionRate}%`, icon: FileCheck, color: "text-green-600" },
+    { label: "今日新增", value: mysqlStats?.todayNew?.toString() || "0", icon: ShieldAlert, color: "text-primary" },
+    { label: "待随访任务", value: mysqlStats?.pendingTasks?.toString() || "0", icon: AlertCircle, color: "text-destructive" },
+    { label: "已登记患者", value: mysqlStats?.totalPatients?.toLocaleString() || "0", icon: Users, color: "text-blue-600" },
+    { label: "全量完成率", value: `${mysqlStats?.completionRate || 0}%`, icon: FileCheck, color: "text-green-600" },
   ]
 
   return (
@@ -158,39 +142,38 @@ export default function Home() {
         <div className="flex gap-3">
           <Card className="flex items-center px-4 py-2 border-primary/20 bg-primary/5">
             <Calendar className="size-4 mr-2 text-primary" />
-            <span className="text-xs font-medium">业务库：MySQL 8.4 {config?.mysql?.host ? `(${config.mysql.host})` : '(未连接)'}</span>
+            <span className="text-xs font-medium">业务库：MySQL 8.4 {config?.mysql?.host ? `(${config.mysql.host})` : '(未配置)'}</span>
           </Card>
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[120px] h-10">
-              <SelectValue placeholder="选择年份" />
-            </SelectTrigger>
-            <SelectContent>
-              {[0, 1, 2].map(i => {
-                const year = (new Date().getFullYear() - i).toString()
-                return <SelectItem key={year} value={year}>{year}年</SelectItem>
-              })}
-            </SelectContent>
-          </Select>
+          <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
+            {isLoading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Activity className="size-4 mr-2" />}
+            同步最新数据
+          </Button>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {summaryData.map((item) => (
-          <Card key={item.label} className="hover:shadow-lg transition-all border-none shadow-md bg-white">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">{item.label}</p>
-                  <h3 className="text-3xl font-bold mt-1">{item.value}</h3>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1,2,3,4].map(i => <Card key={i} className="h-28 animate-pulse bg-muted" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {summaryData.map((item) => (
+            <Card key={item.label} className="hover:shadow-lg transition-all border-none shadow-md bg-white">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">{item.label}</p>
+                    <h3 className="text-3xl font-bold mt-1">{item.value}</h3>
+                  </div>
+                  <div className={`p-3 rounded-xl bg-muted/50 ${item.color}`}>
+                    <item.icon className="size-6" />
+                  </div>
                 </div>
-                <div className={`p-3 rounded-xl bg-muted/50 ${item.color}`}>
-                  <item.icon className="size-6" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-2 border-none shadow-md">
@@ -201,7 +184,7 @@ export default function Home() {
                   <TrendingUp className="size-5 text-primary" />
                   随访率年度趋势 ({selectedYear})
                 </CardTitle>
-                <CardDescription>计算公式：(当月已随访数 / 当月通知总人数) × 100%</CardDescription>
+                <CardDescription>计算自中心 MySQL 业务库实时记录</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -238,7 +221,7 @@ export default function Home() {
         <Card className="border-none shadow-md">
           <CardHeader>
             <CardTitle className="text-xl">异常分类分布</CardTitle>
-            <CardDescription>A类 (危急) 与 B类 (重要) 占比</CardDescription>
+            <CardDescription>MySQL 业务表 A/B 类占比</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center pt-0">
             <ChartContainer config={pieChartConfig} className="h-[240px] w-full">
@@ -253,7 +236,7 @@ export default function Home() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {pieData.map((entry, index) => (
+                    {pieData.map((entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
@@ -262,7 +245,7 @@ export default function Home() {
               </ResponsiveContainer>
             </ChartContainer>
             <div className="grid grid-cols-2 gap-4 mt-4 w-full px-4">
-              {pieData.map((item) => (
+              {pieData.map((item: any) => (
                 <div key={item.name} className="flex flex-col items-center p-3 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-2 mb-1">
                     <div className="size-2 rounded-full" style={{ backgroundColor: item.fill }} />
@@ -280,7 +263,7 @@ export default function Home() {
         <CardHeader className="bg-primary/5 flex flex-row items-center justify-between">
           <div>
             <CardTitle>待办事项与危急提醒</CardTitle>
-            <CardDescription>按登记时间倒序排列的待随访任务</CardDescription>
+            <CardDescription>来自中心库的待随访任务</CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild>
             <Link href="/follow-ups">查看全部</Link>
@@ -288,18 +271,18 @@ export default function Home() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
-            {recentTasks.map((task) => (
+            {mysqlStats?.recentTasks?.map((task: any) => (
               <div key={task.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
                 <div className="flex items-center gap-4">
-                  <div className={`size-2.5 rounded-full ${task.category === 'A' ? 'bg-destructive animate-pulse' : 'bg-amber-500'}`} />
+                  <div className={`size-2.5 rounded-full ${task.anomalyCategory === 'A' ? 'bg-destructive animate-pulse' : 'bg-amber-500'}`} />
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold">{task.notifiedPerson}</p>
-                      <Badge variant={task.category === 'A' ? 'destructive' : 'secondary'} className="text-[10px] h-4">
-                        {task.category}类
+                      <p className="font-semibold">{task.patientName || "档案未补录"}</p>
+                      <Badge variant={task.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="text-[10px] h-4">
+                        {task.anomalyCategory}类
                       </Badge>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">档案号：{task.archiveNo} • 登记于：{task.noticeDate || task.examDate}</p>
+                    <p className="text-[10px] text-muted-foreground">档案号：{task.patientProfileId} • 登记于：{task.checkupDate}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -312,15 +295,10 @@ export default function Home() {
                 </div>
               </div>
             ))}
-            {recentTasks.length === 0 && !isLoading && (
+            {(!mysqlStats?.recentTasks || mysqlStats.recentTasks.length === 0) && !isLoading && (
               <div className="py-16 text-center text-muted-foreground flex flex-col items-center gap-2">
                 <AlertCircle className="size-8 opacity-20" />
-                <p>暂无待通知的异常任务</p>
-              </div>
-            )}
-            {isLoading && (
-              <div className="py-16 text-center text-muted-foreground animate-pulse">
-                正在统计数据...
+                <p>暂无待处理的中心库异常记录</p>
               </div>
             )}
           </div>
