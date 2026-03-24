@@ -24,7 +24,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/table"
+} from "@/components/ui/table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -301,7 +301,7 @@ export default function RecordsPage() {
       </Dialog>
 
       <Dialog open={!!editingRecord} onOpenChange={(open) => !open && setEditingRecord(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-xl">
           <DialogHeader><DialogTitle>临床结果维护</DialogTitle></DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleEditSave)} className="space-y-4">
