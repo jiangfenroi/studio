@@ -15,18 +15,26 @@ import {
   Stethoscope,
   ClipboardCheck,
   PlusCircle,
-  Clock
+  Clock,
+  MoreVertical,
+  Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useDoc, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { FollowUpForm } from "@/components/forms/FollowUpForm"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export default function PatientProfilePage() {
   const params = useParams()
@@ -69,6 +77,17 @@ export default function PatientProfilePage() {
       title: "正在外呼PACS系统",
       description: `档案号: ${id}。正在调用院内影像查看平台...`,
     })
+  }
+
+  const handleDeleteRecord = (recordId: string, type: string) => {
+    if (confirm(`确定要删除这条${type === 'abnormal' ? '异常结果' : '随访'}记录吗？此操作不可撤销。`)) {
+      const recordRef = doc(db, "patientProfiles", id, "medicalAnomalyRecords", recordId)
+      deleteDocumentNonBlocking(recordRef)
+      toast({
+        title: "记录已删除",
+        variant: "destructive"
+      })
+    }
   }
 
   if (isPatientLoading) {
@@ -218,14 +237,32 @@ export default function PatientProfilePage() {
                       </div>
                       <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50 hover:shadow-md transition-shadow">
                         <div className="flex justify-between items-start mb-2">
-                          <h4 className="text-xl font-bold text-foreground">
-                            {event.type === 'abnormal' ? (event.details?.split('\n')[0] || '重要异常发现') : '随访反馈记录'}
-                          </h4>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {event.examDate || event.followUpDate}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <h4 className="text-xl font-bold text-foreground">
+                              {event.type === 'abnormal' ? (event.details?.split('\n')[0] || '重要异常发现') : '随访反馈记录'}
+                            </h4>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {event.examDate || event.followUpDate}
+                            </span>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="size-8">
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                className="text-destructive gap-2"
+                                onSelect={() => handleDeleteRecord(event.id, event.type)}
+                              >
+                                <Trash2 className="size-4" />
+                                删除此条记录
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        <p className="text-muted-foreground text-sm leading-relaxed mb-4">
+                        <p className="text-muted-foreground text-sm leading-relaxed mb-4 whitespace-pre-wrap">
                           {event.details || event.followUpResult}
                         </p>
                         {event.category && (
@@ -253,7 +290,6 @@ export default function PatientProfilePage() {
 
             <TabsContent value="files" className="mt-8">
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* In a real implementation, we would query medicalReportFiles collection filtered by patientProfileId */}
                   <div className="col-span-full py-10 text-center text-muted-foreground">
                     <FileText className="size-12 mx-auto mb-4 opacity-20" />
                     <p>请点击相应病程记录查看详情以下载 PDF 报告</p>

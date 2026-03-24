@@ -124,7 +124,7 @@ export default function PatientsPage() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("确定要永久删除该患者档案吗？此操作不可逆，将同时删除该患者的所有诊疗记录。")) {
+    if (confirm("确定要永久删除该患者档案吗？此操作不可逆，将同时删除该患者在系统中登记的所有异常结果及随访记录。")) {
       const patientRef = doc(db, "patientProfiles", id)
       deleteDocumentNonBlocking(patientRef)
       toast({

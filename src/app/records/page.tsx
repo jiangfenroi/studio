@@ -129,10 +129,10 @@ export default function RecordsPage() {
   }
 
   const handleDelete = (record: any) => {
-    if (confirm("确定要删除这条异常结果记录吗？")) {
+    if (confirm("确定要删除这条异常结果记录吗？此操作将永久移除相关数据。")) {
       const recordRef = doc(db, `patientProfiles/${record.patientProfileId}/medicalAnomalyRecords`, record.id)
       deleteDocumentNonBlocking(recordRef)
-      toast({ title: "已删除", variant: "destructive" })
+      toast({ title: "已撤销登记", variant: "destructive" })
     }
   }
 
