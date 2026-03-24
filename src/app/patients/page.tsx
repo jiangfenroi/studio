@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -16,7 +15,8 @@ import {
   Trash2,
   FileDown,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCcw
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -69,7 +69,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
-import { collection, doc } from "firebase/firestore"
+import { collection, doc, collectionGroup, query } from "firebase/firestore"
+import { differenceInYears, parseISO } from "date-fns"
 
 const patientSchema = z.object({
   id: z.string().min(1, "档案编号不能为空"),
@@ -96,6 +97,9 @@ export default function PatientsPage() {
   const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
   const { data: patients, isLoading } = useCollection(patientsQuery)
 
+  const allRecordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
+  const { data: allRecords } = useCollection(allRecordsQuery)
+
   const form = useForm<PatientFormValues>({
     resolver: zodResolver(patientSchema),
     defaultValues: {
@@ -110,6 +114,61 @@ export default function PatientsPage() {
       status: "正常",
     },
   })
+
+  /**
+   * Clinical Age Calculation Logic
+   * 1. If ID exists, use birth year.
+   * 2. If no ID, but exam date exists, increment if >1 year passed.
+   */
+  const handleAutoCalcAge = () => {
+    if (!patients) return;
+    
+    let count = 0;
+    const currentYear = new Date().getFullYear();
+
+    patients.forEach(p => {
+      let newAge = p.age;
+      let updated = false;
+
+      // Logic 1: ID Number (Chinese 18-digit)
+      if (p.idNumber && p.idNumber.length === 18) {
+        const birthYear = parseInt(p.idNumber.substring(6, 10));
+        if (!isNaN(birthYear)) {
+          newAge = currentYear - birthYear;
+          if (newAge !== p.age) updated = true;
+        }
+      } 
+      // Logic 2: Examination Date + 1 Year
+      else {
+        const patientRecords = allRecords?.filter(r => r.patientProfileId === p.id);
+        if (patientRecords && patientRecords.length > 0) {
+          const latestExamDate = patientRecords
+            .map(r => r.checkupDate)
+            .sort((a, b) => b.localeCompare(a))[0];
+          
+          if (latestExamDate) {
+            const yearsSinceExam = differenceInYears(new Date(), parseISO(latestExamDate));
+            if (yearsSinceExam >= 1) {
+              newAge = p.age + yearsSinceExam;
+              updated = true;
+            }
+          }
+        }
+      }
+
+      if (updated) {
+        const patientRef = doc(db, "patientProfiles", p.id);
+        updateDocumentNonBlocking(patientRef, { age: newAge });
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      toast({ title: "临床年龄校对完成", description: `已成功重新计算 ${count} 位患者的档案年龄。` });
+    } else {
+      toast({ title: "无需更新", description: "当前所有档案年龄均为最新状态。" });
+    }
+  }
 
   const filteredPatients = React.useMemo(() => {
     return (patients || []).filter(p => {
@@ -204,6 +263,10 @@ export default function PatientsPage() {
           <p className="text-muted-foreground">统筹全院患者健康信息，档案编号为最高级唯一识别码</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="ghost" className="gap-2 text-primary hover:bg-primary/5" onClick={handleAutoCalcAge}>
+            <RefreshCcw className="size-4" />
+            年龄自动校对
+          </Button>
           <Button variant="outline" className="gap-2" onClick={handleDownloadTemplate}>
             <FileDown className="size-4" />
             下载模板

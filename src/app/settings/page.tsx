@@ -158,7 +158,6 @@ export default function SettingsPage() {
   const handleConfirmDeleteUser = () => {
     if (!userToDelete) return
 
-    // Protection for root admin
     if (userToDelete.jobId === '1058') {
       toast({
         variant: "destructive",
@@ -169,7 +168,6 @@ export default function SettingsPage() {
       return
     }
 
-    // Protection for current user
     if (user?.email === userToDelete.email) {
       toast({
         variant: "destructive",
@@ -192,10 +190,8 @@ export default function SettingsPage() {
   const handleSaveUserEdit = async () => {
     if (!editingUser) return
 
-    // 1. Update Firestore Profile
     updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
 
-    // 2. Handle Password Update if applicable
     if (newPassword && user && (user.email === editingUser.email || user.email?.startsWith(`${editingUser.jobId}@`))) {
       try {
         await updatePassword(user, newPassword)
