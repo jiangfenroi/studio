@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Calendar,
   ArrowRight,
+  Activity
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
@@ -80,8 +81,9 @@ export default function Home() {
 
   // Analytical Calculations
   const stats = React.useMemo(() => {
-    if (!records) return { today: 0, pending: 0, totalPatients: 0, completionRate: 0 }
+    if (!records || !mounted) return { today: 0, pending: 0, totalPatients: 0, completionRate: 0 }
     
+    // Safely get today's date string on client only
     const todayStr = new Date().toISOString().split('T')[0]
     return {
       today: records.filter(r => r.examDate === todayStr).length,
@@ -91,9 +93,10 @@ export default function Home() {
         ? Math.round((records.filter(r => r.isNotified).length / records.length) * 100) 
         : 0
     }
-  }, [records, patients])
+  }, [records, patients, mounted])
 
   const lineChartData = React.useMemo(() => {
+    if (!mounted) return []
     const months = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
     return months.map((month, index) => {
       const monthNum = (index + 1).toString().padStart(2, '0')
@@ -111,26 +114,32 @@ export default function Home() {
         rate: total > 0 ? Math.round((closed / total) * 100) : 0
       }
     })
-  }, [records, selectedYear])
+  }, [records, selectedYear, mounted])
 
   const pieData = React.useMemo(() => {
-    if (!records) return []
+    if (!records || !mounted) return []
     const aCount = records.filter(r => r.category === 'A').length
     const bCount = records.filter(r => r.category === 'B').length
     return [
       { name: "A类 (危急)", value: aCount, fill: "hsl(var(--destructive))" },
       { name: "B类 (重要)", value: bCount, fill: "hsl(var(--primary))" },
     ]
-  }, [records])
+  }, [records, mounted])
 
   const recentTasks = React.useMemo(() => {
+    if (!mounted) return []
     return (records || [])
       .filter(r => !r.isNotified)
       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
       .slice(0, 5)
-  }, [records])
+  }, [records, mounted])
 
-  if (!mounted) return null
+  // Prevent hydration mismatch by rendering nothing on server
+  if (!mounted) return (
+    <div className="flex h-screen items-center justify-center">
+      <Activity className="size-8 animate-spin text-primary opacity-20" />
+    </div>
+  )
 
   const summaryData = [
     { label: "今日新增", value: stats.today.toString(), icon: ShieldAlert, color: "text-primary" },
