@@ -6,81 +6,62 @@ import { useParams, useRouter } from "next/navigation"
 import { 
   ArrowLeft, 
   ExternalLink, 
-  Calendar, 
-  ShieldAlert, 
   History, 
   FileText,
   User,
   Building,
-  MapPin,
-  Phone,
-  BadgeCheck,
   Activity,
-  ChevronRight,
-  Download,
-  AlertTriangle,
+  BadgeCheck,
+  Stethoscope,
   ClipboardCheck,
-  Stethoscope
+  PlusCircle,
+  Clock
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, collection, query, orderBy } from "firebase/firestore"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { FollowUpForm } from "@/components/forms/FollowUpForm"
 
 export default function PatientProfilePage() {
   const params = useParams()
   const router = useRouter()
   const db = useFirestore()
   const { toast } = useToast()
+  const [isFollowUpOpen, setIsFollowUpOpen] = React.useState(false)
   
   const id = params.id as string
+
+  // Fetch Patient Profile
+  const patientRef = useMemoFirebase(() => doc(db, "patientProfiles", id), [db, id])
+  const { data: patient, isLoading: isPatientLoading } = useDoc(patientRef)
+
+  // Fetch All Records (Anomalies and Follow-ups)
+  const recordsQuery = useMemoFirebase(() => 
+    query(collection(db, "patientProfiles", id, "medicalAnomalyRecords"), orderBy("createdAt", "desc")), 
+    [db, id]
+  )
+  const { data: allRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
 
   // Fetch PACS config
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
   const { data: config } = useDoc(configRef)
 
-  // Mock patient detailed data
-  const patient = {
-    id: id,
-    name: '张三',
-    gender: '男',
-    age: 45,
-    idNumber: '440101198001012345',
-    phone: '13800138000',
-    org: '广州航天云网科技有限公司',
-    address: '广东省广州市天河区高普路102号2楼',
-    status: '正常',
-    lastExam: '2025-01-01'
-  }
-
-  const clinicalTimeline = [
-    { 
-      type: 'abnormal', 
-      date: '2025-01-01', 
-      title: '肺部结节 (8mm) - A类', 
-      description: '右肺中叶胸膜下见实性结节影，直径约8mm。',
-      tags: ['A类', '危急'],
-      files: [
-        { name: '20250101_体检总报告.pdf', category: '体检报告' },
-        { name: '20250101_胸部CT影像.pdf', category: '影像检查报告' }
-      ]
-    },
-    { 
-      type: 'followup', 
-      date: '2025-01-08', 
-      title: '第1次随访 (告知义务)', 
-      description: '已电话通知患者本人及其家属。家属表示已知情，近期会带患者前往三甲医院呼吸内科复查。',
-      tags: ['已通知', '宣教完成'],
-    }
-  ]
+  // Synthesize Timeline
+  const clinicalTimeline = React.useMemo(() => {
+    if (!allRecords) return []
+    return allRecords.map(record => ({
+      ...record,
+      type: record.category ? 'abnormal' : 'followup'
+    }))
+  }, [allRecords])
 
   const handleOpenPACS = () => {
-    // Dynamic URL from config
     const pacsBase = config?.pacsUrlBase || "http://172.16.201.61:7242/?ChtId="
     const pacsUrl = `${pacsBase}${id}`
     window.open(pacsUrl, '_blank')
@@ -88,6 +69,26 @@ export default function PatientProfilePage() {
       title: "正在外呼PACS系统",
       description: `档案号: ${id}。正在调用院内影像查看平台...`,
     })
+  }
+
+  if (isPatientLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Activity className="size-10 text-primary animate-pulse" />
+          <p className="text-sm text-muted-foreground">正在调取电子病历...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!patient) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-xl font-bold">未找到档案</h2>
+        <Button onClick={() => router.back()} className="mt-4">返回列表</Button>
+      </div>
+    )
   }
 
   return (
@@ -109,7 +110,31 @@ export default function PatientProfilePage() {
             <ExternalLink className="size-4" />
             PACS调用
           </Button>
-          <Button className="gap-2">
+          
+          <Dialog open={isFollowUpOpen} onOpenChange={setIsFollowUpOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 bg-amber-500 hover:bg-amber-600">
+                <PlusCircle className="size-4" />
+                新增随访
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>录入随访记录 - {patient.name}</DialogTitle>
+              </DialogHeader>
+              <FollowUpForm 
+                archiveNo={id} 
+                patientName={patient.name} 
+                anomalyRecordId={clinicalTimeline.find(r => r.type === 'abnormal')?.id || "unknown"}
+                onSuccess={() => {
+                  setIsFollowUpOpen(false)
+                  toast({ title: "随访记录已保存" })
+                }} 
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" className="gap-2">
             <BadgeCheck className="size-4" />
             修改基本资料
           </Button>
@@ -136,17 +161,17 @@ export default function PatientProfilePage() {
             <CardContent className="pt-6 space-y-5">
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <Phone className="size-4 text-muted-foreground mt-1" />
+                  <div className="size-4 text-muted-foreground mt-1" />
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">联系电话</p>
-                    <p className="text-sm">{patient.phone}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">身份证号</p>
+                    <p className="text-sm font-mono">{patient.idNumber}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Building className="size-4 text-muted-foreground mt-1" />
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">所属单位</p>
-                    <p className="text-sm">{patient.org}</p>
+                    <p className="text-sm">{patient.organization || "个人档案"}</p>
                   </div>
                 </div>
               </div>
@@ -157,7 +182,7 @@ export default function PatientProfilePage() {
                   <span className="text-sm font-bold text-blue-900">临床摘要</span>
                 </div>
                 <p className="text-xs text-blue-700 leading-relaxed">
-                  最后体检日期：{patient.lastExam}。PACS 路径已按照中心配置同步。
+                  最后随访时间：{clinicalTimeline.find(r => r.type === 'followup')?.followUpDate || "无记录"}。PACS 路径已按照中心配置同步。
                 </p>
               </div>
             </CardContent>
@@ -178,21 +203,62 @@ export default function PatientProfilePage() {
             </TabsList>
             
             <TabsContent value="timeline" className="mt-8">
-              <div className="relative pl-8 ml-4 border-l-2 border-primary/10 space-y-10">
-                {clinicalTimeline.map((event, idx) => (
-                  <div key={idx} className="relative">
-                    <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow-md flex items-center justify-center ${
-                      event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'
-                    }`}>
-                      {event.type === 'abnormal' ? <Stethoscope className="size-4 text-white" /> : <ClipboardCheck className="size-4 text-white" />}
+              {isRecordsLoading ? (
+                <div className="flex justify-center py-10">
+                  <Clock className="animate-spin size-6 text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="relative pl-8 ml-4 border-l-2 border-primary/10 space-y-10">
+                  {clinicalTimeline.map((event, idx) => (
+                    <div key={idx} className="relative">
+                      <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow-md flex items-center justify-center ${
+                        event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'
+                      }`}>
+                        {event.type === 'abnormal' ? <Stethoscope className="size-4 text-white" /> : <ClipboardCheck className="size-4 text-white" />}
+                      </div>
+                      <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50 hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="text-xl font-bold text-foreground">
+                            {event.type === 'abnormal' ? (event.details?.split('\n')[0] || '重要异常发现') : '随访反馈记录'}
+                          </h4>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {event.examDate || event.followUpDate}
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground text-sm leading-relaxed mb-4">
+                          {event.details || event.followUpResult}
+                        </p>
+                        {event.category && (
+                          <Badge variant={event.category === 'A' ? 'destructive' : 'secondary'}>
+                            {event.category}类异常
+                          </Badge>
+                        )}
+                        {event.followUpPerson && (
+                          <div className="flex items-center gap-2 mt-4 text-[10px] text-muted-foreground font-medium uppercase">
+                            <User className="size-3" />
+                            记录人: {event.followUpPerson || event.notifier}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-muted/50">
-                      <h4 className="text-xl font-bold text-foreground mb-2">{event.title}</h4>
-                      <p className="text-muted-foreground text-sm leading-relaxed mb-4">{event.description}</p>
+                  ))}
+                  {clinicalTimeline.length === 0 && (
+                    <div className="text-center py-10 bg-muted/20 rounded-lg border-dashed border-2">
+                      <p className="text-muted-foreground">暂无病程记录</p>
                     </div>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="files" className="mt-8">
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* In a real implementation, we would query medicalReportFiles collection filtered by patientProfileId */}
+                  <div className="col-span-full py-10 text-center text-muted-foreground">
+                    <FileText className="size-12 mx-auto mb-4 opacity-20" />
+                    <p>请点击相应病程记录查看详情以下载 PDF 报告</p>
                   </div>
-                ))}
-              </div>
+               </div>
             </TabsContent>
           </Tabs>
         </div>
