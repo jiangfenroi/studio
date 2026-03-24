@@ -36,7 +36,7 @@ const formSchema = z.object({
   category: z.enum(["A", "B"]),
   details: z.string().min(1, "详情不能为空"),
   disposalAdvice: z.string().min(1, "处置意见不能为空"),
-  isNotified: z.boolean().default(true),
+  isNotified: z.boolean().default(false),
   isHealthEducation: z.boolean().default(true),
   notifier: z.string().min(1, "通知人不能为空"),
   feedback: z.string().optional(),
@@ -56,7 +56,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string, category: string, checkDate: string}[]>([])
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Fetch system config for storage path
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: systemConfig } = useDoc(configRef)
   const basePath = systemConfig?.pdfStoragePath || "//172.17.126.18/e:/pic"
@@ -71,7 +70,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       category: "A",
       details: "",
       disposalAdvice: "",
-      isNotified: true,
+      isNotified: false,
       isHealthEducation: true,
       notifier: "系统管理员",
       feedback: "",
@@ -109,7 +108,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
         category, 
         checkDate 
       }])
-      // Reset input to allow same file re-selection
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
@@ -127,11 +125,9 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // 1. Create Anomaly Record
     const anomalyRecordId = `${values.archiveNo}_${values.examNo}`
     const anomalyRef = doc(db, `patientProfiles/${values.archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
     
-    // Non-blocking write
     setDocumentNonBlocking(anomalyRef, {
       ...values,
       id: anomalyRecordId,
@@ -141,7 +137,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       createdAt: new Date().toISOString()
     }, { merge: true })
 
-    // 2. Create File Metadata Records
     for (const file of uploadedFiles) {
       const fileId = `${anomalyRecordId}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
       const fileData = {
@@ -383,9 +378,9 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
           <CardHeader className="bg-primary/5">
             <CardTitle className="text-xl flex items-center gap-2">
               <CalendarIcon className="size-5 text-primary" />
-              通知与处置状态
+              初始通知记录 (告知义务)
             </CardTitle>
-            <CardDescription>记录对患者的通知情况与反馈</CardDescription>
+            <CardDescription>记录首次发现异常后的初步告知情况</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <FormField
@@ -442,21 +437,6 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             />
             <FormField
               control={form.control}
-              name="isNotified"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel>是否通知</FormLabel>
-                    <FormDescription>是否已告知</FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="isHealthEducation"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
@@ -476,9 +456,9 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                 name="feedback"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>被通知人反馈</FormLabel>
+                    <FormLabel>告知反馈</FormLabel>
                     <FormControl>
-                      <Input placeholder="记录被通知人的回应内容..." {...field} />
+                      <Input placeholder="记录告知后的初始回应..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -492,7 +472,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
           <Button type="button" variant="outline" size="lg" onClick={() => form.reset()}>重置表单</Button>
           <Button type="submit" size="lg" className="px-10 gap-2 shadow-lg">
             <CheckCircle2 className="size-5" />
-            保存登记信息
+            保存并进入待随访列表
           </Button>
         </div>
       </form>

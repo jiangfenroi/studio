@@ -6,9 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { User, Calendar, Clock, Upload, FileType, CheckCircle2, Trash2, FileText } from "lucide-react"
+import { User, Calendar, Clock, Upload, FileType, CheckCircle2, Trash2, FileText, Save } from "lucide-react"
 import { doc, collection } from "firebase/firestore"
-import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -42,15 +42,15 @@ const formSchema = z.object({
 interface FollowUpFormProps {
   archiveNo: string;
   patientName: string;
+  anomalyRecordId: string;
   onSuccess: () => void;
 }
 
-export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpFormProps) {
+export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSuccess }: FollowUpFormProps) {
   const db = useFirestore()
   const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string, category: string, checkDate: string}[]>([])
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Fetch system config for storage path
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: systemConfig } = useDoc(configRef)
   const basePath = systemConfig?.pdfStoragePath || "//172.17.126.18/e:/pic"
@@ -90,20 +90,35 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
     fileInputRef.current?.click()
   }
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    // 1. Create FollowUp Record
+  async function handleAction(shouldCloseCase: boolean) {
+    const values = form.getValues()
+    const isValid = await form.trigger()
+    if (!isValid) return
+
+    // 1. Create FollowUp History Record
     const recordId = `${archiveNo}_followup_${Date.now()}`
     const followUpRef = doc(db, `patientProfiles/${archiveNo}/medicalAnomalyRecords`, recordId)
     
-    // Non-blocking write
     setDocumentNonBlocking(followUpRef, {
       ...values,
       id: recordId,
       patientProfileId: archiveNo,
+      associatedAnomalyId: anomalyRecordId,
+      isClosureRecord: shouldCloseCase,
       createdAt: new Date().toISOString()
     }, { merge: true })
 
-    // 2. Create File Metadata Records
+    // 2. If completing closure, update the original anomaly record status
+    if (shouldCloseCase) {
+      const parentRecordRef = doc(db, `patientProfiles/${archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
+      updateDocumentNonBlocking(parentRecordRef, {
+        isNotified: true, // In our logic, true means "Closed/Handled"
+        closedAt: new Date().toISOString(),
+        closureReason: values.followUpResult
+      })
+    }
+
+    // 3. Create File Metadata Records
     for (const file of uploadedFiles) {
       const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
       const fileData = {
@@ -124,7 +139,7 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5 border-primary/20">档案编号: {archiveNo}</Badge>
@@ -138,7 +153,7 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
               <User className="size-5 text-primary" />
               随访登记信息
             </CardTitle>
-            <CardDescription>记录对患者的随访情况与反馈</CardDescription>
+            <CardDescription>记录对患者的随访情况与反馈。若仅为告知义务，请选择“保存并继续随访”。</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <FormField control={form.control} name="followUpPerson" render={({ field }) => (
@@ -154,7 +169,7 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
             <div className="col-span-full">
               <FormField control={form.control} name="followUpResult" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>回访结果</FormLabel>
+                  <FormLabel>随访情况反馈</FormLabel>
                   <FormControl><Textarea placeholder="请输入详细的随访结果描述..." className="min-h-[100px]" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -163,14 +178,14 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
 
             <FormField control={form.control} name="isReExamined" render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm lg:col-span-1">
-                <div className="space-y-0.5"><FormLabel>是否复查/病历检查</FormLabel><FormDescription>患者是否已进行后续检查</FormDescription></div>
+                <div className="space-y-0.5"><FormLabel>是否已复查</FormLabel><FormDescription>患者是否已进行后续医学检查</FormDescription></div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl>
               </FormItem>
             )} />
 
             <FormField control={form.control} name="nextFollowUpSetting" render={({ field }) => (
               <FormItem className="lg:col-span-2">
-                <FormLabel>设置下次随访</FormLabel>
+                <FormLabel>设置后续随访</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl><SelectTrigger><SelectValue placeholder="选择随访间隔" /></SelectTrigger></FormControl>
                   <SelectContent>
@@ -181,7 +196,7 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
                     <SelectItem value="1y">1年后</SelectItem>
                   </SelectContent>
                 </Select>
-                <FormDescription>指定时间后自动重新列入待随访列表</FormDescription>
+                <FormDescription>若未结案，指定时间后将保持在待随访列表</FormDescription>
               </FormItem>
             )} />
           </CardContent>
@@ -191,9 +206,9 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
           <CardHeader className="bg-primary/5">
             <CardTitle className="text-xl flex items-center gap-2">
               <Upload className="size-5 text-primary" />
-              随访相关 PDF 附件归档
+              随访 PDF 附件
             </CardTitle>
-            <CardDescription>按照内网“档案/种类”分级逻辑自动存储</CardDescription>
+            <CardDescription>上传相关检查报告，文件将按逻辑自动归档</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -223,8 +238,7 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
             >
               <FileType className="size-12 text-primary/60" />
               <div className="text-center">
-                <p className="text-lg font-medium">点击选择本机 PDF 检查报告</p>
-                <p className="text-sm text-muted-foreground">文件将归类存储至内网共享路径</p>
+                <p className="text-lg font-medium">选择 PDF 报告上传</p>
               </div>
               <input 
                 ref={fileInputRef}
@@ -233,22 +247,19 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
                 className="hidden" 
                 onChange={handleFileUpload} 
               />
-              <Button type="button" variant="outline" size="sm" className="pointer-events-none">选择文件</Button>
             </div>
 
             {uploadedFiles.length > 0 && (
               <div className="mt-6 space-y-2">
-                <p className="text-sm font-bold">待上传报告列表:</p>
                 {uploadedFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-white border rounded-md shadow-sm animate-in zoom-in-95 duration-200">
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white border rounded-md shadow-sm">
                     <div className="flex items-center gap-3 overflow-hidden">
                       <FileText className="size-4 text-primary shrink-0" />
                       <div className="overflow-hidden">
                         <p className="text-xs font-bold truncate">{file.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono truncate">{file.path}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0 hover:bg-destructive/10" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>
+                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
@@ -259,8 +270,11 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
         </Card>
 
         <div className="flex justify-end gap-4 pb-10">
-          <Button type="button" variant="outline" size="lg" onClick={() => form.reset()}>取消</Button>
-          <Button type="submit" size="lg" className="px-10 gap-2 shadow-lg">
+          <Button type="button" variant="outline" size="lg" onClick={() => handleAction(false)} className="gap-2">
+            <Save className="size-4" />
+            保存并继续随访
+          </Button>
+          <Button type="button" size="lg" onClick={() => handleAction(true)} className="px-10 gap-2 shadow-lg">
             <CheckCircle2 className="size-5" />
             完成结案
           </Button>
