@@ -134,7 +134,7 @@ export default function RecordsPage() {
 
   const handleEditSave = (values: any) => {
     if (!editingRecord) return
-    const recordRef = doc(db, `patientProfiles/${editingRecord.patientProfileId}/medicalAnomalyRecords`, editingRecord.id)
+    const recordRef = doc(db, "patientProfiles", editingRecord.patientProfileId, "medicalAnomalyRecords", editingRecord.id)
     updateDocumentNonBlocking(recordRef, values)
     setEditingRecord(null)
     toast({ title: "修改成功", description: "异常结果记录已更新。" })
@@ -142,7 +142,7 @@ export default function RecordsPage() {
 
   const confirmDelete = () => {
     if (!recordToDelete) return
-    const recordRef = doc(db, `patientProfiles/${recordToDelete.patientProfileId}/medicalAnomalyRecords`, recordToDelete.id)
+    const recordRef = doc(db, "patientProfiles", recordToDelete.patientProfileId, "medicalAnomalyRecords", recordToDelete.id)
     deleteDocumentNonBlocking(recordRef)
     setRecordToDelete(null)
     toast({ title: "已撤销登记", variant: "destructive", description: "该条医学异常记录已被移除。" })

@@ -9,22 +9,44 @@ import {
   UserX,
   Calendar,
   ClipboardList,
-  Clock
+  Clock,
+  MoreVertical,
+  Trash2,
+  AlertCircle
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import Link from "next/link"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collectionGroup, query, collection } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from "@/firebase"
+import { collectionGroup, query, collection, doc } from "firebase/firestore"
 import { addDays, addYears, isAfter, parseISO, startOfDay, format } from "date-fns"
+import { useToast } from "@/hooks/use-toast"
 
 export default function FollowUpsPage() {
   const db = useFirestore()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [activeTab, setActiveTab] = React.useState("pending")
+  const [taskToDelete, setTaskToDelete] = React.useState<any | null>(null)
 
   const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
   const { data: allRecords, isLoading } = useCollection(recordsQuery)
@@ -82,7 +104,8 @@ export default function FollowUpsPage() {
         patient,
         isTaskPending,
         pendingReason: reason,
-        historyCount: history.length
+        historyCount: history.length,
+        lastFollowUp: history.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
       }
     })
 
@@ -96,6 +119,18 @@ export default function FollowUpsPage() {
       closed: filtered.filter(t => !t.isTaskPending || t.isClosed || t.patient?.status === '死亡')
     }
   }, [allRecords, patients, searchTerm])
+
+  const confirmWithdrawTask = () => {
+    if (!taskToDelete) return
+    const recordRef = doc(db, "patientProfiles", taskToDelete.patientProfileId, "medicalAnomalyRecords", taskToDelete.id)
+    deleteDocumentNonBlocking(recordRef)
+    setTaskToDelete(null)
+    toast({
+      title: "任务已撤销",
+      variant: "destructive",
+      description: "关联的重要异常结果记录已从库中移除。"
+    })
+  }
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
@@ -129,12 +164,12 @@ export default function FollowUpsPage() {
 
         <TabsContent value="pending" className="mt-6 space-y-4">
           {tasks.pending.map((task) => (
-            <Card key={task.id} className="border-l-4 border-l-amber-500 bg-white hover:shadow-md transition-shadow">
+            <Card key={task.id} className="border-l-4 border-l-amber-500 bg-white hover:shadow-md transition-shadow relative group">
               <CardContent className="p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center gap-6">
                   <div className="flex-1 space-y-4">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-xl font-bold">{task.patient?.name || "未补录患者"}</h3>
+                      <h3 className="text-xl font-bold">{task.patient?.name || "未补录"}</h3>
                       <Badge variant="outline">{task.patient?.gender || '-'} / {task.patient?.age || '--'}岁</Badge>
                       <Badge className="bg-amber-100 text-amber-700">
                         <Clock className="size-3 mr-1" />
@@ -167,9 +202,24 @@ export default function FollowUpsPage() {
                     <Button asChild className="gap-2 bg-primary hover:bg-primary/90">
                       <Link href={`/follow-ups/${task.id}/record`}>录入随访</Link>
                     </Button>
-                    <Button variant="outline" asChild className="gap-2">
-                      <Link href={`/patients/${task.archiveNo}`}>档案详情</Link>
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="gap-2">
+                          <MoreVertical className="size-4" />
+                          更多
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/patients/${task.archiveNo}`} className="cursor-pointer">
+                            <ClipboardList className="size-4 mr-2" /> 档案详情
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onSelect={() => setTaskToDelete(task)}>
+                          <Trash2 className="size-4 mr-2" /> 撤销登记
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardContent>
@@ -200,20 +250,55 @@ export default function FollowUpsPage() {
                       )}
                       <Badge variant="outline">ID: {task.archiveNo}</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">体检日期: {task.checkupDate} • 最近随访: {task.lastFollowUpAt ? format(parseISO(task.lastFollowUpAt), 'yyyy-MM-dd') : '无'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      体检日期: {task.checkupDate} • 
+                      最近随访: {task.lastFollowUpAt ? format(parseISO(task.lastFollowUpAt), 'yyyy-MM-dd') : '无'}
+                    </p>
                   </div>
-                  <Button variant="ghost" asChild className="gap-2">
-                    <Link href={`/patients/${task.archiveNo}`}>
-                      <ClipboardList className="size-4" />
-                      查看完整病历
-                    </Link>
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" asChild className="gap-2">
+                      <Link href={`/patients/${task.archiveNo}`}>
+                        <ClipboardList className="size-4" />
+                        查看病历
+                      </Link>
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem className="text-destructive" onSelect={() => setTaskToDelete(task)}>
+                          <Trash2 className="size-4 mr-2" /> 撤销登记
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!taskToDelete} onOpenChange={(open) => !open && setTaskToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="size-5 text-destructive" />
+              确认撤销此任务？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作将永久删除档案号为 <span className="font-bold text-foreground">[{taskToDelete?.archiveNo}]</span> 的重要异常结果记录及其所有随访历史。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmWithdrawTask} className="bg-destructive hover:bg-destructive/90">确认撤销</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
