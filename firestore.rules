@@ -11,9 +11,10 @@ service cloud.firestore {
      *
      * Data Structure:
      * - /roles_medicalStaff/{userId}: A registry of authorized staff members.
+     * - /systemConfig/{configId}: Global application settings (e.g., storage paths).
      * - /patientProfiles/{patientProfileId}: Top-level patient demographic data.
      * - /patientProfiles/.../medicalAnomalyRecords/{recordId}: Records of clinical anomalies.
-     * - /patientProfiles/.../medicalReportFiles/{fileId}: Metadata for uploaded medical reports.
+     * - /medicalReportFiles/{fileId}: Metadata for uploaded medical reports (Flat access).
      *
      * Key Security Decisions:
      * 1. DBAC over Custom Claims: Staff authorization is determined by the existence of a document 
@@ -21,9 +22,8 @@ service cloud.firestore {
      * 2. Role-Based Shared Access: Any user verified as medical staff has full read/write access 
      *    to all patient-related collections to facilitate collaborative clinical care.
      * 3. Relational Integrity: Rules enforce that internal document fields (like patientProfileId) 
-     *    match the hierarchical path to prevent orphaned or misplaced data.
-     * 4. Prototyping Flexibility: Data types and specific object shapes are not strictly enforced, 
-     *    allowing for rapid iteration of the clinical data model.
+     *    match the hierarchical path where applicable.
+     * 4. Authenticated Baseline: Most read operations require at least being signed in (anonymous or password).
      */
 
     // --- Helper Functions ---
@@ -47,10 +47,6 @@ service cloud.firestore {
 
     /**
      * @description Collection for storing user roles. Existence of a UID here grants staff privileges.
-     * @path /roles_medicalStaff/{userId}
-     * @allow (get) Signed-in users checking their own or others' roles.
-     * @deny (write) Any client-side modification; roles should be managed via admin tools.
-     * @principle Database-Backed Access Control (DBAC).
      */
     match /roles_medicalStaff/{userId} {
       allow get: if isSignedIn();
@@ -59,11 +55,24 @@ service cloud.firestore {
     }
 
     /**
+     * @description Global system settings. Any signed-in user can read (to get storage paths), but only staff can write.
+     */
+    match /systemConfig/{configId} {
+      allow get: if isSignedIn();
+      allow list, write: if isMedicalStaff();
+    }
+
+    /**
+     * @description Flat collection for medical report metadata.
+     */
+    match /medicalReportFiles/{fileId} {
+      allow get, list: if isMedicalStaff();
+      allow create: if isMedicalStaff();
+      allow update, delete: if isExistingMedicalStaff();
+    }
+
+    /**
      * @description Core patient demographic information.
-     * @path /patientProfiles/{patientProfileId}
-     * @allow (create) Medical staff providing matching archive number (id) in data.
-     * @deny (read/write) Any user not present in the roles_medicalStaff collection.
-     * @principle Path-based relational integrity and role-based access.
      */
     match /patientProfiles/{patientProfileId} {
       allow get, list: if isMedicalStaff();
@@ -73,10 +82,6 @@ service cloud.firestore {
 
       /**
        * @description Records of significant abnormal results for a specific patient.
-       * @path /patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}
-       * @allow (create) Staff linking the record correctly to the parent patientProfileId.
-       * @deny (update) Changing the patientProfileId link after creation.
-       * @principle Hierarchical data integrity.
        */
       match /medicalAnomalyRecords/{medicalAnomalyRecordId} {
         allow get, list: if isMedicalStaff();
@@ -85,17 +90,11 @@ service cloud.firestore {
         allow delete: if isExistingMedicalStaff();
 
         /**
-         * @description Metadata and storage links for medical report files (PDFs).
-         * @path /patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}/medicalReportFiles/{medicalReportFileId}
-         * @allow (create) Staff linking the file record to the parent anomaly record.
-         * @deny (list) Users who are not authenticated medical staff.
-         * @principle Authorization independence via path hierarchy.
+         * @description Metadata for medical report files nested within anomaly records.
          */
         match /medicalReportFiles/{medicalReportFileId} {
           allow get, list: if isMedicalStaff();
-          allow create: if isMedicalStaff() && request.resource.data.medicalAnomalyRecordId == medicalAnomalyRecordId;
-          allow update: if isExistingMedicalStaff() && request.resource.data.medicalAnomalyRecordId == resource.data.medicalAnomalyRecordId;
-          allow delete: if isExistingMedicalStaff();
+          allow create, update, delete: if isMedicalStaff();
         }
       }
     }
