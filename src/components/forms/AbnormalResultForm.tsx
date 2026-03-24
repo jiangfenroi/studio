@@ -7,10 +7,9 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
 import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2 } from "lucide-react"
-import { doc, collection, setDoc, addDoc } from "firebase/firestore"
-import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
+import { doc, collection } from "firebase/firestore"
+import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Form,
@@ -27,7 +26,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 
 const formSchema = z.object({
   archiveNo: z.string().min(1, "档案编号不能为空"),
@@ -118,19 +116,20 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
     fileInputRef.current?.click()
   }
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<typeof formSchema>) {
     // 1. Create Anomaly Record
     const anomalyRecordId = `${values.archiveNo}_${values.examNo}`
     const anomalyRef = doc(db, `patientProfiles/${values.archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
     
-    await setDoc(anomalyRef, {
+    // Non-blocking write
+    setDocumentNonBlocking(anomalyRef, {
       ...values,
       id: anomalyRecordId,
       patientProfileId: values.archiveNo,
       checkupNumber: values.examNo,
       checkupDate: values.examDate,
       createdAt: new Date().toISOString()
-    })
+    }, { merge: true })
 
     // 2. Create File Metadata Records
     for (const file of uploadedFiles) {

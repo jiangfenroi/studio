@@ -7,8 +7,8 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
 import { User, Calendar, Clock, Upload, FileType, CheckCircle2, Trash2, FileText } from "lucide-react"
-import { doc, collection, addDoc } from "firebase/firestore"
-import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
+import { doc, collection } from "firebase/firestore"
+import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -93,8 +93,16 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
   async function onSubmit(values: z.infer<typeof formSchema>) {
     // 1. Create FollowUp Record
     const recordId = `${archiveNo}_followup_${Date.now()}`
-    const followUpRef = collection(db, `patientProfiles/${archiveNo}/medicalAnomalyRecords`) // In a real app we would link to a specific record
+    const followUpRef = doc(db, `patientProfiles/${archiveNo}/medicalAnomalyRecords`, recordId)
     
+    // Non-blocking write
+    setDocumentNonBlocking(followUpRef, {
+      ...values,
+      id: recordId,
+      patientProfileId: archiveNo,
+      createdAt: new Date().toISOString()
+    }, { merge: true })
+
     // 2. Create File Metadata Records
     for (const file of uploadedFiles) {
       const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
