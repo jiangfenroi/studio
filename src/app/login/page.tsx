@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, UserCircle, Settings, Save, Database, Server } from 'lucide-react';
+import { ShieldAlert, LogIn, UserCircle, Settings, Save, Database, Server, UserCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,14 +19,14 @@ export default function LoginPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
-  const [email, setEmail] = React.useState('');
+  const [jobId, setJobId] = React.useState('');
   const [password, setPassword] = React.useState('');
   
   // System Config State
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db]);
   const { data: config } = useDoc(configRef);
   
-  // Local states for settings dialog with provided defaults
+  // Local states for settings dialog
   const [mysqlConfig, setMysqlConfig] = React.useState({
     host: '172.17.168.18',
     port: '10699',
@@ -47,10 +47,24 @@ export default function LoginPage() {
     }
   }, [config]);
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleJobIdLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (auth && email && password) {
-      initiateEmailSignIn(auth, email, password);
+    if (auth && jobId && password) {
+      // Map Job ID to internal email format
+      const internalEmail = `${jobId}@meditrack.local`;
+      initiateEmailSignIn(auth, internalEmail, password);
+      
+      // If it's the specific admin, ensure the profile exists
+      if (jobId === '1058') {
+        const adminProfileRef = doc(db, 'staffProfiles', 'admin_1058');
+        setDocumentNonBlocking(adminProfileRef, {
+          jobId: '1058',
+          name: '姜锋',
+          role: '管理员',
+          email: '1058@meditrack.local',
+          status: '在职'
+        }, { merge: true });
+      }
     }
   };
 
@@ -94,17 +108,20 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleEmailLogin} className="space-y-4">
+          <form onSubmit={handleJobIdLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">工号/邮箱</Label>
+              <Label htmlFor="jobId" className="flex items-center gap-2">
+                <UserCheck className="size-4" />
+                工号 (Job ID)
+              </Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="admin@hospital.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="jobId"
+                type="text"
+                placeholder="请输入您的工号"
+                value={jobId}
+                onChange={(e) => setJobId(e.target.value)}
                 required
-                className="h-11"
+                className="h-11 font-mono"
               />
             </div>
             <div className="space-y-2">
@@ -112,6 +129,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
+                placeholder="请输入密码"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

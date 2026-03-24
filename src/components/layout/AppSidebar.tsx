@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -76,16 +75,18 @@ export function AppSidebar() {
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
   const { data: config } = useDoc(configRef)
 
-  // Fetch current user's profile to check for Admin role
+  // Fetch current user's profile to check for Admin role and Name
   const staffQuery = useMemoFirebase(() => collection(db, "staffProfiles"), [db])
   const { data: staffMembers } = useCollection(staffQuery)
   
   const currentUserProfile = React.useMemo(() => {
     if (!user || !staffMembers) return null;
-    return staffMembers.find(s => s.email === user.email);
+    // Check by email (which we use for mapping jobId)
+    return staffMembers.find(s => s.email === user.email || s.jobId === user.email?.split('@')[0]);
   }, [user, staffMembers]);
 
-  const isAdmin = currentUserProfile?.role === "管理员" || user?.isAnonymous === false; // Simplified for MVP
+  // Specific check for the requested initial admin jobId
+  const isAdmin = currentUserProfile?.role === "管理员" || user?.email?.startsWith('1058@');
 
   const handleLogout = () => {
     if (auth) {
@@ -93,6 +94,10 @@ export function AppSidebar() {
       router.push("/login")
     }
   }
+
+  // Display Name logic: Prioritize profile name, then jobId, then generic
+  const displayName = currentUserProfile?.name || user?.email?.split('@')[0] || (user?.isAnonymous ? '匿名管理员' : '系统用户');
+  const displayRole = currentUserProfile?.role || '医疗内网接入';
 
   return (
     <Sidebar collapsible="icon">
@@ -163,10 +168,10 @@ export function AppSidebar() {
             </div>
             <div className="flex flex-col overflow-hidden">
               <span className="text-sm font-medium truncate">
-                {currentUserProfile?.name || (user?.isAnonymous ? '匿名管理员' : (user?.email?.split('@')[0] || '系统用户'))}
+                {displayName}
               </span>
               <span className="text-[10px] text-muted-foreground truncate">
-                {currentUserProfile?.role || '医疗内网接入'}
+                {displayRole}
               </span>
             </div>
           </div>
