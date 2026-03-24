@@ -127,8 +127,8 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5">档案编号: {archiveNo}</Badge>
-            <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5">患者姓名: {patientName}</Badge>
+            <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5 border-primary/20">档案编号: {archiveNo}</Badge>
+            <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5 border-primary/20">患者姓名: {patientName}</Badge>
           </div>
         </div>
 
@@ -219,36 +219,36 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
 
             <div 
               onClick={triggerFilePicker}
-              className="relative group border-dashed border-2 rounded-lg p-10 bg-muted/20 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-muted/40 transition-colors"
+              className="relative group border-dashed border-2 border-primary/20 rounded-lg p-10 bg-muted/20 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-muted/40 hover:border-primary/40 transition-colors"
             >
-              <FileType className="size-12 text-muted-foreground" />
+              <FileType className="size-12 text-primary/60" />
               <div className="text-center">
-                <p className="text-lg font-medium">点击或拖拽后续检查报告 PDF 上传</p>
-                <p className="text-sm text-muted-foreground">文件将归类存储至: [共享路径]/{archiveNo}/[种类]/</p>
+                <p className="text-lg font-medium">点击选择本机 PDF 检查报告</p>
+                <p className="text-sm text-muted-foreground">文件将归类存储至内网共享路径</p>
               </div>
-              <Input 
+              <input 
                 ref={fileInputRef}
                 type="file" 
                 accept=".pdf" 
                 className="hidden" 
                 onChange={handleFileUpload} 
               />
-              <Button type="button" variant="outline" size="sm">选择文件</Button>
+              <Button type="button" variant="outline" size="sm" className="pointer-events-none">选择文件</Button>
             </div>
 
             {uploadedFiles.length > 0 && (
               <div className="mt-6 space-y-2">
-                <p className="text-sm font-bold">待上传报告:</p>
+                <p className="text-sm font-bold">待上传报告列表:</p>
                 {uploadedFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-white border rounded-md">
-                    <div className="flex items-center gap-3">
-                      <FileText className="size-4 text-primary" />
-                      <div>
-                        <p className="text-xs font-bold">{file.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[400px]">{file.path}</p>
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white border rounded-md shadow-sm animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="size-4 text-primary shrink-0" />
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-bold truncate">{file.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono truncate">{file.path}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>
+                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0 hover:bg-destructive/10" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
@@ -259,8 +259,8 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
         </Card>
 
         <div className="flex justify-end gap-4 pb-10">
-          <Button type="button" variant="outline" size="lg">取消</Button>
-          <Button type="submit" size="lg" className="px-10 gap-2">
+          <Button type="button" variant="outline" size="lg" onClick={() => form.reset()}>取消</Button>
+          <Button type="submit" size="lg" className="px-10 gap-2 shadow-lg">
             <CheckCircle2 className="size-5" />
             完成结案
           </Button>

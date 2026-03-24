@@ -6,9 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2 } from "lucide-react"
+import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2, AlertCircle } from "lucide-react"
 import { doc, collection } from "firebase/firestore"
 import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
+import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -51,6 +52,7 @@ interface AbnormalResultFormProps {
 
 export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   const db = useFirestore()
+  const { toast } = useToast()
   const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string, category: string, checkDate: string}[]>([])
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
@@ -113,6 +115,14 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   }
 
   const triggerFilePicker = () => {
+    if (!watchArchiveNo) {
+      toast({
+        variant: "destructive",
+        title: "请先填写档案编号",
+        description: "PDF 文件需要按照档案编号建立存储文件夹，请先录入编号。",
+      })
+      return
+    }
     fileInputRef.current?.click()
   }
 
@@ -322,38 +332,44 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             <div className="relative group">
               <div 
                 onClick={triggerFilePicker}
-                className="border-dashed border-2 rounded-lg p-8 bg-muted/20 flex flex-col items-center justify-center gap-2 cursor-pointer group-hover:bg-muted/40 transition-colors"
+                className={`border-dashed border-2 rounded-lg p-8 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${
+                  !watchArchiveNo ? 'bg-muted/50 border-muted opacity-60' : 'bg-muted/20 border-primary/20 hover:bg-muted/40 hover:border-primary/40'
+                }`}
               >
-                <Upload className="size-8 text-muted-foreground" />
+                <Upload className={`size-8 ${!watchArchiveNo ? 'text-muted-foreground' : 'text-primary'}`} />
                 <div className="text-center">
                   <p className="font-medium">点击选择 PDF 文件上传</p>
-                  <p className="text-xs text-muted-foreground">支持批量上传，文件将自动同步至内网存储</p>
+                  <p className="text-xs text-muted-foreground">支持从本机文件系统选择 PDF 报告</p>
                 </div>
-                <Input 
+                <input 
                   ref={fileInputRef}
                   type="file" 
                   accept=".pdf" 
                   className="hidden" 
                   onChange={handleFileUpload}
-                  disabled={!watchArchiveNo}
                 />
               </div>
-              {!watchArchiveNo && <p className="text-[10px] text-destructive mt-1">请先填写档案编号以确定存储路径</p>}
+              {!watchArchiveNo && (
+                <div className="flex items-center gap-1 mt-2 text-destructive text-[10px] font-medium">
+                  <AlertCircle className="size-3" />
+                  请先填写档案编号以确定文件归档路径
+                </div>
+              )}
             </div>
 
             {uploadedFiles.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-bold">待同步文件列表:</p>
+                <p className="text-sm font-bold">待同步至内网的文件:</p>
                 {uploadedFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-primary/5 border border-primary/10 rounded-md">
-                    <div className="flex items-center gap-3">
-                      <FileText className="size-4 text-primary" />
-                      <div>
-                        <p className="text-xs font-bold">{file.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[400px]">{file.path}</p>
+                  <div key={idx} className="flex items-center justify-between p-3 bg-primary/5 border border-primary/10 rounded-md animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="size-4 text-primary shrink-0" />
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-bold truncate">{file.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono truncate">{file.path}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>
+                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0 hover:bg-destructive/10" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
@@ -473,8 +489,8 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
         </Card>
 
         <div className="flex justify-end gap-4 pb-10">
-          <Button type="button" variant="outline" size="lg">重置表单</Button>
-          <Button type="submit" size="lg" className="px-10 gap-2">
+          <Button type="button" variant="outline" size="lg" onClick={() => form.reset()}>重置表单</Button>
+          <Button type="submit" size="lg" className="px-10 gap-2 shadow-lg">
             <CheckCircle2 className="size-5" />
             保存登记信息
           </Button>
