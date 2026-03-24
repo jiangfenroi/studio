@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, UserCircle, Settings, Save, HardDrive, Database, Server } from 'lucide-react';
+import { ShieldAlert, LogIn, UserCircle, Settings, Save, Database, Server } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,8 +26,7 @@ export default function LoginPage() {
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db]);
   const { data: config } = useDoc(configRef);
   
-  // Local states for settings dialog
-  const [tempStoragePath, setTempStoragePath] = React.useState('');
+  // Local states for settings dialog (MySQL only)
   const [mysqlConfig, setMysqlConfig] = React.useState({
     host: '',
     port: '3306',
@@ -43,9 +42,8 @@ export default function LoginPage() {
   }, [user, router]);
 
   React.useEffect(() => {
-    if (config) {
-      if (config.pdfStoragePath) setTempStoragePath(config.pdfStoragePath);
-      if (config.mysql) setMysqlConfig(config.mysql);
+    if (config && config.mysql) {
+      setMysqlConfig(config.mysql);
     }
   }, [config]);
 
@@ -65,14 +63,13 @@ export default function LoginPage() {
   const handleSaveConfig = () => {
     if (configRef) {
       setDocumentNonBlocking(configRef, {
-        pdfStoragePath: tempStoragePath,
         mysql: mysqlConfig,
         lastUpdated: new Date().toISOString()
       }, { merge: true });
       
       toast({
         title: "全局配置已更新",
-        description: "PDF 存储路径与 MySQL 数据库设置已成功保存。",
+        description: "MySQL 数据库连接设置已成功保存。",
       });
     }
   };
@@ -147,7 +144,7 @@ export default function LoginPage() {
               <DialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary gap-2">
                   <Settings className="size-4" />
-                  内网数据库/存储设置
+                  内网数据库设置
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-xl">
@@ -157,37 +154,17 @@ export default function LoginPage() {
                     内网系统配置中心
                   </DialogTitle>
                   <DialogDescription>
-                    配置本系统所需的 PDF 报告归档路径与 MySQL 业务数据库连接。
+                    配置本系统所需的 MySQL 业务数据库连接。PDF 存储路径请登录后在系统设置中调整。
                   </DialogDescription>
                 </DialogHeader>
                 
-                <Tabs defaultValue="pdf" className="w-full mt-4">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="pdf" className="gap-2">
-                      <HardDrive className="size-4" />
-                      PDF 存储
-                    </TabsTrigger>
+                <Tabs defaultValue="mysql" className="w-full mt-4">
+                  <TabsList className="grid w-full grid-cols-1">
                     <TabsTrigger value="mysql" className="gap-2">
                       <Database className="size-4" />
                       MySQL 数据库
                     </TabsTrigger>
                   </TabsList>
-                  
-                  <TabsContent value="pdf" className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dbPath">PDF 存储根路径</Label>
-                      <Input 
-                        id="dbPath" 
-                        placeholder="//172.17.126.18/e:/pic" 
-                        value={tempStoragePath}
-                        onChange={(e) => setTempStoragePath(e.target.value)}
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-[10px] text-muted-foreground">
-                        格式参考: <code className="bg-muted px-1 rounded">ftp://IP/path</code> 或 <code className="bg-muted px-1 rounded">//IP/drive:/path</code>
-                      </p>
-                    </div>
-                  </TabsContent>
                   
                   <TabsContent value="mysql" className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -238,7 +215,7 @@ export default function LoginPage() {
                 <DialogFooter className="border-t pt-4">
                   <Button onClick={handleSaveConfig} className="gap-2 w-full md:w-auto">
                     <Save className="size-4" />
-                    保存全局配置
+                    保存数据库配置
                   </Button>
                 </DialogFooter>
               </DialogContent>
