@@ -51,6 +51,14 @@ const chartConfig = {
     label: "B类异常",
     color: "hsl(var(--primary))",
   },
+  "A类 (危急)": {
+    label: "A类 (危急)",
+    color: "hsl(var(--destructive))",
+  },
+  "B类 (重要)": {
+    label: "B类 (重要)",
+    color: "hsl(var(--primary))",
+  },
 }
 
 export default function Home() {
@@ -123,7 +131,7 @@ export default function Home() {
           </CardHeader>
           <CardContent className="flex items-center justify-center">
             <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer config={chartConfig} className="h-full w-full">
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -140,7 +148,7 @@ export default function Home() {
                   </Pie>
                   <ChartTooltip content={<ChartTooltipContent />} />
                 </PieChart>
-              </ResponsiveContainer>
+              </ChartContainer>
               <div className="flex flex-col gap-2 mt-4 text-sm font-medium">
                 <div className="flex items-center gap-2">
                   <div className="size-3 rounded-full bg-destructive" />
@@ -170,7 +178,7 @@ export default function Home() {
             ].map((task) => (
               <div key={task.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
                 <div className="flex items-center gap-4">
-                  <div className={`size-2 rounded-full ${task.type === 'A' ? 'bg-destructive animate-pulse' : 'bg-amber-500'}`} />
+                  <div className={`size-2 rounded-full ${task.type === 'A类' ? 'bg-destructive animate-pulse' : 'bg-amber-500'}`} />
                   <div>
                     <p className="font-semibold">{task.name} - {task.type}</p>
                     <p className="text-xs text-muted-foreground">体检号：{task.examNo}</p>
