@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react"
@@ -69,7 +68,10 @@ export default function SettingsPage() {
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: config } = useDoc(configRef)
   
-  const staffQuery = useMemoFirebase(() => collection(db, "staffProfiles"), [db])
+  const staffQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return collection(db, "staffProfiles");
+  }, [db, user])
   const { data: staffMembers } = useCollection(staffQuery)
   
   const [activeTab, setActiveTab] = React.useState("general")

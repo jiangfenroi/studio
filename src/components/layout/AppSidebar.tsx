@@ -76,7 +76,11 @@ export function AppSidebar() {
   const { data: config } = useDoc(configRef)
 
   // Fetch current user's profile to check for Admin role and Name
-  const staffQuery = useMemoFirebase(() => collection(db, "staffProfiles"), [db])
+  // Only query if the user is authenticated to avoid permission errors
+  const staffQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return collection(db, "staffProfiles");
+  }, [db, user])
   const { data: staffMembers } = useCollection(staffQuery)
   
   const currentUserProfile = React.useMemo(() => {

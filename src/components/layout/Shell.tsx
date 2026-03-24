@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -42,6 +41,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   // 登录页面采用全屏布局，不带侧边栏
   if (pathname === '/login') {
     return <>{children}</>;
+  }
+
+  // 如果未登录且不在登录页，在 useEffect 触发跳转前不渲染内容，防止触发权限错误
+  if (!user) {
+    return null;
   }
 
   // 渲染主业务界面

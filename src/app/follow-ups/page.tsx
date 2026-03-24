@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -36,22 +35,29 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import Link from "next/link"
-import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, useUser } from "@/firebase"
 import { collectionGroup, query, collection, doc } from "firebase/firestore"
 import { addDays, addYears, isAfter, parseISO, startOfDay, format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
 
 export default function FollowUpsPage() {
   const db = useFirestore()
+  const { user } = useUser()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [activeTab, setActiveTab] = React.useState("pending")
   const [taskToDelete, setTaskToDelete] = React.useState<any | null>(null)
 
-  const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
+  const recordsQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return query(collectionGroup(db, "medicalAnomalyRecords"));
+  }, [db, user])
   const { data: allRecords, isLoading } = useCollection(recordsQuery)
 
-  const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
+  const patientsQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return collection(db, "patientProfiles");
+  }, [db, user])
   const { data: patients } = useCollection(patientsQuery)
 
   const tasks = React.useMemo(() => {
