@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Upload, FileText } from "lucide-react"
+import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -23,8 +23,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { AbnormalCategory } from "@/lib/types"
+import { Badge } from "@/components/ui/badge"
 
 const formSchema = z.object({
   archiveNo: z.string().min(1, "档案编号不能为空"),
@@ -40,6 +41,9 @@ const formSchema = z.object({
   feedback: z.string().optional(),
   noticeDate: z.string().min(1, "通知日期不能为空"),
   noticeTime: z.string().min(1, "通知时间不能为空"),
+  // File upload metadata
+  reportCategory: z.enum(["体检报告", "影像报告", "病理报告", "内镜报告"]).default("体检报告"),
+  reportCheckDate: z.string().optional(),
 })
 
 interface AbnormalResultFormProps {
@@ -47,7 +51,7 @@ interface AbnormalResultFormProps {
 }
 
 export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
-  const [currentDate] = React.useState(new Date())
+  const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string}[]>([])
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -61,14 +65,17 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       disposalAdvice: "",
       isNotified: true,
       isHealthEducation: true,
-      notifier: "系统管理员", // Mock current user
+      notifier: "系统管理员",
       feedback: "",
       noticeDate: format(new Date(), "yyyy-MM-dd"),
       noticeTime: format(new Date(), "HH:mm"),
+      reportCategory: "体检报告",
+      reportCheckDate: format(new Date(), "yyyy-MM-dd"),
     },
   })
 
   const watchExamNo = form.watch("examNo")
+  const watchArchiveNo = form.watch("archiveNo")
 
   React.useEffect(() => {
     if (watchExamNo && watchExamNo.length >= 8) {
@@ -76,16 +83,23 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       const month = watchExamNo.substring(4, 6)
       const day = watchExamNo.substring(6, 8)
       const dateStr = `${year}-${month}-${day}`
-      // Only set if valid date format simple check
       if (!isNaN(Date.parse(dateStr))) {
         form.setValue("examDate", dateStr)
       }
     }
   }, [watchExamNo, form])
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file && watchArchiveNo) {
+      const category = form.getValues("reportCategory")
+      const simulatedPath = `//172.17.126.18/e:/pic/${watchArchiveNo}/${category}/${file.name}`
+      setUploadedFiles(prev => [...prev, { name: file.name, path: simulatedPath }])
+    }
+  }
+
   function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("Saving abnormal result:", values)
-    // Here we would interact with MySQL via a server action
+    console.log("Saving abnormal result with linked files:", { ...values, files: uploadedFiles })
     onSuccess(values.archiveNo)
   }
 
@@ -189,11 +203,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                   <FormItem>
                     <FormLabel>异常结果详情</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="请输入详细的异常医学描述..." 
-                        className="min-h-[120px]" 
-                        {...field} 
-                      />
+                      <Textarea placeholder="请输入详细的异常医学描述..." className="min-h-[120px]" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -206,17 +216,99 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                   <FormItem>
                     <FormLabel>处置意见</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="请输入医嘱或后续处理方案..." 
-                        className="min-h-[120px]" 
-                        {...field} 
-                      />
+                      <Textarea placeholder="请输入医嘱或后续处理方案..." className="min-h-[120px]" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-md border-primary/10">
+          <CardHeader className="bg-primary/5">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Upload className="size-5 text-primary" />
+              PDF 报告上传与路径管理
+            </CardTitle>
+            <CardDescription>上传文件将按照内网分级存储逻辑自动归档</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="reportCategory"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>报告种类</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="选择报告种类" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="体检报告">体检报告</SelectItem>
+                        <SelectItem value="影像报告">影像报告</SelectItem>
+                        <SelectItem value="病理报告">病理报告</SelectItem>
+                        <SelectItem value="内镜报告">内镜报告</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reportCheckDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>检查日期</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="relative group">
+              <div className="border-dashed border-2 rounded-lg p-8 bg-muted/20 flex flex-col items-center justify-center gap-2 cursor-pointer group-hover:bg-muted/40 transition-colors">
+                <Upload className="size-8 text-muted-foreground" />
+                <div className="text-center">
+                  <p className="font-medium">点击选择 PDF 文件上传</p>
+                  <p className="text-xs text-muted-foreground">支持批量上传，文件将自动同步至内网存储</p>
+                </div>
+                <Input 
+                  type="file" 
+                  accept=".pdf" 
+                  className="absolute inset-0 opacity-0 cursor-pointer" 
+                  onChange={handleFileUpload}
+                  disabled={!watchArchiveNo}
+                />
+              </div>
+              {!watchArchiveNo && <p className="text-[10px] text-destructive mt-1">请先填写档案编号以确定存储路径</p>}
+            </div>
+
+            {uploadedFiles.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-bold">待同步文件列表:</p>
+                {uploadedFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-primary/5 border border-primary/10 rounded-md">
+                    <div className="flex items-center gap-3">
+                      <FileText className="size-4 text-primary" />
+                      <div>
+                        <p className="text-xs font-bold">{file.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{file.path}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -288,13 +380,10 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
                   <div className="space-y-0.5">
                     <FormLabel>是否通知</FormLabel>
-                    <FormDescription>是否已通过电话/当面告知</FormDescription>
+                    <FormDescription>是否已告知</FormDescription>
                   </div>
                   <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
                 </FormItem>
               )}
@@ -306,13 +395,10 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
                   <div className="space-y-0.5">
                     <FormLabel>是否健康宣教</FormLabel>
-                    <FormDescription>是否已进行相关健康科普指导</FormDescription>
+                    <FormDescription>是否已进行科普指导</FormDescription>
                   </div>
                   <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
                 </FormItem>
               )}
@@ -332,20 +418,15 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                 )}
               />
             </div>
-
-            <div className="col-span-full border-dashed border-2 rounded-lg p-6 bg-muted/30 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors">
-              <Upload className="size-8 text-muted-foreground" />
-              <div className="text-center">
-                <p className="font-medium">上传体检报告 PDF</p>
-                <p className="text-xs text-muted-foreground">点击或拖拽文件到此处</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end gap-4 pb-10">
           <Button type="button" variant="outline" size="lg">重置表单</Button>
-          <Button type="submit" size="lg" className="px-10">保存并下一步</Button>
+          <Button type="submit" size="lg" className="px-10 gap-2">
+            <CheckCircle2 className="size-5" />
+            保存登记信息
+          </Button>
         </div>
       </form>
     </Form>

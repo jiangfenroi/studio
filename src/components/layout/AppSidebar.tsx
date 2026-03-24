@@ -103,9 +103,15 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="系统设置">
-                  <Settings className="size-5" />
-                  <span>系统设置</span>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={pathname === "/settings"} 
+                  tooltip="系统设置"
+                >
+                  <Link href="/settings">
+                    <Settings className="size-5" />
+                    <span>系统设置</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

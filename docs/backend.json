@@ -2,120 +2,90 @@
 {
   "entities": {
     "PatientProfile": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PatientProfile",
       "type": "object",
-      "description": "Represents the personal information of a patient identified by their unique archive number. This entity stores core demographic and contact details.",
+      "description": "Represents the personal information of a patient identified by their unique archive number.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the PatientProfile entity, corresponding to the patient's archive number. (Primary Key)"
+          "description": "Unique identifier (Archive Number)."
         },
         "name": {
-          "type": "string",
-          "description": "The full name of the patient."
+          "type": "string"
         },
         "gender": {
           "type": "string",
-          "enum": ["男", "女", "其他"],
-          "description": "The gender of the patient."
+          "enum": ["男", "女", "其他"]
         },
         "age": {
-          "type": "number",
-          "description": "The age of the patient."
+          "type": "number"
         },
         "idNumber": {
-          "type": "string",
-          "description": "The national ID number of the patient."
+          "type": "string"
         },
         "organization": {
-          "type": "string",
-          "description": "The patient's workplace or organization."
+          "type": "string"
         },
         "address": {
-          "type": "string",
-          "description": "The home address of the patient."
+          "type": "string"
         },
         "phoneNumber": {
-          "type": "string",
-          "description": "The contact phone number of the patient."
+          "type": "string"
         },
         "status": {
           "type": "string",
           "enum": ["正常", "死亡", "无法联系"],
-          "default": "正常",
-          "description": "The current status of the patient."
+          "default": "正常"
         },
         "lastExamDate": {
           "type": "string",
-          "format": "date",
-          "description": "The date of the last medical checkup."
+          "format": "date"
         }
       },
-      "required": [
-        "id",
-        "name",
-        "gender",
-        "age",
-        "phoneNumber",
-        "status"
-      ]
+      "required": ["id", "name", "gender", "age", "phoneNumber", "status"]
     },
     "MedicalAnomalyRecord": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MedicalAnomalyRecord",
       "type": "object",
-      "description": "Records details of a significant abnormal result found during a medical checkup, including notification and suggested actions.",
+      "description": "Records details of a significant abnormal result found during a medical checkup.",
       "properties": {
         "id": {
-          "type": "string",
-          "description": "Unique identifier for the MedicalAnomalyRecord entity. (Primary Key)"
+          "type": "string"
         },
         "patientProfileId": {
-          "type": "string",
-          "description": "Reference to the PatientProfile entity's ID (archiveNumber)."
+          "type": "string"
         },
         "checkupNumber": {
-          "type": "string",
-          "description": "The 12-digit checkup identification number."
+          "type": "string"
         },
         "checkupDate": {
           "type": "string",
-          "description": "The date when the medical checkup was performed.",
           "format": "date"
         },
         "notifiedPerson": {
-          "type": "string",
-          "description": "The name of the person who was notified."
+          "type": "string"
         },
         "anomalyCategory": {
           "type": "string",
-          "enum": ["A", "B"],
-          "description": "Category A (Immediate) or B (Clinical examination)."
+          "enum": ["A", "B"]
         },
         "anomalyDetails": {
-          "type": "string",
-          "description": "Detailed description of the anomaly."
+          "type": "string"
         },
         "disposalSuggestions": {
-          "type": "string",
-          "description": "Recommendations for management."
+          "type": "string"
         },
         "isNotified": {
-          "type": "boolean",
-          "description": "Has the person been informed."
+          "type": "boolean"
         },
         "isHealthEducationProvided": {
-          "type": "boolean",
-          "description": "Was health education provided."
+          "type": "boolean"
         },
         "notifier": {
-          "type": "string",
-          "description": "System user who performed notification."
+          "type": "string"
         },
         "notifiedPersonFeedback": {
-          "type": "string",
-          "description": "Feedback from the patient/family."
+          "type": "string"
         },
         "notificationDate": {
           "type": "string",
@@ -126,92 +96,83 @@
           "format": "time"
         }
       },
-      "required": [
-        "id",
-        "patientProfileId",
-        "checkupNumber",
-        "checkupDate",
-        "notifiedPerson",
-        "anomalyCategory",
-        "anomalyDetails",
-        "disposalSuggestions",
-        "isNotified",
-        "isHealthEducationProvided",
-        "notifier",
-        "notificationDate",
-        "notificationTime"
-      ]
+      "required": ["id", "patientProfileId", "checkupNumber", "checkupDate"]
     },
     "MedicalReportFile": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MedicalReportFile",
       "type": "object",
-      "description": "Stores metadata and links for uploaded PDF medical reports.",
+      "description": "Stores metadata and links for uploaded PDF medical reports with hierarchical path logic.",
       "properties": {
         "id": {
-          "type": "string",
-          "description": "Unique identifier."
-        },
-        "medicalAnomalyRecordId": {
-          "type": "string",
-          "description": "Parent anomaly record reference."
+          "type": "string"
         },
         "patientProfileId": {
+          "type": "string"
+        },
+        "associatedRecordId": {
           "type": "string",
-          "description": "Grandparent patient reference."
+          "description": "Reference to either a MedicalAnomalyRecord or a FollowUpRecord."
         },
         "fileName": {
           "type": "string"
         },
-        "filePath": {
+        "basePath": {
           "type": "string",
-          "format": "uri"
+          "description": "The root storage path configured in settings."
+        },
+        "fullPath": {
+          "type": "string",
+          "description": "Computed path: basePath/archiveNo/reportCategory/fileName"
         },
         "checkDate": {
           "type": "string",
           "format": "date"
         },
-        "fileCategory": {
+        "reportCategory": {
           "type": "string",
-          "enum": ["体检报告", "影像检查报告", "病理检查报告"]
+          "enum": ["体检报告", "影像报告", "病理报告", "内镜报告"]
         }
       },
-      "required": [
-        "id",
-        "medicalAnomalyRecordId",
-        "patientProfileId",
-        "fileName",
-        "filePath",
-        "checkDate",
-        "fileCategory"
-      ]
+      "required": ["id", "patientProfileId", "fileName", "fullPath", "checkDate", "reportCategory"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "type": "object",
+      "description": "Global system settings including PDF storage paths.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "default": "default"
+        },
+        "pdfStoragePath": {
+          "type": "string",
+          "description": "The designated internal network path for PDF storage (e.g., ftp://... or //...)"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/roles_medicalStaff/{userId}",
+        "path": "/systemConfig/{configId}",
         "definition": {
-          "entityName": "user",
-          "schema": {
-            "$ref": "#/backend/entities/user"
-          },
-          "description": "Collection for storing user roles."
+          "entityName": "SystemConfig",
+          "schema": { "$ref": "#/backend/entities/SystemConfig" },
+          "description": "Global settings for the application."
         }
       },
       {
         "path": "/patientProfiles/{patientProfileId}",
         "definition": {
           "entityName": "PatientProfile",
-          "schema": {
-            "$ref": "#/backend/entities/PatientProfile"
-          },
+          "schema": { "$ref": "#/backend/entities/PatientProfile" },
           "description": "Top-level collection for patient profiles."
         }
       },
@@ -219,20 +180,16 @@
         "path": "/patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}",
         "definition": {
           "entityName": "MedicalAnomalyRecord",
-          "schema": {
-            "$ref": "#/backend/entities/MedicalAnomalyRecord"
-          },
+          "schema": { "$ref": "#/backend/entities/MedicalAnomalyRecord" },
           "description": "Subcollection for anomaly records."
         }
       },
       {
-        "path": "/patientProfiles/{patientProfileId}/medicalAnomalyRecords/{medicalAnomalyRecordId}/medicalReportFiles/{medicalReportFileId}",
+        "path": "/medicalReportFiles/{fileId}",
         "definition": {
           "entityName": "MedicalReportFile",
-          "schema": {
-            "$ref": "#/backend/entities/MedicalReportFile"
-          },
-          "description": "Subcollection for report files."
+          "schema": { "$ref": "#/backend/entities/MedicalReportFile" },
+          "description": "Flattened access for reporting and linking files."
         }
       }
     ]
