@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -14,7 +15,7 @@ async function getConnection(config: any) {
     user: config.user || 'medi_admin',
     password: config.password || 'AdminPassword123',
     database: config.database || 'meditrack_db',
-    connectTimeout: 5000, 
+    connectTimeout: 3000, 
   });
 }
 
@@ -74,12 +75,12 @@ export async function fetchHomeStats(config: any) {
       todayNew: Number(todayRows[0].count),
       pendingTasks: Number(pendingRows[0].count),
       completionRate,
-      trend: trendRows.map((r: any) => ({
+      trend: (trendRows as any[]).map((r: any) => ({
         month: Number(r.month),
         total: Number(r.total),
         notified: Number(r.notified)
       })),
-      categories: catRows.map((r: any) => ({
+      categories: (catRows as any[]).map((r: any) => ({
         category: r.category,
         count: Number(r.count)
       })),
@@ -114,7 +115,6 @@ export async function fetchDataForStats(config: any) {
       ORDER BY y.checkupDate DESC
     `;
     const [rows] = await connection.execute(sql);
-    // 确保所有数值字段被正确转换以支持序列化
     return (rows as any[]).map(row => ({
       ...row,
       age: Number(row.age),
@@ -180,7 +180,7 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
         archiveNo: patient.id,
         name: patient.name,
         gender: patient.gender,
-        age: patient.age,
+        age: Number(patient.age),
         idNumber: patient.idNumber,
         organization: patient.organization || '',
         address: patient.address || '',

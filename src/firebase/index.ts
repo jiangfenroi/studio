@@ -9,7 +9,7 @@ import { getFirestore } from 'firebase/firestore';
 /**
  * 初始化 Firebase 核心服务。
  * 针对医疗内网环境优化：
- * 1. 强制会话持久化：关闭程序后自动注销。
+ * 1. 强制会话持久化：关闭标签页或重启程序即自动注销，保障临床账户安全。
  * 2. 生产环境直连：保障数据同步的唯一性。
  */
 export function initializeFirebase() {
@@ -17,7 +17,7 @@ export function initializeFirebase() {
     const firebaseApp = initializeApp(firebaseConfig);
     const sdks = getSdks(firebaseApp);
     
-    // 设置持久化模式为浏览器会话级，关闭标签页或重启程序即失效
+    // 强制将会话持久化设置为浏览器会话级别，实现“关闭即登出”
     setPersistence(sdks.auth, browserSessionPersistence).catch((err) => {
       console.warn("Auth persistence failed, but continuing with session default.");
     });
@@ -25,7 +25,8 @@ export function initializeFirebase() {
     return sdks;
   }
 
-  return getSdks(getApp());
+  const app = getApp();
+  return getSdks(app);
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
