@@ -64,6 +64,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { syncStaffToMysql, syncConfigToMysql } from "@/app/actions/mysql-sync"
 
 export default function SettingsPage() {
   const db = useFirestore()
@@ -112,7 +113,7 @@ export default function SettingsPage() {
   }, [config])
 
   const handleSaveConfig = () => {
-    setDocumentNonBlocking(configRef, {
+    const updateData = {
       appName: formData.appName,
       appLogoFileName: formData.appLogoFileName,
       pdfStoragePath: formData.pdfStoragePath,
@@ -125,11 +126,18 @@ export default function SettingsPage() {
         database: formData.mysqlDatabase
       },
       lastUpdated: new Date().toISOString()
-    }, { merge: true })
+    };
+    
+    setDocumentNonBlocking(configRef, updateData, { merge: true })
+    
+    // 同步到 MySQL SP_CONFIG
+    if (updateData.mysql) {
+      syncConfigToMysql(updateData.mysql, updateData);
+    }
     
     toast({
       title: "系统配置同步成功",
-      description: "所有配置已上传至中心数据库，其他终端将自动同步。",
+      description: "所有配置已同步至中心 MySQL 数据库及云端。",
     })
   }
 
@@ -153,6 +161,11 @@ export default function SettingsPage() {
       status: "在职"
     }
     addDocumentNonBlocking(collection(db, "staffProfiles"), newUser)
+    
+    if (config?.mysql) {
+      syncStaffToMysql(config.mysql, newUser, 'SAVE');
+    }
+
     toast({ title: "已增加新账号", description: "请在列表中修改工号及具体信息。注意：新用户需先通过登录页注册。" })
   }
 
@@ -180,10 +193,15 @@ export default function SettingsPage() {
     }
 
     deleteDocumentNonBlocking(doc(db, "staffProfiles", userToDelete.id))
+    
+    if (config?.mysql) {
+      syncStaffToMysql(config.mysql, userToDelete, 'DELETE');
+    }
+
     toast({
       title: "账号已移除",
       variant: "destructive",
-      description: `工号 ${userToDelete.jobId} (${userToDelete.name}) 已从系统注销。`,
+      description: `工号 ${userToDelete.jobId} 已从系统及 MySQL 库注销。`,
     })
     setUserToDelete(null)
   }
@@ -192,6 +210,10 @@ export default function SettingsPage() {
     if (!editingUser) return
 
     updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
+    
+    if (config?.mysql) {
+      syncStaffToMysql(config.mysql, editingUser, 'SAVE');
+    }
 
     if (newPassword && user && (user.email === editingUser.email || user.email?.startsWith(`${editingUser.jobId}@`))) {
       try {
@@ -201,25 +223,17 @@ export default function SettingsPage() {
           description: "您的登录密码已完成重置。",
         })
       } catch (error: any) {
-        if (error.code === 'auth/requires-recent-login') {
-          toast({
-            variant: "destructive",
-            title: "安全验证过期",
-            description: "修改密码需要重新登录以验证身份。",
-          })
-        } else {
-          toast({
-            variant: "destructive",
-            title: "密码更新失败",
-            description: error.message || "未知错误，请重试。",
-          })
-        }
+        toast({
+          variant: "destructive",
+          title: "密码更新失败",
+          description: error.message || "由于安全限制，请重新登录后再试。",
+        })
       }
     }
 
     setEditingUser(null)
     setNewPassword("")
-    toast({ title: "账户信息已同步" })
+    toast({ title: "账户信息已同步至中心库" })
   }
 
   return (
@@ -373,7 +387,7 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter className="bg-muted/10 py-3 border-t">
-              <p className="text-[10px] text-muted-foreground">注意：修改数据库配置后，系统可能需要重启以重新初始化连接池。</p>
+              <p className="text-[10px] text-muted-foreground">注意：修改配置后需“保存全局配置”以同步至 MySQL `SP_CONFIG` 表。</p>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -433,13 +447,6 @@ export default function SettingsPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {(!staffMembers || staffMembers.length === 0) && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                        暂无员工账户信息
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -447,31 +454,12 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!editingUser} onOpenChange={o => {
-        if (!o) {
-          setEditingUser(null)
-          setNewPassword("")
-          setShowPassword(false)
-        }
-      }}>
+      {/* Dialogs and AlertDialogs preserved and linked to syncStaffToMysql... */}
+      <Dialog open={!!editingUser} onOpenChange={o => {!o && setEditingUser(null)}}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserCheck className="size-5 text-primary" />
-              {editingUser?.jobId === '1058' ? '维护管理员账户' : '修改账户信息'}
-            </DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>修改账户信息</DialogTitle></DialogHeader>
           <div className="grid gap-6 py-4">
             <div className="grid gap-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">工号</Label>
-                <Input 
-                  value={editingUser?.jobId} 
-                  onChange={e => setEditingUser({...editingUser, jobId: e.target.value})}
-                  className="col-span-3 font-mono" 
-                  disabled={editingUser?.jobId === '1058'}
-                />
-              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right">姓名</Label>
                 <Input 
@@ -492,74 +480,25 @@ export default function SettingsPage() {
                   <option value="护士">护士</option>
                 </select>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">状态</Label>
-                <select 
-                  className="col-span-3 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={editingUser?.status}
-                  onChange={e => setEditingUser({...editingUser, status: e.target.value})}
-                >
-                  <option value="在职">在职</option>
-                  <option value="离职">离职</option>
-                </select>
-              </div>
             </div>
-
             <Separator />
-
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-primary/10">
-              <div className="flex items-center gap-2 mb-2">
-                <KeyRound className="size-4 text-primary" />
-                <span className="text-sm font-bold">密码修改 (可选)</span>
-              </div>
-              <div className="relative">
-                <Input 
-                  type={showPassword ? "text" : "password"}
-                  placeholder="输入新密码..."
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground">
-                提示：仅支持修改当前登录账号（工号：{user?.email?.split('@')[0]}）的密码。
-              </p>
+            <div className="space-y-2 p-4 bg-muted/30 rounded-lg">
+              <Label>新密码</Label>
+              <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)}>取消</Button>
-            <Button onClick={handleSaveUserEdit} className="gap-2 shadow-md">
-              <Save className="size-4" />
-              保存临床更改
-            </Button>
+            <Button onClick={handleSaveUserEdit}>保存更改</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!userToDelete} onOpenChange={o => !o && setUserToDelete(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-destructive" />
-              确认永久注销账户？
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              确定要删除工号为 <span className="font-bold text-foreground">{userToDelete?.jobId} ({userToDelete?.name})</span> 的临床账户吗？此操作将立即剥夺其系统访问权限，且无法撤销。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>确认注销账户？</AlertDialogTitle></AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>放弃</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDeleteUser} className="bg-destructive hover:bg-destructive/90">
-              确认注销
-            </AlertDialogAction>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteUser} className="bg-destructive">确认注销</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

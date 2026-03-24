@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview MySQL 数据同步 Server Actions
- * 处理内网数据库 SP_PERSON, SP_YCJG, SP_SF 表的增删改。
+ * @fileOverview MySQL 数据同步核心引擎
+ * 确保所有临床数据、账户权限及系统配置实时同步至中心数据库。
  */
 
 import mysql from 'mysql2/promise';
@@ -22,6 +22,7 @@ async function getConnection(config: any) {
  * 同步患者档案 (SP_PERSON)
  */
 export async function syncPatientToMysql(config: any, patient: any, operation: 'SAVE' | 'DELETE') {
+  if (!config) return;
   const connection = await getConnection(config);
   try {
     if (operation === 'SAVE') {
@@ -57,14 +58,15 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
  * 同步重要异常结果 (SP_YCJG)
  */
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
+  if (!config) return;
   const connection = await getConnection(config);
   try {
     if (operation === 'SAVE') {
       const data = {
         id: record.id,
         patientProfileId: record.patientProfileId,
-        checkupNumber: record.checkupNumber,
-        checkupDate: record.checkupDate,
+        checkupNumber: record.checkupNumber || record.examNo,
+        checkupDate: record.checkupDate || record.examDate,
         anomalyCategory: record.anomalyCategory,
         anomalyDetails: record.anomalyDetails,
         disposalSuggestions: record.disposalSuggestions,
@@ -95,6 +97,7 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
  * 同步随访记录 (SP_SF)
  */
 export async function syncFollowUpToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
+  if (!config) return;
   const connection = await getConnection(config);
   try {
     if (operation === 'SAVE') {
@@ -120,6 +123,66 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
     }
   } catch (err) {
     console.error('MySQL Sync Error (FollowUp):', err);
+  } finally {
+    await connection.end();
+  }
+}
+
+/**
+ * 同步账户信息 (SP_STAFF)
+ */
+export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE' | 'DELETE') {
+  if (!config) return;
+  const connection = await getConnection(config);
+  try {
+    if (operation === 'SAVE') {
+      const data = {
+        jobId: staff.jobId,
+        name: staff.name,
+        email: staff.email,
+        role: staff.role,
+        status: staff.status
+      };
+      const keys = Object.keys(data);
+      const values = Object.values(data);
+      const placeholders = keys.map(() => '?').join(', ');
+      const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
+      
+      const sql = `INSERT INTO SP_STAFF (jobId, name, email, role, status) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
+      await connection.execute(sql, values);
+    } else {
+      await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
+    }
+  } catch (err) {
+    console.error('MySQL Sync Error (Staff):', err);
+  } finally {
+    await connection.end();
+  }
+}
+
+/**
+ * 同步全局配置 (SP_CONFIG)
+ */
+export async function syncConfigToMysql(config: any, systemConfig: any) {
+  if (!config) return;
+  const connection = await getConnection(config);
+  try {
+    const data = {
+      configKey: 'default',
+      appName: systemConfig.appName,
+      pacsUrlBase: systemConfig.pacsUrlBase,
+      pdfStoragePath: systemConfig.pdfStoragePath,
+      lastUpdated: new Date().toISOString()
+    };
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map(() => '?').join(', ');
+    const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
+    
+    const sql = `INSERT INTO SP_CONFIG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
+    await connection.execute(sql, values);
+  } catch (err) {
+    console.error('MySQL Sync Error (Config):', err);
   } finally {
     await connection.end();
   }
