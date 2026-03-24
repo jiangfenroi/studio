@@ -7,6 +7,8 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
 import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2 } from "lucide-react"
+import { doc, collection, setDoc, addDoc } from "firebase/firestore"
+import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -41,7 +43,6 @@ const formSchema = z.object({
   feedback: z.string().optional(),
   noticeDate: z.string().min(1, "通知日期不能为空"),
   noticeTime: z.string().min(1, "通知时间不能为空"),
-  // File upload metadata
   reportCategory: z.enum(["体检报告", "影像报告", "病理报告", "内镜报告"]).default("体检报告"),
   reportCheckDate: z.string().optional(),
 })
@@ -51,7 +52,14 @@ interface AbnormalResultFormProps {
 }
 
 export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
-  const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string}[]>([])
+  const db = useFirestore()
+  const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string, category: string, checkDate: string}[]>([])
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Fetch system config for storage path
+  const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
+  const { data: systemConfig } = useDoc(configRef)
+  const basePath = systemConfig?.pdfStoragePath || "//172.17.126.18/e:/pic"
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -93,13 +101,53 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
     const file = e.target.files?.[0]
     if (file && watchArchiveNo) {
       const category = form.getValues("reportCategory")
-      const simulatedPath = `//172.17.126.18/e:/pic/${watchArchiveNo}/${category}/${file.name}`
-      setUploadedFiles(prev => [...prev, { name: file.name, path: simulatedPath }])
+      const checkDate = form.getValues("reportCheckDate") || format(new Date(), "yyyy-MM-dd")
+      const simulatedPath = `${basePath}/${watchArchiveNo}/${category}/${file.name}`
+      setUploadedFiles(prev => [...prev, { 
+        name: file.name, 
+        path: simulatedPath, 
+        category, 
+        checkDate 
+      }])
+      // Reset input to allow same file re-selection
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("Saving abnormal result with linked files:", { ...values, files: uploadedFiles })
+  const triggerFilePicker = () => {
+    fileInputRef.current?.click()
+  }
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    // 1. Create Anomaly Record
+    const anomalyRecordId = `${values.archiveNo}_${values.examNo}`
+    const anomalyRef = doc(db, `patientProfiles/${values.archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
+    
+    await setDoc(anomalyRef, {
+      ...values,
+      id: anomalyRecordId,
+      patientProfileId: values.archiveNo,
+      checkupNumber: values.examNo,
+      checkupDate: values.examDate,
+      createdAt: new Date().toISOString()
+    })
+
+    // 2. Create File Metadata Records
+    for (const file of uploadedFiles) {
+      const fileId = `${anomalyRecordId}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+      const fileData = {
+        id: fileId,
+        patientProfileId: values.archiveNo,
+        associatedRecordId: anomalyRecordId,
+        fileName: file.name,
+        basePath: basePath,
+        fullPath: file.path,
+        checkDate: file.checkDate,
+        reportCategory: file.category
+      }
+      addDocumentNonBlocking(collection(db, "medicalReportFiles"), fileData)
+    }
+
     onSuccess(values.archiveNo)
   }
 
@@ -273,16 +321,20 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
             </div>
 
             <div className="relative group">
-              <div className="border-dashed border-2 rounded-lg p-8 bg-muted/20 flex flex-col items-center justify-center gap-2 cursor-pointer group-hover:bg-muted/40 transition-colors">
+              <div 
+                onClick={triggerFilePicker}
+                className="border-dashed border-2 rounded-lg p-8 bg-muted/20 flex flex-col items-center justify-center gap-2 cursor-pointer group-hover:bg-muted/40 transition-colors"
+              >
                 <Upload className="size-8 text-muted-foreground" />
                 <div className="text-center">
                   <p className="font-medium">点击选择 PDF 文件上传</p>
                   <p className="text-xs text-muted-foreground">支持批量上传，文件将自动同步至内网存储</p>
                 </div>
                 <Input 
+                  ref={fileInputRef}
                   type="file" 
                   accept=".pdf" 
-                  className="absolute inset-0 opacity-0 cursor-pointer" 
+                  className="hidden" 
                   onChange={handleFileUpload}
                   disabled={!watchArchiveNo}
                 />
@@ -299,7 +351,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                       <FileText className="size-4 text-primary" />
                       <div>
                         <p className="text-xs font-bold">{file.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono">{file.path}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[400px]">{file.path}</p>
                       </div>
                     </div>
                     <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== idx))}>

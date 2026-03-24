@@ -7,6 +7,8 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
 import { User, Calendar, Clock, Upload, FileType, CheckCircle2, Trash2, FileText } from "lucide-react"
+import { doc, collection, addDoc } from "firebase/firestore"
+import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -32,7 +34,6 @@ const formSchema = z.object({
   followUpDate: z.string().min(1, "回访日期不能为空"),
   followUpTime: z.string().min(1, "回访时间不能为空"),
   isReExamined: z.boolean().default(false),
-  // File metadata
   fileExamDate: z.string().optional(),
   fileCategory: z.enum(["体检报告", "影像报告", "病理报告", "内镜报告"]).default("影像报告"),
   nextFollowUpSetting: z.string().optional(),
@@ -45,7 +46,14 @@ interface FollowUpFormProps {
 }
 
 export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpFormProps) {
-  const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string}[]>([])
+  const db = useFirestore()
+  const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string, category: string, checkDate: string}[]>([])
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Fetch system config for storage path
+  const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
+  const { data: systemConfig } = useDoc(configRef)
+  const basePath = systemConfig?.pdfStoragePath || "//172.17.126.18/e:/pic"
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -66,13 +74,43 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
     const file = e.target.files?.[0]
     if (file && archiveNo) {
       const category = form.getValues("fileCategory")
-      const simulatedPath = `//172.17.126.18/e:/pic/${archiveNo}/${category}/${file.name}`
-      setUploadedFiles(prev => [...prev, { name: file.name, path: simulatedPath }])
+      const checkDate = form.getValues("fileExamDate") || format(new Date(), "yyyy-MM-dd")
+      const simulatedPath = `${basePath}/${archiveNo}/${category}/${file.name}`
+      setUploadedFiles(prev => [...prev, { 
+        name: file.name, 
+        path: simulatedPath, 
+        category, 
+        checkDate 
+      }])
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("Saving follow-up record with files:", { ...values, files: uploadedFiles })
+  const triggerFilePicker = () => {
+    fileInputRef.current?.click()
+  }
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    // 1. Create FollowUp Record
+    const recordId = `${archiveNo}_followup_${Date.now()}`
+    const followUpRef = collection(db, `patientProfiles/${archiveNo}/medicalAnomalyRecords`) // In a real app we would link to a specific record
+    
+    // 2. Create File Metadata Records
+    for (const file of uploadedFiles) {
+      const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+      const fileData = {
+        id: fileId,
+        patientProfileId: archiveNo,
+        associatedRecordId: recordId,
+        fileName: file.name,
+        basePath: basePath,
+        fullPath: file.path,
+        checkDate: file.checkDate,
+        reportCategory: file.category
+      }
+      addDocumentNonBlocking(collection(db, "medicalReportFiles"), fileData)
+    }
+
     onSuccess()
   }
 
@@ -171,13 +209,22 @@ export function FollowUpForm({ archiveNo, patientName, onSuccess }: FollowUpForm
               )} />
             </div>
 
-            <div className="relative group border-dashed border-2 rounded-lg p-10 bg-muted/20 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-muted/40 transition-colors">
+            <div 
+              onClick={triggerFilePicker}
+              className="relative group border-dashed border-2 rounded-lg p-10 bg-muted/20 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-muted/40 transition-colors"
+            >
               <FileType className="size-12 text-muted-foreground" />
               <div className="text-center">
                 <p className="text-lg font-medium">点击或拖拽后续检查报告 PDF 上传</p>
                 <p className="text-sm text-muted-foreground">文件将归类存储至: [共享路径]/{archiveNo}/[种类]/</p>
               </div>
-              <Input type="file" accept=".pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileUpload} />
+              <Input 
+                ref={fileInputRef}
+                type="file" 
+                accept=".pdf" 
+                className="hidden" 
+                onChange={handleFileUpload} 
+              />
               <Button type="button" variant="outline" size="sm">选择文件</Button>
             </div>
 
