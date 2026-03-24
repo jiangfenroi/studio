@@ -14,7 +14,8 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Trash2,
-  FileDown
+  FileDown,
+  Plus
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -56,7 +57,7 @@ import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
 
 const patientSchema = z.object({
@@ -77,6 +78,7 @@ export default function PatientsPage() {
   const db = useFirestore()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [editingPatient, setEditingPatient] = React.useState<PatientFormValues | null>(null)
+  const [isAddingNew, setIsAddingNew] = React.useState(false)
   const { toast } = useToast()
 
   const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
@@ -101,10 +103,10 @@ export default function PatientsPage() {
     return (patients || []).filter(p => {
       const search = searchTerm.toLowerCase();
       return (
-        p.name?.toLowerCase().includes(search) || 
-        p.id?.toLowerCase().includes(search) || 
-        p.phoneNumber?.toLowerCase().includes(search) || 
-        p.idNumber?.toLowerCase().includes(search)
+        (p.name?.toLowerCase().includes(search)) || 
+        (p.id?.toLowerCase().includes(search)) || 
+        (p.phoneNumber?.toLowerCase().includes(search)) || 
+        (p.idNumber?.toLowerCase().includes(search))
       )
     })
   }, [patients, searchTerm])
@@ -114,12 +116,32 @@ export default function PatientsPage() {
     form.reset(patient)
   }
 
-  const onSubmitEdit = (values: PatientFormValues) => {
+  const handleAddNew = () => {
+    setIsAddingNew(true)
+    form.reset({
+      id: "",
+      name: "",
+      gender: "男",
+      age: 0,
+      idNumber: "",
+      organization: "",
+      address: "",
+      phoneNumber: "",
+      status: "正常",
+    })
+  }
+
+  const onSubmit = (values: PatientFormValues) => {
     const patientRef = doc(db, "patientProfiles", values.id)
-    updateDocumentNonBlocking(patientRef, values)
+    
+    // For both add and edit, we use setDocument with merge to allow supplementing existing records
+    setDocumentNonBlocking(patientRef, values, { merge: true })
+    
     setEditingPatient(null)
+    setIsAddingNew(false)
+    
     toast({
-      title: "档案更新成功",
+      title: isAddingNew ? "新档案已创建" : "档案更新成功",
       description: `患者 ${values.name} 的信息已同步。`,
     })
   }
@@ -142,7 +164,7 @@ export default function PatientsPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `档案导入模板.csv`
+    link.download = `健康档案导入模板.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -159,7 +181,7 @@ export default function PatientsPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `患者档案导出_${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `健康档案导出_${new Date().toISOString().split('T')[0]}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -169,8 +191,8 @@ export default function PatientsPage() {
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-primary">档案中心</h1>
-          <p className="text-muted-foreground">管理全院患者健康档案，档案编号为最高级识别码</p>
+          <h1 className="text-3xl font-bold text-primary">档案管理中心</h1>
+          <p className="text-muted-foreground">统筹全院患者健康信息，档案编号为最高级唯一识别码</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={handleDownloadTemplate}>
@@ -181,16 +203,24 @@ export default function PatientsPage() {
             <FileSpreadsheet className="size-4" />
             导出档案
           </Button>
-          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "功能开发中", description: "Excel 批量导入正在适配。" })}>
-            <Upload className="size-4" />
-            批量导入
-          </Button>
-          <Button asChild className="gap-2">
-            <Link href="/records/new">
-              <UserPlus className="size-4" />
-              新增档案
-            </Link>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="gap-2 shadow-md">
+                <Plus className="size-4" />
+                新增档案
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link href="/records/new" className="cursor-pointer">
+                  <UserPlus className="size-4 mr-2" /> 体检异常登记
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleAddNew} className="cursor-pointer">
+                <Plus className="size-4 mr-2" /> 纯个人信息补录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -198,7 +228,7 @@ export default function PatientsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input 
-            placeholder="搜索姓名、档案编号、手机号..." 
+            placeholder="搜索姓名、档案编号、手机号、身份证..." 
             className="pl-10 h-11" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -221,24 +251,24 @@ export default function PatientsPage() {
           </TableHeader>
           <TableBody>
             {filteredPatients.map((patient) => (
-              <TableRow key={patient.id} className="hover:bg-muted/10 transition-colors">
+              <TableRow key={patient.id} className="hover:bg-muted/10 transition-colors group">
                 <TableCell className="font-bold text-primary">{patient.id}</TableCell>
-                <TableCell className="font-medium">{patient.name}</TableCell>
-                <TableCell>{patient.gender} / {patient.age}岁</TableCell>
-                <TableCell className="text-sm">{patient.phoneNumber}</TableCell>
+                <TableCell className="font-medium">{patient.name || <span className="text-muted-foreground italic">未补录</span>}</TableCell>
+                <TableCell>{patient.gender || '-'} / {patient.age || '-'}岁</TableCell>
+                <TableCell className="text-sm">{patient.phoneNumber || '-'}</TableCell>
                 <TableCell className="text-muted-foreground truncate max-w-[150px]">{patient.organization || '无'}</TableCell>
                 <TableCell>
                   <Badge 
                     variant={patient.status === '正常' ? 'default' : patient.status === '死亡' ? 'destructive' : 'secondary'}
                   >
-                    {patient.status}
+                    {patient.status || '正常'}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
+                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button variant="ghost" size="icon" asChild title="电子病历">
                       <Link href={`/patients/${patient.id}`}>
-                        <Eye className="size-4" />
+                        <Eye className="size-4 text-primary" />
                       </Link>
                     </Button>
                     <DropdownMenu>
@@ -249,7 +279,7 @@ export default function PatientsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => handleEdit(patient)}>
-                          <Edit className="size-4 mr-2" /> 修改资料
+                          <Edit className="size-4 mr-2" /> 补录/修改资料
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(patient.id)}>
@@ -263,21 +293,43 @@ export default function PatientsPage() {
             ))}
           </TableBody>
         </Table>
+        {(filteredPatients.length === 0 && !isLoading) && (
+          <div className="py-24 text-center">
+            <UserPlus className="size-12 mx-auto text-muted-foreground opacity-20 mb-4" />
+            <p className="text-muted-foreground">暂无符合条件的健康档案</p>
+          </div>
+        )}
       </div>
 
-      <Dialog open={!!editingPatient} onOpenChange={(open) => !open && setEditingPatient(null)}>
+      <Dialog open={!!editingPatient || isAddingNew} onOpenChange={(open) => {
+        if (!open) {
+          setEditingPatient(null);
+          setIsAddingNew(false);
+        }
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>编辑患者健康档案</DialogTitle>
+            <DialogTitle>{isAddingNew ? "新增个人健康档案" : "补录/编辑健康档案"}</DialogTitle>
             <DialogDescription>
-              档案编号: <span className="font-bold text-primary">{editingPatient?.id}</span>
+              {isAddingNew ? "档案编号为核心索引，创建后支持跨模块联动。" : `正在维护档案编号: ${editingPatient?.id}`}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmitEdit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-full">
+                  <FormField control={form.control} name="id" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-bold text-primary">档案编号 (Archive No.)</FormLabel>
+                      <FormControl>
+                        <Input {...field} disabled={!!editingPatient} placeholder="D1234567890" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
                 <FormField control={form.control} name="name" render={({ field }) => (
-                  <FormItem><FormLabel>姓名</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel>姓名</FormLabel><FormControl><Input {...field} placeholder="患者全名" /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="gender" render={({ field }) => (
                   <FormItem>
@@ -295,15 +347,17 @@ export default function PatientsPage() {
                 <FormField control={form.control} name="age" render={({ field }) => (
                   <FormItem><FormLabel>年龄</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
-                <FormField control={form.control} name="idNumber" render={({ field }) => (
-                  <FormItem><FormLabel>身份证号</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
                 <FormField control={form.control} name="phoneNumber" render={({ field }) => (
-                  <FormItem><FormLabel>联系电话</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel>联系电话</FormLabel><FormControl><Input {...field} placeholder="11位手机号或座机" /></FormControl><FormMessage /></FormItem>
                 )} />
+                <div className="col-span-full">
+                  <FormField control={form.control} name="idNumber" render={({ field }) => (
+                    <FormItem><FormLabel>身份证号</FormLabel><FormControl><Input {...field} placeholder="18位身份证号码" className="font-mono" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
                 <FormField control={form.control} name="status" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>当前状态</FormLabel>
+                    <FormLabel>档案状态</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
@@ -314,20 +368,24 @@ export default function PatientsPage() {
                     </Select>
                   </FormItem>
                 )} />
-                <div className="col-span-full">
-                  <FormField control={form.control} name="organization" render={({ field }) => (
-                    <FormItem><FormLabel>单位/部门</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                </div>
+                <FormField control={form.control} name="organization" render={({ field }) => (
+                  <FormItem><FormLabel>所属单位/部门</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
                 <div className="col-span-full">
                   <FormField control={form.control} name="address" render={({ field }) => (
-                    <FormItem><FormLabel>家庭住址</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel>家庭/通讯住址</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setEditingPatient(null)}>取消</Button>
-                <Button type="submit">保存修改</Button>
+              <DialogFooter className="pt-4">
+                <Button type="button" variant="outline" onClick={() => {
+                  setEditingPatient(null);
+                  setIsAddingNew(false);
+                }}>取消</Button>
+                <Button type="submit" className="gap-2">
+                  <CheckCircle2 className="size-4" />
+                  保存档案信息
+                </Button>
               </DialogFooter>
             </form>
           </Form>
