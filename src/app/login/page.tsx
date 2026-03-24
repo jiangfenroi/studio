@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, Settings, UserPlus, Loader2, KeyRound } from 'lucide-react';
+import { ShieldAlert, LogIn, Settings, UserPlus, Loader2, KeyRound, Database, Server, Globe, Lock, User as UserIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -137,7 +136,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4 relative">
-      <Card className="w-full max-w-md shadow-2xl relative bg-white/80 backdrop-blur-sm">
+      <Card className="w-full max-w-md shadow-2xl relative bg-white/80 backdrop-blur-sm border-primary/10">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="size-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
@@ -158,14 +157,14 @@ export default function LoginPage() {
               <form onSubmit={handleJobIdLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="jobId">工号 (Job ID)</Label>
-                  <Input id="jobId" value={jobId} onChange={(e) => setJobId(e.target.value)} required />
+                  <Input id="jobId" value={jobId} onChange={(e) => setJobId(e.target.value)} required placeholder="请输入您的工号" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">登录密码</Label>
-                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
                 </div>
-                <Button type="submit" className="w-full h-12 mt-4 shadow-md" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="animate-spin" /> : <LogIn className="mr-2" />}
+                <Button type="submit" className="w-full h-12 mt-4 shadow-md text-base" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="animate-spin" /> : <LogIn className="mr-2 size-5" />}
                   立即登录
                 </Button>
               </form>
@@ -174,8 +173,8 @@ export default function LoginPage() {
             <TabsContent value="signup">
               <form onSubmit={handleJobIdSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>姓名</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="请输入您的真实姓名" />
+                  <Label>真实姓名</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="例如：姜锋" />
                 </div>
                 <div className="space-y-2">
                   <Label>工号</Label>
@@ -183,40 +182,68 @@ export default function LoginPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>设置密码</Label>
-                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="建议包含字母与数字" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-primary">
-                    <KeyRound className="size-3" /> 系统授权码
+                  <Label className="flex items-center gap-2 text-primary font-bold">
+                    <KeyRound className="size-4" /> 系统授权码
                   </Label>
                   <Input 
                     type="text" 
                     value={authCode} 
                     onChange={(e) => setAuthCode(e.target.value)} 
                     required 
-                    placeholder="请输入授权验证编码"
+                    placeholder="请输入系统授权验证编码"
                     className="border-primary/30"
                   />
                 </div>
-                <Button type="submit" variant="secondary" className="w-full h-12 mt-4 shadow-md" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="animate-spin" /> : <UserPlus className="mr-2" />}
+                <Button type="submit" variant="secondary" className="w-full h-12 mt-4 shadow-md text-base" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="animate-spin" /> : <UserPlus className="mr-2 size-5" />}
                   确认注册
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
         </CardContent>
-        <CardFooter className="flex flex-col gap-4">
+        <CardFooter className="flex flex-col gap-4 border-t pt-6 mt-2">
           <Dialog>
-            <DialogTrigger asChild><Button variant="ghost" size="sm"><Settings className="mr-2" />配置中心</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>内网数据库连接配置</DialogTitle></DialogHeader>
-              <div className="grid gap-4 py-4">
-                <Input value={mysqlConfig.host} onChange={(e) => setMysqlConfig({...mysqlConfig, host: e.target.value})} placeholder="主机" />
-                <Input value={mysqlConfig.user} onChange={(e) => setMysqlConfig({...mysqlConfig, user: e.target.value})} placeholder="用户" />
-                <Input type="password" value={mysqlConfig.password} onChange={(e) => setMysqlConfig({...mysqlConfig, password: e.target.value})} placeholder="密码" />
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary transition-colors">
+                <Settings className="mr-2 size-4" />内网数据库配置中心
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Database className="size-5 text-primary" />
+                  内网 MySQL 数据库连接配置
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-5 py-6">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right flex items-center justify-end gap-1"><Server className="size-3" /> 主机</Label>
+                  <Input value={mysqlConfig.host} onChange={(e) => setMysqlConfig({...mysqlConfig, host: e.target.value})} className="col-span-3" placeholder="172.17.168.18" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right flex items-center justify-end gap-1"><Globe className="size-3" /> 端口</Label>
+                  <Input value={mysqlConfig.port} onChange={(e) => setMysqlConfig({...mysqlConfig, port: e.target.value})} className="col-span-3" placeholder="10699" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right flex items-center justify-end gap-1"><Database className="size-3" /> 数据库</Label>
+                  <Input value={mysqlConfig.database} onChange={(e) => setMysqlConfig({...mysqlConfig, database: e.target.value})} className="col-span-3" placeholder="meditrack_db" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right flex items-center justify-end gap-1"><UserIcon className="size-3" /> 用户</Label>
+                  <Input value={mysqlConfig.user} onChange={(e) => setMysqlConfig({...mysqlConfig, user: e.target.value})} className="col-span-3" placeholder="medi_admin" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right flex items-center justify-end gap-1"><Lock className="size-3" /> 密码</Label>
+                  <Input type="password" value={mysqlConfig.password} onChange={(e) => setMysqlConfig({...mysqlConfig, password: e.target.value})} className="col-span-3" placeholder="••••••••" />
+                </div>
               </div>
-              <DialogFooter><Button onClick={handleSaveConfig}>应用设置</Button></DialogFooter>
+              <DialogFooter>
+                <Button onClick={handleSaveConfig} className="w-full">应用配置并同步</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </CardFooter>
