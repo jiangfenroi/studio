@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, UserCircle, Settings, Save, HardDrive } from 'lucide-react';
+import { ShieldAlert, LogIn, UserCircle, Settings, Save, HardDrive, Database, Server } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,7 +25,16 @@ export default function LoginPage() {
   // System Config State
   const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db]);
   const { data: config } = useDoc(configRef);
+  
+  // Local states for settings dialog
   const [tempStoragePath, setTempStoragePath] = React.useState('');
+  const [mysqlConfig, setMysqlConfig] = React.useState({
+    host: '',
+    port: '3306',
+    user: '',
+    password: '',
+    database: ''
+  });
 
   React.useEffect(() => {
     if (user) {
@@ -33,8 +43,9 @@ export default function LoginPage() {
   }, [user, router]);
 
   React.useEffect(() => {
-    if (config?.pdfStoragePath) {
-      setTempStoragePath(config.pdfStoragePath);
+    if (config) {
+      if (config.pdfStoragePath) setTempStoragePath(config.pdfStoragePath);
+      if (config.mysql) setMysqlConfig(config.mysql);
     }
   }, [config]);
 
@@ -55,12 +66,13 @@ export default function LoginPage() {
     if (configRef) {
       setDocumentNonBlocking(configRef, {
         pdfStoragePath: tempStoragePath,
+        mysql: mysqlConfig,
         lastUpdated: new Date().toISOString()
       }, { merge: true });
       
       toast({
-        title: "配置已更新",
-        description: "系统数据库存储路径已成功保存。",
+        title: "全局配置已更新",
+        description: "PDF 存储路径与 MySQL 数据库设置已成功保存。",
       });
     }
   };
@@ -135,38 +147,98 @@ export default function LoginPage() {
               <DialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary gap-2">
                   <Settings className="size-4" />
-                  数据库/存储设置
+                  内网数据库/存储设置
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-xl">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <HardDrive className="size-5 text-primary" />
-                    内网数据库存储配置
+                    <Server className="size-5 text-primary" />
+                    内网系统配置中心
                   </DialogTitle>
                   <DialogDescription>
-                    配置本系统PDF报告的物理存储路径。该路径将作为全院报告归档的根目录。
+                    配置本系统所需的 PDF 报告归档路径与 MySQL 业务数据库连接。
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="dbPath">PDF 存储根路径</Label>
-                    <Input 
-                      id="dbPath" 
-                      placeholder="//172.17.126.18/e:/pic" 
-                      value={tempStoragePath}
-                      onChange={(e) => setTempStoragePath(e.target.value)}
-                      className="font-mono text-sm"
-                    />
-                    <p className="text-[10px] text-muted-foreground">
-                      格式参考: <code className="bg-muted px-1 rounded">ftp://IP/path</code> 或 <code className="bg-muted px-1 rounded">//IP/drive:/path</code>
-                    </p>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleSaveConfig} className="gap-2">
+                
+                <Tabs defaultValue="pdf" className="w-full mt-4">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="pdf" className="gap-2">
+                      <HardDrive className="size-4" />
+                      PDF 存储
+                    </TabsTrigger>
+                    <TabsTrigger value="mysql" className="gap-2">
+                      <Database className="size-4" />
+                      MySQL 数据库
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="pdf" className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dbPath">PDF 存储根路径</Label>
+                      <Input 
+                        id="dbPath" 
+                        placeholder="//172.17.126.18/e:/pic" 
+                        value={tempStoragePath}
+                        onChange={(e) => setTempStoragePath(e.target.value)}
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        格式参考: <code className="bg-muted px-1 rounded">ftp://IP/path</code> 或 <code className="bg-muted px-1 rounded">//IP/drive:/path</code>
+                      </p>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="mysql" className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>主机地址 (Host)</Label>
+                        <Input 
+                          placeholder="localhost" 
+                          value={mysqlConfig.host}
+                          onChange={(e) => setMysqlConfig({...mysqlConfig, host: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>端口 (Port)</Label>
+                        <Input 
+                          placeholder="3306" 
+                          value={mysqlConfig.port}
+                          onChange={(e) => setMysqlConfig({...mysqlConfig, port: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>用户名 (User)</Label>
+                        <Input 
+                          placeholder="root" 
+                          value={mysqlConfig.user}
+                          onChange={(e) => setMysqlConfig({...mysqlConfig, user: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>密码 (Password)</Label>
+                        <Input 
+                          type="password"
+                          value={mysqlConfig.password}
+                          onChange={(e) => setMysqlConfig({...mysqlConfig, password: e.target.value})}
+                        />
+                      </div>
+                      <div className="col-span-full space-y-2">
+                        <Label>数据库名 (Database)</Label>
+                        <Input 
+                          placeholder="health_insight_db" 
+                          value={mysqlConfig.database}
+                          onChange={(e) => setMysqlConfig({...mysqlConfig, database: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                <DialogFooter className="border-t pt-4">
+                  <Button onClick={handleSaveConfig} className="gap-2 w-full md:w-auto">
                     <Save className="size-4" />
-                    保存配置
+                    保存全局配置
                   </Button>
                 </DialogFooter>
               </DialogContent>
