@@ -10,6 +10,7 @@ import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2, AlertCircle } fro
 import { doc, collection } from "firebase/firestore"
 import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, useUser, useCollection } from "@/firebase"
 import { useToast } from "@/hooks/use-toast"
+import { syncAnomalyToMysql } from "@/app/actions/mysql-sync"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -142,7 +143,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
     const patientRef = doc(db, "patientProfiles", values.archiveNo)
     setDocumentNonBlocking(patientRef, { id: values.archiveNo }, { merge: true })
 
-    setDocumentNonBlocking(anomalyRef, {
+    const finalRecord = {
       ...values,
       id: anomalyRecordId,
       patientProfileId: values.archiveNo,
@@ -150,7 +151,14 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       checkupDate: values.examDate,
       isClosed: false,
       createdAt: new Date().toISOString()
-    }, { merge: true })
+    };
+
+    setDocumentNonBlocking(anomalyRef, finalRecord, { merge: true })
+
+    // 同步到 MySQL
+    if (systemConfig?.mysql) {
+      syncAnomalyToMysql(systemConfig.mysql, finalRecord, 'SAVE');
+    }
 
     for (const file of uploadedFiles) {
       const fileId = `${anomalyRecordId}_file_${Date.now()}`

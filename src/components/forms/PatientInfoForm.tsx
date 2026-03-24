@@ -6,9 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { User, ArrowRight, SkipForward, Phone, CreditCard } from "lucide-react"
-import { useFirestore, setDocumentNonBlocking } from "@/firebase"
+import { useFirestore, setDocumentNonBlocking, useDoc, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
+import { syncPatientToMysql } from "@/app/actions/mysql-sync"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +32,8 @@ const patientSchema = z.object({
   phoneNumber: z.string().min(1, "联系电话不能为空"),
   idNumber: z.string().min(1, "身份证号不能为空"),
   status: z.enum(["正常", "死亡", "无法联系"]).default("正常"),
+  organization: z.string().optional(),
+  address: z.string().optional(),
 })
 
 interface PatientInfoFormProps {
@@ -43,6 +46,9 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
   const db = useFirestore()
   const { toast } = useToast()
   
+  const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
+  const { data: systemConfig } = useDoc(configRef)
+
   const form = useForm<z.infer<typeof patientSchema>>({
     resolver: zodResolver(patientSchema),
     defaultValues: {
@@ -53,6 +59,8 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
       phoneNumber: "",
       idNumber: "",
       status: "正常",
+      organization: "",
+      address: "",
     },
   })
 
@@ -60,6 +68,11 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
     const patientRef = doc(db, "patientProfiles", archiveNo)
     setDocumentNonBlocking(patientRef, values, { merge: true })
     
+    // 同步到 MySQL SP_PERSON
+    if (systemConfig?.mysql) {
+      syncPatientToMysql(systemConfig.mysql, values, 'SAVE');
+    }
+
     toast({
       title: "档案已补充",
       description: `患者 ${values.name} 的基本信息已成功同步。`,

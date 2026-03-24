@@ -61,12 +61,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useDoc, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
 import { collectionGroup, query, doc, collection } from "firebase/firestore"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useToast } from "@/hooks/use-toast"
+import { syncAnomalyToMysql } from "@/app/actions/mysql-sync"
 
 const editSchema = z.object({
   anomalyDetails: z.string().min(1, "详情不能为空"),
@@ -82,6 +83,9 @@ export default function RecordsPage() {
   const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
   const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
 
+  const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
+  const { data: systemConfig } = useDoc(configRef)
+
   const recordsQuery = useMemoFirebase(() => query(collectionGroup(db, "medicalAnomalyRecords")), [db])
   const { data: rawRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
 
@@ -91,7 +95,7 @@ export default function RecordsPage() {
   const joinedRecords = React.useMemo(() => {
     if (!rawRecords) return []
     return rawRecords
-      .filter(r => r.anomalyCategory) // Filter for primary discoveries
+      .filter(r => r.anomalyCategory) 
       .map(record => {
         const patient = patients?.find(p => p.id === record.patientProfileId)
         return {
@@ -135,16 +139,28 @@ export default function RecordsPage() {
     if (!editingRecord) return
     const recordRef = doc(db, "patientProfiles", editingRecord.patientProfileId, "medicalAnomalyRecords", editingRecord.id)
     updateDocumentNonBlocking(recordRef, values)
+    
+    // 同步到 MySQL
+    if (systemConfig?.mysql) {
+      syncAnomalyToMysql(systemConfig.mysql, { ...editingRecord, ...values }, 'SAVE');
+    }
+
     setEditingRecord(null)
-    toast({ title: "修改成功", description: "异常结果记录已更新。" })
+    toast({ title: "修改成功", description: "异常结果记录已更新并同步。" })
   }
 
   const confirmDelete = () => {
     if (!recordToDelete) return
     const recordRef = doc(db, "patientProfiles", recordToDelete.patientProfileId, "medicalAnomalyRecords", recordToDelete.id)
     deleteDocumentNonBlocking(recordRef)
+    
+    // 同步到 MySQL
+    if (systemConfig?.mysql) {
+      syncAnomalyToMysql(systemConfig.mysql, { id: recordToDelete.id }, 'DELETE');
+    }
+
     setRecordToDelete(null)
-    toast({ title: "已撤销登记", variant: "destructive", description: "该条医学异常记录已被移除。" })
+    toast({ title: "已撤销登记", variant: "destructive", description: "该条医学异常记录已同步移除。" })
   }
 
   return (
@@ -324,7 +340,7 @@ export default function RecordsPage() {
               确认撤销临床登记？
             </AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除这条异常结果记录吗？此操作将永久移除相关数据，且无法恢复。
+              确定要删除这条异常结果记录吗？此操作将永久移除相关数据并从中心数据库同步。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

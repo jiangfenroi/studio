@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -68,9 +69,10 @@ import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useDoc, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase"
 import { collection, doc, collectionGroup, query } from "firebase/firestore"
 import { differenceInYears, parseISO } from "date-fns"
+import { syncPatientToMysql } from "@/app/actions/mysql-sync"
 
 const patientSchema = z.object({
   id: z.string().min(1, "档案编号不能为空"),
@@ -94,6 +96,9 @@ export default function PatientsPage() {
   const [patientIdToDelete, setPatientIdToDelete] = React.useState<string | null>(null)
   const { toast } = useToast()
 
+  const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
+  const { data: systemConfig } = useDoc(configRef)
+
   const patientsQuery = useMemoFirebase(() => collection(db, "patientProfiles"), [db])
   const { data: patients, isLoading } = useCollection(patientsQuery)
 
@@ -115,11 +120,6 @@ export default function PatientsPage() {
     },
   })
 
-  /**
-   * Clinical Age Calculation Logic
-   * 1. If ID exists, use birth year.
-   * 2. If no ID, but exam date exists, increment if >1 year passed.
-   */
   const handleAutoCalcAge = () => {
     if (!patients) return;
     
@@ -130,7 +130,6 @@ export default function PatientsPage() {
       let newAge = p.age;
       let updated = false;
 
-      // Logic 1: ID Number (Chinese 18-digit)
       if (p.idNumber && p.idNumber.length === 18) {
         const birthYear = parseInt(p.idNumber.substring(6, 10));
         if (!isNaN(birthYear)) {
@@ -138,7 +137,6 @@ export default function PatientsPage() {
           if (newAge !== p.age) updated = true;
         }
       } 
-      // Logic 2: Examination Date + 1 Year
       else {
         const patientRecords = allRecords?.filter(r => r.patientProfileId === p.id);
         if (patientRecords && patientRecords.length > 0) {
@@ -158,13 +156,18 @@ export default function PatientsPage() {
 
       if (updated) {
         const patientRef = doc(db, "patientProfiles", p.id);
+        const updatedData = { ...p, age: newAge };
         updateDocumentNonBlocking(patientRef, { age: newAge });
+        
+        if (systemConfig?.mysql) {
+          syncPatientToMysql(systemConfig.mysql, updatedData, 'SAVE');
+        }
         count++;
       }
     });
 
     if (count > 0) {
-      toast({ title: "临床年龄校对完成", description: `已成功重新计算 ${count} 位患者的档案年龄。` });
+      toast({ title: "临床年龄校对完成", description: `已成功重新计算 ${count} 位患者的档案年龄并同步。` });
     } else {
       toast({ title: "无需更新", description: "当前所有档案年龄均为最新状态。" });
     }
@@ -205,6 +208,12 @@ export default function PatientsPage() {
   const onSubmit = (values: PatientFormValues) => {
     const patientRef = doc(db, "patientProfiles", values.id)
     setDocumentNonBlocking(patientRef, values, { merge: true })
+    
+    // 同步到 MySQL
+    if (systemConfig?.mysql) {
+      syncPatientToMysql(systemConfig.mysql, values, 'SAVE');
+    }
+
     setEditingPatient(null)
     setIsAddingNew(false)
     toast({
@@ -217,6 +226,12 @@ export default function PatientsPage() {
     if (!patientIdToDelete) return
     const patientRef = doc(db, "patientProfiles", patientIdToDelete)
     deleteDocumentNonBlocking(patientRef)
+    
+    // 同步到 MySQL
+    if (systemConfig?.mysql) {
+      syncPatientToMysql(systemConfig.mysql, { id: patientIdToDelete }, 'DELETE');
+    }
+
     setPatientIdToDelete(null)
     toast({
       title: "档案已删除",
