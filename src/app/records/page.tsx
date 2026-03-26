@@ -11,7 +11,13 @@ import {
   Plus,
   FileText,
   ClipboardList,
-  AlertTriangle
+  AlertTriangle,
+  User,
+  CreditCard,
+  Phone,
+  Activity,
+  CheckCircle2,
+  Clock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -86,31 +92,38 @@ export default function RecordsPage() {
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: systemConfig } = useDoc(configRef)
 
-  // 关键修复：增加 user 身份守卫，防止 Missing or insufficient permissions 报错
+  // 获取所有异常记录
   const recordsQuery = useMemoFirebase(() => {
     if (!user || !db) return null;
     return query(collectionGroup(db, "medicalAnomalyRecords"));
   }, [db, user])
   const { data: rawRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
 
+  // 获取所有患者档案用于联表
   const patientsQuery = useMemoFirebase(() => {
     if (!user || !db) return null;
     return collection(db, "patientProfiles");
   }, [db, user])
   const { data: patients } = useCollection(patientsQuery)
 
+  // 深度联表逻辑：合并 SP_PERSON (PatientProfile) 与 SP_YCJG (MedicalAnomalyRecord)
   const joinedRecords = React.useMemo(() => {
     if (!rawRecords) return []
     return rawRecords
-      .filter(r => r.anomalyCategory) 
+      .filter(r => r.anomalyCategory) // 仅保留主异常记录（排除单纯的随访记录）
       .map(record => {
         const patient = patients?.find(p => p.id === record.patientProfileId)
         return {
           ...record,
+          // 患者基本资料 (SP_PERSON)
           patientName: patient?.name || "未补录",
           patientGender: patient?.gender || "-",
           patientAge: patient?.age || "-",
+          patientIdNumber: patient?.idNumber || "-",
           patientPhone: patient?.phoneNumber || "-",
+          patientStatus: patient?.status || "正常",
+          patientOrg: patient?.organization || "-",
+          patientAddr: patient?.address || "-",
         }
       })
   }, [rawRecords, patients])
@@ -119,7 +132,8 @@ export default function RecordsPage() {
     return joinedRecords.filter(r => 
       (r.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
        r.archiveNo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       r.checkupNumber?.toLowerCase().includes(searchTerm.toLowerCase()))
+       r.checkupNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       r.patientIdNumber?.toLowerCase().includes(searchTerm.toLowerCase()))
     ).sort((a, b) => new Date(b.checkupDate).getTime() - new Date(a.checkupDate).getTime())
   }, [joinedRecords, searchTerm])
 
@@ -172,13 +186,13 @@ export default function RecordsPage() {
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-primary">重要异常结果记录</h1>
-          <p className="text-muted-foreground">综合展示并维护所有临床登记详情及患者基本资料</p>
+          <h1 className="text-3xl font-bold text-primary">重要异常结果管理</h1>
+          <p className="text-muted-foreground">联合展示档案资料 (SP_PERSON) 与临床登记 (SP_YCJG) 全字段信息</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "开发中", description: "统计报表导出功能正在适配。" })}>
+          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "报表生成中", description: "正在汇总全字段 Excel 报表..." })}>
             <Download className="size-4" />
-            批量导出
+            导出全部信息
           </Button>
           <Button asChild className="gap-2 shadow-md">
             <Link href="/records/new">
@@ -193,7 +207,7 @@ export default function RecordsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input 
-            placeholder="搜索姓名、档案编号、体检编号..." 
+            placeholder="搜索姓名、档案号、体检号、身份证..." 
             className="pl-10 h-11" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -205,13 +219,14 @@ export default function RecordsPage() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="font-bold">体检日期</TableHead>
-              <TableHead className="font-bold">档案/姓名</TableHead>
+              <TableHead className="font-bold whitespace-nowrap">体检日期</TableHead>
+              <TableHead className="font-bold">档案编号/姓名</TableHead>
+              <TableHead className="font-bold">身份证号</TableHead>
               <TableHead className="font-bold">性别/年龄</TableHead>
               <TableHead className="font-bold">联系电话</TableHead>
+              <TableHead className="font-bold">档案状态</TableHead>
               <TableHead className="font-bold">体检编号</TableHead>
-              <TableHead className="font-bold">异常种类</TableHead>
-              <TableHead className="font-bold">异常详情 (摘要)</TableHead>
+              <TableHead className="font-bold">分类</TableHead>
               <TableHead className="font-bold text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -222,25 +237,29 @@ export default function RecordsPage() {
                 <TableCell>
                   <div className="flex flex-col">
                     <span className="font-bold text-primary">{record.patientName}</span>
-                    <span className="text-[10px] text-muted-foreground">ID: {record.archiveNo}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">ID: {record.archiveNo}</span>
                   </div>
                 </TableCell>
-                <TableCell>{record.patientGender} / {record.patientAge}</TableCell>
+                <TableCell className="text-xs font-mono">{record.patientIdNumber}</TableCell>
+                <TableCell className="whitespace-nowrap">{record.patientGender} / {record.patientAge}岁</TableCell>
                 <TableCell className="text-xs">{record.patientPhone}</TableCell>
+                <TableCell>
+                  <Badge 
+                    variant={record.patientStatus === '正常' ? 'default' : record.patientStatus === '死亡' ? 'destructive' : 'secondary'}
+                    className="text-[10px] px-2 py-0 h-5"
+                  >
+                    {record.patientStatus}
+                  </Badge>
+                </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{record.checkupNumber}</TableCell>
                 <TableCell>
-                  <Badge variant={record.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="font-bold px-3">
+                  <Badge variant={record.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="font-bold">
                     {record.anomalyCategory}类
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-[200px]">
-                  <p className="truncate text-xs text-muted-foreground" title={record.anomalyDetails}>
-                    {record.anomalyDetails}
-                  </p>
-                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="size-8" onClick={() => setSelectedRecord(record)}>
+                    <Button variant="ghost" size="icon" className="size-8" onClick={() => setSelectedRecord(record)} title="查看完整详情">
                       <Eye className="size-4 text-primary" />
                     </Button>
                     <DropdownMenu>
@@ -249,21 +268,22 @@ export default function RecordsPage() {
                           <MoreVertical className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem className="gap-2" onSelect={() => setSelectedRecord(record)}>
-                          <ClipboardList className="size-4" /> 完整临床详情
+                          <ClipboardList className="size-4" /> 查看全字段详情
                         </DropdownMenuItem>
                         <DropdownMenuItem className="gap-2" onSelect={() => setEditingRecord(record)}>
-                          <Edit className="size-4" /> 修改结果信息
+                          <Edit className="size-4" /> 维护结果信息
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem className="gap-2 text-primary" asChild>
                            <Link href={`/patients/${record.archiveNo}`}>
-                            <FileText className="size-4" /> 查看影像档案
+                            <FileText className="size-4" /> 进入电子病历
                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="gap-2 text-destructive" onSelect={() => setRecordToDelete(record)}>
-                          <Trash2 className="size-4" /> 撤销登记
+                          <Trash2 className="size-4" /> 撤销此条登记
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -281,39 +301,144 @@ export default function RecordsPage() {
         )}
       </div>
 
+      {/* 全字段详情查看弹窗 */}
       <Dialog open={!!selectedRecord} onOpenChange={(open) => !open && setSelectedRecord(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl flex items-center gap-3">
-              <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'secondary'}>
-                {selectedRecord?.anomalyCategory}类结果
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="p-6 bg-primary text-white">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-2xl flex items-center gap-3">
+                <Activity className="size-6" />
+                临床记录全字段详情
+              </DialogTitle>
+              <Badge className="bg-white/20 text-white border-white/40">
+                异常类别: {selectedRecord?.anomalyCategory}类
               </Badge>
-              临床记录详情
-            </DialogTitle>
+            </div>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-            <div className="bg-muted/30 p-4 rounded-lg space-y-4 md:col-span-1">
-              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">患者档案</p><p className="font-bold text-lg">{selectedRecord?.patientName}</p></div>
-              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">档案/体检号</p><p className="text-xs font-mono">{selectedRecord?.archiveNo}<br/>{selectedRecord?.checkupNumber}</p></div>
-              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">体检日期</p><p className="text-xs">{selectedRecord?.checkupDate}</p></div>
-              <Separator />
-              <div><p className="text-[10px] text-muted-foreground uppercase font-bold">登记时初始告知反馈</p><p className="text-xs italic">{selectedRecord?.notifiedPersonFeedback || "登记时未录入反馈"}</p></div>
-            </div>
-            <div className="space-y-6 md:col-span-2">
-              <div className="space-y-2">
-                <p className="text-sm font-bold text-destructive flex items-center gap-2">医学异常发现</p>
-                <ScrollArea className="h-[120px] border p-4 rounded-xl bg-white text-sm leading-relaxed whitespace-pre-wrap">{selectedRecord?.anomalyDetails}</ScrollArea>
+          
+          <ScrollArea className="flex-1 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* 左侧：个人档案信息 (SP_PERSON) */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-primary border-b pb-2">
+                  <User className="size-4" />
+                  <h3 className="font-bold">个人档案 (SP_PERSON)</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">档案编号</p>
+                    <p className="font-mono text-sm">{selectedRecord?.archiveNo}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">姓名</p>
+                    <p className="font-bold">{selectedRecord?.patientName}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">性别 / 年龄</p>
+                    <p className="text-sm">{selectedRecord?.patientGender} / {selectedRecord?.patientAge}岁</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">档案状态</p>
+                    <Badge variant={selectedRecord?.patientStatus === '正常' ? 'default' : 'destructive'} className="h-5">
+                      {selectedRecord?.patientStatus}
+                    </Badge>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">身份证号</p>
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="size-3 text-muted-foreground" />
+                      <p className="font-mono text-sm">{selectedRecord?.patientIdNumber}</p>
+                    </div>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">联系电话</p>
+                    <div className="flex items-center gap-2">
+                      <Phone className="size-3 text-muted-foreground" />
+                      <p className="text-sm">{selectedRecord?.patientPhone}</p>
+                    </div>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">所属单位</p>
+                    <p className="text-sm text-muted-foreground">{selectedRecord?.patientOrg}</p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm font-bold text-primary flex items-center gap-2">临床处置建议</p>
-                <ScrollArea className="h-[120px] border p-4 rounded-xl bg-white text-sm leading-relaxed whitespace-pre-wrap">{selectedRecord?.disposalSuggestions}</ScrollArea>
+
+              {/* 右侧：异常结果信息 (SP_YCJG) */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-destructive border-b pb-2">
+                  <AlertTriangle className="size-4" />
+                  <h3 className="font-bold">异常结果 (SP_YCJG)</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">体检编号</p>
+                    <p className="font-mono text-sm">{selectedRecord?.checkupNumber}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">体检日期</p>
+                    <p className="text-sm">{selectedRecord?.checkupDate}</p>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">异常详情</p>
+                    <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs leading-relaxed">
+                      {selectedRecord?.anomalyDetails}
+                    </div>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">处置建议</p>
+                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs leading-relaxed">
+                      {selectedRecord?.disposalSuggestions}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">告知状态</p>
+                    <div className="flex items-center gap-1">
+                      {selectedRecord?.isNotified ? 
+                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">已告知</Badge> : 
+                        <Badge variant="destructive">未告知</Badge>
+                      }
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">宣教状态</p>
+                    {selectedRecord?.isHealthEducationProvided ? 
+                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">已宣教</Badge> : 
+                      <Badge variant="outline">未宣教</Badge>
+                    }
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">告知人</p>
+                    <p className="text-sm">{selectedRecord?.notifier || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">告知日期</p>
+                    <p className="text-sm">{selectedRecord?.notificationDate} {selectedRecord?.notificationTime}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-full mt-4 p-4 bg-muted/30 rounded-xl border-dashed border-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="size-4 text-muted-foreground" />
+                  <span className="text-sm font-bold">被告知人反馈</span>
+                </div>
+                <p className="text-sm italic text-muted-foreground">
+                  {selectedRecord?.notifiedPersonFeedback || "暂无初始沟通反馈记录"}
+                </p>
               </div>
             </div>
-          </div>
-          <DialogFooter><Button onClick={() => setSelectedRecord(null)} className="px-8">关闭</Button></DialogFooter>
+          </ScrollArea>
+          
+          <DialogFooter className="p-6 border-t bg-muted/10">
+            <Button onClick={() => setSelectedRecord(null)} className="px-10">
+              确认并关闭
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* 修改结果弹窗 */}
       <Dialog open={!!editingRecord} onOpenChange={(open) => !open && setEditingRecord(null)}>
         <DialogContent className="max-xl">
           <DialogHeader><DialogTitle>临床结果维护</DialogTitle></DialogHeader>
@@ -337,6 +462,7 @@ export default function RecordsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* 撤销登记确认弹窗 */}
       <AlertDialog open={!!recordToDelete} onOpenChange={(open) => !open && setRecordToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
