@@ -63,7 +63,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/react-hook-form"
+} from "@/components/ui/form"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
