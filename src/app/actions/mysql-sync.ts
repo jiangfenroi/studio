@@ -1,9 +1,9 @@
-
 'use server';
 
 /**
  * @fileOverview MySQL 数据同步与实时计算引擎 (高性能版)
  * 采用并发查询机制，确保临床数据在中心业务库的唯一性与准确性。
+ * 针对无网络环境优化，确保所有聚合计算在服务端完成序列化。
  */
 
 import mysql from 'mysql2/promise';
@@ -15,13 +15,12 @@ async function getConnection(config: any) {
     user: config.user || 'medi_admin',
     password: config.password || 'AdminPassword123',
     database: config.database || 'meditrack_db',
-    connectTimeout: 3000, 
+    connectTimeout: 5000, 
   });
 }
 
 /**
- * 首页实时统计 - 并发聚合计算，确保数据来源于中心 MySQL
- * 关键修正：所有 BigInt/Decimal 聚合结果均强制转换为 Number 以支持 JSON 序列化
+ * 首页实时统计 - 并发聚合计算
  */
 export async function fetchHomeStats(config: any) {
   if (!config || !config.host) return null;
@@ -84,10 +83,14 @@ export async function fetchHomeStats(config: any) {
         category: r.category,
         count: Number(r.count)
       })),
-      recentTasks: recentTasks
+      recentTasks: (recentTasks as any[]).map(t => ({
+        ...t,
+        isNotified: Number(t.isNotified),
+        isClosed: Number(t.isClosed)
+      }))
     };
   } catch (err) {
-    console.error('MySQL 首页同步失败:', err);
+    console.error('MySQL 首页统计同步失败:', err);
     return null;
   } finally {
     if (connection) await connection.end();
@@ -123,7 +126,7 @@ export async function fetchDataForStats(config: any) {
       isReExamined: Number(row.isReExamined)
     }));
   } catch (err) {
-    console.error('MySQL 报表数据抓取失败:', err);
+    console.error('MySQL 报表同步失败:', err);
     return [];
   } finally {
     if (connection) await connection.end();
@@ -152,7 +155,7 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
         isHealthEducationProvided: record.isHealthEducationProvided ? 1 : 0,
         notifiedPersonFeedback: record.notifiedPersonFeedback || '',
         isClosed: record.isClosed ? 1 : 0,
-        createdAt: record.createdAt || new Date().toISOString()
+        createdAt: record.createdAt || new Date().toISOString().replace('T', ' ').substring(0, 19)
       };
       const keys = Object.keys(data);
       const values = Object.values(data);
@@ -197,7 +200,7 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
       await connection.execute('DELETE FROM SP_PERSON WHERE archiveNo = ?', [patient.id]);
     }
   } catch (err) {
-    console.error('MySQL 患者同步失败:', err);
+    console.error('MySQL 患者档案同步失败:', err);
   } finally {
     if (connection) await connection.end();
   }
@@ -229,7 +232,7 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
       await connection.execute('DELETE FROM SP_SF WHERE id = ?', [record.id]);
     }
   } catch (err) {
-    console.error('MySQL 随访同步失败:', err);
+    console.error('MySQL 随访记录同步失败:', err);
   } finally {
     if (connection) await connection.end();
   }
@@ -252,7 +255,7 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
       const values = Object.values(data);
       const placeholders = keys.map(() => '?').join(', ');
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      const sql = `INSERT INTO SP_STAFF (jobId, name, email, role, status) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
+      const sql = `INSERT INTO SP_STAFF (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
     } else {
       await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
@@ -274,7 +277,7 @@ export async function syncConfigToMysql(config: any, systemConfig: any) {
       appName: systemConfig.appName,
       pacsUrlBase: systemConfig.pacsUrlBase,
       pdfStoragePath: systemConfig.pdfStoragePath,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 19)
     };
     const keys = Object.keys(data);
     const values = Object.values(data);
@@ -283,7 +286,7 @@ export async function syncConfigToMysql(config: any, systemConfig: any) {
     const sql = `INSERT INTO SP_CONFIG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
     await connection.execute(sql, values);
   } catch (err) {
-    console.error('MySQL 配置同步失败:', err);
+    console.error('MySQL 全局配置同步失败:', err);
   } finally {
     if (connection) await connection.end();
   }
