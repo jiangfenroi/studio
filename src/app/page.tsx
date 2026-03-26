@@ -14,47 +14,43 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from "recharts"
-import { useFirestore, useMemoFirebase, useDoc } from "@/firebase"
-import { doc } from "firebase/firestore"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { fetchHomeStats } from "@/app/actions/mysql-sync"
 
-/**
- * 首页看板
- * 临床数据 100% 来源于 MySQL。移除了对 Firestore 的实时同步依赖。
- */
+// 默认内网数据库配置
+const DEFAULT_MYSQL = {
+  host: '8.137.162.142',
+  port: '3306',
+  user: 'root',
+  password: '',
+  database: 'meditrack_db'
+};
+
 export default function Home() {
-  const db = useFirestore()
   const [isLoading, setIsLoading] = React.useState(true)
   const [mysqlStats, setMysqlStats] = React.useState<any>(null)
 
-  const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
-  const { data: config } = useDoc(configRef)
-
   const loadData = React.useCallback(async () => {
-    if (!config?.mysql) {
-      setIsLoading(false)
-      return
-    }
     setIsLoading(true)
     try {
-      // 直接通过 MySQL 接口获取统计数据
-      const data = await fetchHomeStats(config.mysql)
+      // 优先从 session 读取，否则使用默认
+      const stored = typeof window !== 'undefined' ? sessionStorage.getItem('mysql_config') : null;
+      const config = stored ? JSON.parse(stored) : DEFAULT_MYSQL;
+      
+      const data = await fetchHomeStats(config)
       setMysqlStats(data)
     } catch (err) {
       console.error("MySQL 统计数据获取失败")
     } finally {
       setIsLoading(false)
     }
-  }, [config])
+  }, [])
 
   React.useEffect(() => {
-    if (config) {
-      loadData()
-    }
-  }, [config, loadData])
+    loadData()
+  }, [loadData])
 
   const lineData = React.useMemo(() => {
     const months = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
@@ -80,7 +76,7 @@ export default function Home() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">临床业务看板</h1>
-          <p className="text-muted-foreground font-medium">MySQL 数据驱动 • 严禁云端交互</p>
+          <p className="text-muted-foreground font-medium">MySQL 数据驱动 • 本地医疗内网链路</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading} className="gap-2">
           {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
@@ -172,6 +168,9 @@ export default function Home() {
                 </Button>
               </div>
             ))}
+            {(!mysqlStats?.recentTasks || mysqlStats.recentTasks.length === 0) && !isLoading && (
+              <div className="p-10 text-center text-muted-foreground">暂无待处理异常任务</div>
+            )}
           </div>
         </CardContent>
       </Card>

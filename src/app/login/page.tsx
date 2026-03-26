@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { useAuth, useUser, useFirestore } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,17 +11,19 @@ import { ShieldAlert, LogIn, Settings, UserPlus, Loader2, KeyRound, Database, Se
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { doc, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { syncStaffToMysql, syncConfigToMysql, testMysqlConnection } from '@/app/actions/mysql-sync';
+import { syncStaffToMysql, testMysqlConnection } from '@/app/actions/mysql-sync';
 
 // 系统预设注册授权码
 const SYSTEM_AUTH_CODE = "HEALTH-INSIGHT-2025";
 
+/**
+ * 登录与注册页面
+ * 针对医疗内网优化：移除 Firestore 写入，配置仅存于本地及 MySQL 数据库。
+ */
 export default function LoginPage() {
   const auth = useAuth();
-  const db = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
@@ -34,11 +36,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isTestingConnection, setIsTestingConnection] = React.useState(false);
   
+  // 默认数据库配置 (对应用户提供的信息)
   const [mysqlConfig, setMysqlConfig] = React.useState({
-    host: '172.17.168.18',
-    port: '10699',
-    user: 'medi_admin',
-    password: 'AdminPassword123',
+    host: '8.137.162.142',
+    port: '3306',
+    user: 'root',
+    password: '', // 提示：请根据实际情况在界面输入
     database: 'meditrack_db'
   });
 
@@ -76,7 +79,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "授权码错误",
-        description: "请输入有效的系统验证编码。请联系管理员获取。",
+        description: "请输入有效的系统验证编码。",
       });
       return;
     }
@@ -88,10 +91,10 @@ export default function LoginPage() {
       // 1. 先验证 MySQL 连接，防止注册成功但数据同步失败
       const testResult = await testMysqlConnection(mysqlConfig);
       if (!testResult.success) {
-        throw new Error(`MySQL 同步失败，请先在下方配置中心修正数据库地址。${testResult.message}`);
+        throw new Error(`MySQL 同步失败，请先检查数据库连接配置。${testResult.message}`);
       }
 
-      // 2. 创建 Firebase 账户
+      // 2. 创建 Firebase 账户 (仅作为令牌验证)
       await createUserWithEmailAndPassword(auth, internalEmail, password);
       
       const isAdmin = jobId === '1058';
@@ -103,17 +106,14 @@ export default function LoginPage() {
         status: '在职'
       };
       
-      // 3. 保存至 Firestore
-      const staffRef = doc(db, 'staffProfiles', `staff_${jobId}`);
-      await setDoc(staffRef, staffData, { merge: true });
-
-      // 4. 同步到 MySQL
+      // 3. 直接同步到 MySQL
       await syncStaffToMysql(mysqlConfig, staffData, 'SAVE');
 
       toast({
         title: "账户已创建",
-        description: `工号 ${jobId} 已成功注册并同步至中心数据库。`,
+        description: `工号 ${jobId} 已同步至 MySQL 中心数据库。`,
       });
+      setActiveTab('login');
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -142,28 +142,24 @@ export default function LoginPage() {
   const handleSaveConfig = async () => {
     setIsLoading(true);
     try {
-      const configData = {
-        mysql: mysqlConfig,
-        appName: 'HealthInsight',
-        lastUpdated: new Date().toISOString()
-      };
+      // 验证连接
+      const result = await testMysqlConnection(mysqlConfig);
+      if (!result.success) {
+        throw new Error(result.message);
+      }
       
-      // 保存至 Firestore (现在规则已开放，未登录也可保存)
-      const configRef = doc(db, 'systemConfig', 'default');
-      await setDoc(configRef, configData, { merge: true });
-      
-      // 同步到 MySQL 配置表
-      await syncConfigToMysql(mysqlConfig, configData);
+      // 将配置临时保存在 SessionStorage，确保页面刷新后不丢失
+      sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
       
       toast({
         title: "配置已应用",
-        description: "数据库连接设置已保存，您可以开始注册或登录了。",
+        description: "系统将使用指定的 MySQL 数据库进行业务交互。",
       });
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "应用失败",
-        description: "无法保存配置，请检查 Firestore 连接状态。"
+        description: `数据库连接无效: ${error.message}`
       });
     } finally {
       setIsLoading(false);
@@ -180,7 +176,7 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-primary">HealthInsight Registry</CardTitle>
-          <CardDescription>医疗内网终端 • 临床数据管理系统</CardDescription>
+          <CardDescription>医疗内网终端 • 纯 MySQL 驱动</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -210,7 +206,7 @@ export default function LoginPage() {
               <form onSubmit={handleJobIdSignUp} className="space-y-4">
                 <div className="space-y-2">
                   <Label>真实姓名</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="例如：姜锋" />
+                  <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="例如：宫医生" />
                 </div>
                 <div className="space-y-2">
                   <Label>工号</Label>
@@ -245,7 +241,7 @@ export default function LoginPage() {
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary transition-colors">
-                <Settings className="mr-2 size-4" />配置内网 MySQL 数据库
+                <Settings className="mr-2 size-4" />配置中心 MySQL 数据库
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -258,11 +254,11 @@ export default function LoginPage() {
               <div className="grid gap-5 py-6">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right flex items-center justify-end gap-1"><Server className="size-3" /> 主机</Label>
-                  <Input value={mysqlConfig.host} onChange={(e) => setMysqlConfig({...mysqlConfig, host: e.target.value})} className="col-span-3" placeholder="172.17.168.18" />
+                  <Input value={mysqlConfig.host} onChange={(e) => setMysqlConfig({...mysqlConfig, host: e.target.value})} className="col-span-3" placeholder="8.137.162.142" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right flex items-center justify-end gap-1"><Globe className="size-3" /> 端口</Label>
-                  <Input value={mysqlConfig.port} onChange={(e) => setMysqlConfig({...mysqlConfig, port: e.target.value})} className="col-span-3" placeholder="10699" />
+                  <Input value={mysqlConfig.port} onChange={(e) => setMysqlConfig({...mysqlConfig, port: e.target.value})} className="col-span-3" placeholder="3306" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right flex items-center justify-end gap-1"><Database className="size-3" /> 库名</Label>
@@ -270,7 +266,7 @@ export default function LoginPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right flex items-center justify-end gap-1"><UserIcon className="size-3" /> 用户</Label>
-                  <Input value={mysqlConfig.user} onChange={(e) => setMysqlConfig({...mysqlConfig, user: e.target.value})} className="col-span-3" placeholder="medi_admin" />
+                  <Input value={mysqlConfig.user} onChange={(e) => setMysqlConfig({...mysqlConfig, user: e.target.value})} className="col-span-3" placeholder="root" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right flex items-center justify-end gap-1"><Lock className="size-3" /> 密码</Label>

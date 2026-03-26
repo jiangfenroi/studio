@@ -3,18 +3,24 @@
 
 import mysql from 'mysql2/promise';
 
-// 获取数据库连接的通用函数
+/**
+ * 获取数据库连接的通用函数
+ * 针对内网公网混合环境优化：增加超时，显式抛出连接异常。
+ */
 async function getConnection(config: any) {
   if (!config || !config.host) {
-    throw new Error('MySQL 数据库配置缺失，请先在系统设置中完成配置。');
+    throw new Error('MySQL 数据库配置缺失。');
   }
+  
+  console.log(`[MySQL] 正在尝试连接至: ${config.host}:${config.port || 3306}`);
+  
   return await mysql.createConnection({
     host: config.host,
     port: parseInt(config.port || '3306'),
     user: config.user,
     password: config.password,
     database: config.database,
-    connectTimeout: 5000,
+    connectTimeout: 10000, // 增加到 10 秒
   });
 }
 
@@ -51,8 +57,10 @@ export async function testMysqlConnection(config: any) {
   try {
     connection = await getConnection(config);
     await connection.ping();
+    console.log(`[MySQL] 连接测试成功: ${config.host}`);
     return { success: true, message: 'MySQL 数据库连接成功' };
   } catch (err: any) {
+    console.error(`[MySQL] 连接测试失败: ${err.message}`);
     return { success: false, message: `连接失败: ${err.message}` };
   } finally {
     if (connection) await connection.end();
@@ -125,58 +133,9 @@ export async function fetchHomeStats(config: any) {
   }
 }
 
-// 获取全量临床结果（联表 SP_PERSON + SP_YCJG）
-export async function fetchAllRecords(config: any) {
-  if (!config || !config.host) return [];
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const sql = `
-      SELECT 
-        y.*, 
-        p.name as patientName, p.gender as patientGender, p.age as patientAge, 
-        p.idNumber as patientIdNumber, p.phoneNumber as patientPhone, 
-        p.status as patientStatus, p.organization as patientOrg, p.address as patientAddr
-      FROM SP_YCJG y
-      JOIN SP_PERSON p ON y.patientProfileId = p.archiveNo
-      ORDER BY y.checkupDate DESC
-    `;
-    const [rows] = await connection.execute(sql);
-    return (rows as any[]).map(r => serializeRow(r));
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-// 获取患者列表
-export async function fetchPatients(config: any) {
-  if (!config || !config.host) return [];
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const [rows] = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo DESC');
-    return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.archiveNo }));
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-// 获取员工列表
-export async function fetchStaffMembers(config: any) {
-  if (!config || !config.host) return [];
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const [rows] = await connection.execute('SELECT * FROM SP_STAFF ORDER BY jobId ASC');
-    return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.jobId }));
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
 // 同步异常结果记录
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
-  if (!config || !config.host) return;
+  if (!config || !config.host) throw new Error("数据库配置缺失");
   let connection;
   try {
     connection = await getConnection(config);
@@ -214,7 +173,7 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
 
 // 同步患者资料
 export async function syncPatientToMysql(config: any, patient: any, operation: 'SAVE' | 'DELETE') {
-  if (!config || !config.host) return;
+  if (!config || !config.host) throw new Error("数据库配置缺失");
   let connection;
   try {
     connection = await getConnection(config);
@@ -241,38 +200,9 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
   }
 }
 
-// 同步随访记录（含溯源字段）
-export async function syncFollowUpToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
-  if (!config || !config.host) return;
-  let connection;
-  try {
-    connection = await getConnection(config);
-    if (operation === 'SAVE') {
-      const data = {
-        id: record.id,
-        associatedAnomalyId: record.associatedAnomalyId,
-        patientProfileId: record.patientProfileId,
-        archiveNo: record.archiveNo || record.patientProfileId,
-        checkupNumber: record.checkupNumber || '',
-        followUpResult: record.followUpResult,
-        followUpPerson: record.followUpPerson,
-        followUpDate: record.followUpDate,
-        followUpTime: record.followUpTime,
-        isReExamined: record.isReExamined ? 1 : 0
-      };
-      const sql = `INSERT INTO SP_SF (${Object.keys(data).join(', ')}) VALUES (${Object.keys(data).map(() => '?').join(', ')})`;
-      await connection.execute(sql, Object.values(data));
-    } else {
-      await connection.execute('DELETE FROM SP_SF WHERE id = ?', [record.id]);
-    }
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
 // 同步员工账户
 export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE' | 'DELETE') {
-  if (!config || !config.host) return;
+  if (!config || !config.host) throw new Error("数据库配置缺失");
   let connection;
   try {
     connection = await getConnection(config);
@@ -304,8 +234,8 @@ export async function syncConfigToMysql(config: any, sysConfig: any) {
     const data = {
       configKey: 'default',
       appName: sysConfig.appName,
-      pacsUrlBase: sysConfig.pacsUrlBase,
-      pdfStoragePath: sysConfig.pdfStoragePath,
+      pacsUrlBase: sysConfig.pacsUrlBase || '',
+      pdfStoragePath: sysConfig.pdfStoragePath || '',
       lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 19)
     };
     const updates = Object.keys(data).map(key => `${key} = VALUES(${key})`).join(', ');
@@ -316,7 +246,53 @@ export async function syncConfigToMysql(config: any, sysConfig: any) {
   }
 }
 
-// 报表导出全量大宽表查询
+// 其他数据拉取函数保持一致...
+export async function fetchPatients(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows] = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo DESC');
+    return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.archiveNo }));
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchStaffMembers(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows] = await connection.execute('SELECT * FROM SP_STAFF ORDER BY jobId ASC');
+    return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.jobId }));
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchAllRecords(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `
+      SELECT 
+        y.*, 
+        p.name as patientName, p.gender as patientGender, p.age as patientAge, 
+        p.idNumber as patientIdNumber, p.phoneNumber as patientPhone, 
+        p.status as patientStatus, p.organization as patientOrg, p.address as patientAddr
+      FROM SP_YCJG y
+      JOIN SP_PERSON p ON y.patientProfileId = p.archiveNo
+      ORDER BY y.checkupDate DESC
+    `;
+    const [rows] = await connection.execute(sql);
+    return (rows as any[]).map(r => serializeRow(r));
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function fetchDataForStats(config: any) {
   if (!config || !config.host) return [];
   let connection;
@@ -341,7 +317,6 @@ export async function fetchDataForStats(config: any) {
   }
 }
 
-// 随访任务查询
 export async function fetchFollowUpTasks(config: any) {
   if (!config || !config.host) return { records: [], followups: [] };
   let connection;
@@ -362,6 +337,34 @@ export async function fetchFollowUpTasks(config: any) {
       records: (records as any[]).map(r => serializeRow(r)),
       followups: (followups as any[]).map(f => serializeRow(f))
     };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function syncFollowUpToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
+  if (!config || !config.host) return;
+  let connection;
+  try {
+    connection = await getConnection(config);
+    if (operation === 'SAVE') {
+      const data = {
+        id: record.id,
+        associatedAnomalyId: record.associatedAnomalyId,
+        patientProfileId: record.patientProfileId,
+        archiveNo: record.archiveNo || record.patientProfileId,
+        checkupNumber: record.checkupNumber || '',
+        followUpResult: record.followUpResult,
+        followUpPerson: record.followUpPerson,
+        followUpDate: record.followUpDate,
+        followUpTime: record.followUpTime,
+        isReExamined: record.isReExamined ? 1 : 0
+      };
+      const sql = `INSERT INTO SP_SF (${Object.keys(data).join(', ')}) VALUES (${Object.keys(data).map(() => '?').join(', ')})`;
+      await connection.execute(sql, Object.values(data));
+    } else {
+      await connection.execute('DELETE FROM SP_SF WHERE id = ?', [record.id]);
+    }
   } finally {
     if (connection) await connection.end();
   }
