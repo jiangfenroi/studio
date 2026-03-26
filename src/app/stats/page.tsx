@@ -60,10 +60,15 @@ const COLUMNS = {
   ]
 }
 
+// 获取所有列 ID 的辅助函数
+const ALL_COLUMN_IDS = Object.values(COLUMNS).flatMap(table => table.map(col => col.id));
+
 export default function StatsPage() {
   const db = useFirestore()
   const { toast } = useToast()
-  const [selectedCols, setSelectedCols] = React.useState<string[]>(["archiveNo", "name", "examDate", "category", "notifiedPerson", "isNotified", "followUpResult"])
+  
+  // 默认选择所有列
+  const [selectedCols, setSelectedCols] = React.useState<string[]>(ALL_COLUMN_IDS)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [mysqlData, setMysqlData] = React.useState<any[]>([])
   const [isSyncing, setIsSyncing] = React.useState(false)
@@ -102,8 +107,8 @@ export default function StatsPage() {
 
   const handleExport = () => {
     if (filteredData.length === 0) return
-    const allCols = [...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF]
-    const headers = selectedCols.map(id => allCols.find(c => c.id === id)?.label || id)
+    const allColsList = [...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF]
+    const headers = selectedCols.map(id => allColsList.find(c => c.id === id)?.label || id)
     const csvRows = filteredData.map(row => 
       selectedCols.map(col => `"${String(row[col] || "").replace(/"/g, '""')}"`).join(",")
     )
@@ -112,11 +117,11 @@ export default function StatsPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `临床统计导出_${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `全字段临床统计导出_${new Date().toISOString().split('T')[0]}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    toast({ title: "报表已导出" })
+    toast({ title: "全字段报表已导出" })
   }
 
   return (
@@ -124,7 +129,7 @@ export default function StatsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">数据导出管理</h1>
-          <p className="text-muted-foreground">基于中心 MySQL 业务库的实时统计</p>
+          <p className="text-muted-foreground">基于中心 MySQL 业务库的实时统计（默认全选所有字段）</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={loadCentralData} disabled={isSyncing} className="gap-2">
@@ -140,16 +145,32 @@ export default function StatsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <Card className="lg:col-span-1 border-none shadow-md h-fit">
-          <CardHeader className="bg-primary/5"><CardTitle className="text-lg">字段筛选</CardTitle></CardHeader>
+          <CardHeader className="bg-primary/5">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-lg">字段筛选</CardTitle>
+              <Button 
+                variant="link" 
+                size="sm" 
+                className="h-auto p-0 text-xs"
+                onClick={() => setSelectedCols(selectedCols.length === ALL_COLUMN_IDS.length ? [] : ALL_COLUMN_IDS)}
+              >
+                {selectedCols.length === ALL_COLUMN_IDS.length ? "取消全选" : "全选"}
+              </Button>
+            </div>
+          </CardHeader>
           <CardContent className="pt-6">
             <ScrollArea className="h-[500px] pr-4">
               {Object.entries(COLUMNS).map(([table, cols]) => (
                 <div key={table} className="mb-6">
-                  <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-2">{table} 表</h3>
+                  <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-2">
+                    {table === 'SP_PERSON' ? '个人档案 (SP_PERSON)' : 
+                     table === 'SP_YCJG' ? '异常结果 (SP_YCJG)' : 
+                     '临床随访 (SP_SF)'}
+                  </h3>
                   {cols.map(col => (
                     <div key={col.id} className="flex items-center space-x-2 mb-2">
                       <Checkbox id={col.id} checked={selectedCols.includes(col.id)} onCheckedChange={() => toggleCol(col.id)} />
-                      <label htmlFor={col.id} className="text-sm cursor-pointer">{col.label}</label>
+                      <label htmlFor={col.id} className="text-sm cursor-pointer hover:text-primary transition-colors">{col.label}</label>
                     </div>
                   ))}
                 </div>
@@ -158,7 +179,7 @@ export default function StatsPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 border-none shadow-md">
+        <Card className="lg:col-span-3 border-none shadow-md overflow-hidden">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2"><TableIcon className="size-5 text-primary" /> 实时业务预览</CardTitle>
@@ -166,29 +187,33 @@ export default function StatsPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  {selectedCols.map(colId => (
-                    <TableHead key={colId} className="whitespace-nowrap font-bold">
-                      {[...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF].find(c => c.id === colId)?.label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((row, idx) => (
-                  <TableRow key={idx}>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
                     {selectedCols.map(colId => (
-                      <TableCell key={colId} className="text-xs truncate max-w-[150px]">
-                        {colId === 'category' ? <Badge variant={row[colId] === 'A' ? 'destructive' : 'secondary'}>{row[colId]}</Badge> : String(row[colId] || "-")}
-                      </TableCell>
+                      <TableHead key={colId} className="whitespace-nowrap font-bold">
+                        {[...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF].find(c => c.id === colId)?.label}
+                      </TableHead>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.map((row, idx) => (
+                    <TableRow key={idx}>
+                      {selectedCols.map(colId => (
+                        <TableCell key={colId} className="text-xs truncate max-w-[150px]">
+                          {colId === 'category' ? <Badge variant={row[colId] === 'A' ? 'destructive' : 'secondary'}>{row[colId]}</Badge> : 
+                           (colId === 'isNotified' || colId === 'isHealthEducationProvided' || colId === 'isReExamined') ? (row[colId] ? '是' : '否') :
+                           String(row[colId] || "-")}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TableBody>
         </Card>
       </div>
     </div>
