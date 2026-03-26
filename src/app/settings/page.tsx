@@ -57,7 +57,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@/badge"
 import { syncStaffToMysql, syncConfigToMysql } from "@/app/actions/mysql-sync"
 
 export default function SettingsPage() {
@@ -216,7 +216,7 @@ export default function SettingsPage() {
         </Button>
       </header>
 
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-12 mb-8 bg-muted/50">
           <TabsTrigger value="general" className="gap-2 text-base">
             <Monitor className="size-4" /> 基础与集成
@@ -326,11 +326,21 @@ export default function SettingsPage() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">姓名</Label>
-              <Input value={editingUser?.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="col-span-3" />
+              <Input 
+                value={editingUser?.name || ""} 
+                onChange={e => setEditingUser({...editingUser, name: e.target.value})} 
+                className="col-span-3" 
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">新密码</Label>
-              <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="col-span-3" placeholder="留空不修改" />
+              <Input 
+                type="password" 
+                value={newPassword} 
+                onChange={e => setNewPassword(e.target.value)} 
+                className="col-span-3" 
+                placeholder="留空不修改" 
+              />
             </div>
           </div>
           <DialogFooter><Button onClick={handleSaveUserEdit}>保存更改</Button></DialogFooter>
