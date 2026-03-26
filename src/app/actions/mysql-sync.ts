@@ -2,20 +2,23 @@
 'use server';
 
 /**
- * @fileOverview MySQL 数据同步与实时计算引擎 (高性能版)
- * 增加连通性测试及异常处理机制，并确保所有返回数据均为可序列化的纯 JSON 对象。
+ * @fileOverview MySQL 数据同步与实时计算引擎 (核心逻辑版)
+ * 强化了错误抛出机制，确保网络不可达时前端能实时感知。
  */
 
 import mysql from 'mysql2/promise';
 
 async function getConnection(config: any) {
+  if (!config || !config.host) {
+    throw new Error('MySQL 配置缺失，请先在配置中心设置数据库信息。');
+  }
   return await mysql.createConnection({
     host: config.host,
     port: parseInt(config.port || '3306'),
     user: config.user,
     password: config.password,
     database: config.database,
-    connectTimeout: 5000,
+    connectTimeout: 5000, // 5秒连接超时，适合内网环境
   });
 }
 
@@ -45,14 +48,14 @@ export async function testMysqlConnection(config: any) {
     await connection.ping();
     return { success: true, message: 'MySQL 数据库连接成功' };
   } catch (err: any) {
-    return { success: false, message: `连接失败: ${err.message}` };
+    return { success: false, message: `连接失败: ${err.message}。提示：如果您在云端 IDE 预览，请确保数据库外网可达，或部署到本地内网后再测试。` };
   } finally {
     if (connection) await connection.end();
   }
 }
 
 /**
- * 首页实时统计 - 并发聚合计算
+ * 首页实时统计
  */
 export async function fetchHomeStats(config: any) {
   if (!config || !config.host) return null;
@@ -97,15 +100,11 @@ export async function fetchHomeStats(config: any) {
       `)
     ]);
 
-    const totalCount = Number(totalAnomalies?.[0]?.count) || 0;
-    const notifiedCount = Number(notifiedAnomalies?.[0]?.count) || 0;
-    const completionRate = totalCount > 0 ? Math.round((notifiedCount / totalCount) * 100) : 0;
-
     return {
       totalPatients: Number(patientRows?.[0]?.count) || 0,
       todayNew: Number(todayRows?.[0]?.count) || 0,
       pendingTasks: Number(pendingRows?.[0]?.count) || 0,
-      completionRate,
+      completionRate: Number(totalAnomalies?.[0]?.count) > 0 ? Math.round((Number(notifiedAnomalies?.[0]?.count) / Number(totalAnomalies?.[0]?.count)) * 100) : 0,
       trend: (trendRows as any[]).map((r: any) => ({
         month: Number(r.month),
         total: Number(r.total) || 0,
@@ -119,50 +118,15 @@ export async function fetchHomeStats(config: any) {
     };
   } catch (err) {
     console.error('MySQL 首页统计同步失败:', err);
-    return {
-      totalPatients: 0,
-      todayNew: 0,
-      pendingTasks: 0,
-      completionRate: 0,
-      trend: [],
-      categories: [],
-      recentTasks: []
-    };
+    throw err;
   } finally {
     if (connection) await connection.end();
   }
 }
 
 /**
- * 数据统计报表 - 联表实时查询
+ * 异常记录同步
  */
-export async function fetchDataForStats(config: any) {
-  if (!config || !config.host) return [];
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const sql = `
-      SELECT 
-        p.archiveNo, p.name, p.gender, p.age, p.idNumber, p.organization, p.phoneNumber, p.status as patientStatus,
-        y.checkupNumber as examNo, y.checkupDate as examDate, y.anomalyCategory as category, y.anomalyDetails as details, 
-        y.disposalSuggestions as disposalAdvice, y.notifier, y.notificationDate, y.notificationTime, 
-        y.notifiedPerson, y.isNotified, y.isHealthEducationProvided, y.notifiedPersonFeedback,
-        f.followUpDate, f.followUpResult, f.followUpPerson, f.isReExamined
-      FROM SP_PERSON p
-      LEFT JOIN SP_YCJG y ON p.archiveNo = y.patientProfileId
-      LEFT JOIN SP_SF f ON y.id = f.associatedAnomalyId
-      ORDER BY y.checkupDate DESC
-    `;
-    const [rows] = await connection.execute(sql);
-    return (rows as any[]).map(row => serializeRow(row));
-  } catch (err) {
-    console.error('MySQL 报表同步失败:', err);
-    return [];
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -196,13 +160,17 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
     } else {
       await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [record.id]);
     }
-  } catch (err) {
-    console.error('MySQL 异常记录同步失败:', err);
+  } catch (err: any) {
+    console.error('MySQL 异常记录同步失败:', err.message);
+    throw err;
   } finally {
     if (connection) await connection.end();
   }
 }
 
+/**
+ * 患者档案同步
+ */
 export async function syncPatientToMysql(config: any, patient: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -229,13 +197,17 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
     } else {
       await connection.execute('DELETE FROM SP_PERSON WHERE archiveNo = ?', [patient.id || patient.archiveNo]);
     }
-  } catch (err) {
-    console.error('MySQL 患者档案同步失败:', err);
+  } catch (err: any) {
+    console.error('MySQL 患者档案同步失败:', err.message);
+    throw err;
   } finally {
     if (connection) await connection.end();
   }
 }
 
+/**
+ * 随访记录同步
+ */
 export async function syncFollowUpToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -261,13 +233,17 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
     } else {
       await connection.execute('DELETE FROM SP_SF WHERE id = ?', [record.id]);
     }
-  } catch (err) {
-    console.error('MySQL 随访记录同步失败:', err);
+  } catch (err: any) {
+    console.error('MySQL 随访记录同步失败:', err.message);
+    throw err;
   } finally {
     if (connection) await connection.end();
   }
 }
 
+/**
+ * 工作人员同步
+ */
 export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -290,13 +266,17 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
     } else {
       await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
     }
-  } catch (err) {
-    console.error('MySQL 工作人员同步失败:', err);
+  } catch (err: any) {
+    console.error('MySQL 工作人员同步失败:', err.message);
+    throw err;
   } finally {
     if (connection) await connection.end();
   }
 }
 
+/**
+ * 全局配置同步
+ */
 export async function syncConfigToMysql(config: any, systemConfig: any) {
   if (!config || !config.host) return;
   let connection;
@@ -315,8 +295,39 @@ export async function syncConfigToMysql(config: any, systemConfig: any) {
     const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
     const sql = `INSERT INTO SP_CONFIG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
     await connection.execute(sql, values);
-  } catch (err) {
-    console.error('MySQL 全局配置同步失败:', err);
+  } catch (err: any) {
+    console.error('MySQL 全局配置同步失败:', err.message);
+    throw err;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+/**
+ * 数据统计报表
+ */
+export async function fetchDataForStats(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `
+      SELECT 
+        p.archiveNo, p.name, p.gender, p.age, p.idNumber, p.organization, p.phoneNumber, p.status as patientStatus,
+        y.checkupNumber as examNo, y.checkupDate as examDate, y.anomalyCategory as category, y.anomalyDetails as details, 
+        y.disposalSuggestions as disposalAdvice, y.notifier, y.notificationDate, y.notificationTime, 
+        y.notifiedPerson, y.isNotified, y.isHealthEducationProvided, y.notifiedPersonFeedback,
+        f.followUpDate, f.followUpResult, f.followUpPerson, f.isReExamined
+      FROM SP_PERSON p
+      LEFT JOIN SP_YCJG y ON p.archiveNo = y.patientProfileId
+      LEFT JOIN SP_SF f ON y.id = f.associatedAnomalyId
+      ORDER BY y.checkupDate DESC
+    `;
+    const [rows] = await connection.execute(sql);
+    return (rows as any[]).map(row => serializeRow(row));
+  } catch (err: any) {
+    console.error('MySQL 报表同步失败:', err.message);
+    throw err;
   } finally {
     if (connection) await connection.end();
   }
