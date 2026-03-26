@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Line, LineChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart, ResponsiveContainer } from "recharts"
+import { Line, LineChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from "recharts"
 import { useFirestore, useMemoFirebase, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import Link from "next/link"
@@ -21,6 +21,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { fetchHomeStats } from "@/app/actions/mysql-sync"
 
+/**
+ * 首页看板
+ * 临床数据 100% 来源于 MySQL。移除了对 Firestore 的实时同步依赖。
+ */
 export default function Home() {
   const db = useFirestore()
   const [isLoading, setIsLoading] = React.useState(true)
@@ -36,10 +40,11 @@ export default function Home() {
     }
     setIsLoading(true)
     try {
+      // 直接通过 MySQL 接口获取统计数据
       const data = await fetchHomeStats(config.mysql)
       setMysqlStats(data)
     } catch (err) {
-      console.error("MySQL Stats Error")
+      console.error("MySQL 统计数据获取失败")
     } finally {
       setIsLoading(false)
     }
@@ -75,7 +80,7 @@ export default function Home() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">临床业务看板</h1>
-          <p className="text-muted-foreground font-medium">中心 MySQL 数据库实时聚合统计</p>
+          <p className="text-muted-foreground font-medium">MySQL 数据驱动 • 严禁云端交互</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading} className="gap-2">
           {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
@@ -144,7 +149,7 @@ export default function Home() {
 
       <Card className="border-none shadow-md overflow-hidden">
         <CardHeader className="bg-primary/5">
-          <CardTitle>最近待办列表 (来自 MySQL)</CardTitle>
+          <CardTitle>最近待办列表 (实时 MySQL 轮询)</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
@@ -159,7 +164,7 @@ export default function Home() {
                         {task.anomalyCategory}类
                       </Badge>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">ID: {task.patientProfileId} • 日期: {task.checkupDate}</p>
+                    <p className="text-[10px] text-muted-foreground">档案号: {task.patientProfileId} • 发现日期: {task.checkupDate}</p>
                   </div>
                 </div>
                 <Button variant="link" size="sm" asChild>

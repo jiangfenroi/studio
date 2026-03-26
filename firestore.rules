@@ -3,8 +3,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     /**
-     * 禁用所有临床数据同步。
-     * 系统已切换至 MySQL 核心驱动，Firestore 不再存储任何业务数据。
+     * 严禁程序与 Firebase 云端进行任何临床或配置数据交换。
+     * 系统已切换至纯 MySQL 8.4 核心驱动。
      */
     match /{document=**} {
       allow read, write: if false;

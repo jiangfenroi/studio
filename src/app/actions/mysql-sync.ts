@@ -3,9 +3,10 @@
 
 import mysql from 'mysql2/promise';
 
+// 获取数据库连接的通用函数
 async function getConnection(config: any) {
   if (!config || !config.host) {
-    throw new Error('MySQL 配置缺失，请先在配置中心设置数据库信息。');
+    throw new Error('MySQL 数据库配置缺失，请先在系统设置中完成配置。');
   }
   return await mysql.createConnection({
     host: config.host,
@@ -17,6 +18,7 @@ async function getConnection(config: any) {
   });
 }
 
+// 序列化 MySQL 返回的行数据
 function serializeRow(row: any) {
   const serialized = { ...row };
   for (const key in serialized) {
@@ -29,6 +31,20 @@ function serializeRow(row: any) {
   return serialized;
 }
 
+// 获取系统全局配置
+export async function fetchSystemConfig(dbConfig: any) {
+  if (!dbConfig || !dbConfig.host) return null;
+  let connection;
+  try {
+    connection = await getConnection(dbConfig);
+    const [rows]: any = await connection.execute('SELECT * FROM SP_CONFIG WHERE configKey = "default"');
+    return rows[0] ? serializeRow(rows[0]) : null;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+// 测试 MySQL 连接
 export async function testMysqlConnection(config: any) {
   if (!config || !config.host) return { success: false, message: '无效的配置信息' };
   let connection;
@@ -43,6 +59,7 @@ export async function testMysqlConnection(config: any) {
   }
 }
 
+// 首页聚合统计
 export async function fetchHomeStats(config: any) {
   if (!config || !config.host) return null;
   let connection;
@@ -108,6 +125,7 @@ export async function fetchHomeStats(config: any) {
   }
 }
 
+// 获取全量临床结果（联表 SP_PERSON + SP_YCJG）
 export async function fetchAllRecords(config: any) {
   if (!config || !config.host) return [];
   let connection;
@@ -130,6 +148,7 @@ export async function fetchAllRecords(config: any) {
   }
 }
 
+// 获取患者列表
 export async function fetchPatients(config: any) {
   if (!config || !config.host) return [];
   let connection;
@@ -142,6 +161,7 @@ export async function fetchPatients(config: any) {
   }
 }
 
+// 获取员工列表
 export async function fetchStaffMembers(config: any) {
   if (!config || !config.host) return [];
   let connection;
@@ -154,6 +174,7 @@ export async function fetchStaffMembers(config: any) {
   }
 }
 
+// 同步异常结果记录
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -191,6 +212,7 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
   }
 }
 
+// 同步患者资料
 export async function syncPatientToMysql(config: any, patient: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -219,6 +241,7 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
   }
 }
 
+// 同步随访记录（含溯源字段）
 export async function syncFollowUpToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -247,6 +270,7 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
   }
 }
 
+// 同步员工账户
 export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -271,6 +295,7 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
   }
 }
 
+// 同步全局配置
 export async function syncConfigToMysql(config: any, sysConfig: any) {
   if (!config || !config.host) return;
   let connection;
@@ -291,6 +316,7 @@ export async function syncConfigToMysql(config: any, sysConfig: any) {
   }
 }
 
+// 报表导出全量大宽表查询
 export async function fetchDataForStats(config: any) {
   if (!config || !config.host) return [];
   let connection;
@@ -315,12 +341,12 @@ export async function fetchDataForStats(config: any) {
   }
 }
 
+// 随访任务查询
 export async function fetchFollowUpTasks(config: any) {
-  if (!config || !config.host) return [];
+  if (!config || !config.host) return { records: [], followups: [] };
   let connection;
   try {
     connection = await getConnection(config);
-    // 获取所有异常记录及其关联的最新随访
     const sql = `
       SELECT 
         y.*, 

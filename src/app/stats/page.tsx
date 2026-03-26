@@ -27,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { fetchDataForStats } from "@/app/actions/mysql-sync"
 
+// 统计报表全量字段映射
 const COLUMNS = {
   SP_PERSON: [
     { id: "archiveNo", label: "档案编号" },
@@ -57,6 +58,10 @@ const COLUMNS = {
 
 const ALL_IDS = Object.values(COLUMNS).flatMap(t => t.map(c => c.id));
 
+/**
+ * 数据导出管理
+ * 严禁 Firestore 交互。三表大宽表实时联查预览。
+ */
 export default function StatsPage() {
   const db = useFirestore()
   const { toast } = useToast()
@@ -97,7 +102,7 @@ export default function StatsPage() {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
-    link.download = `全量统计_${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `临床统计报表_${new Date().toISOString().split('T')[0]}.csv`
     link.click()
   }
 
@@ -105,13 +110,13 @@ export default function StatsPage() {
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-primary">数据导出管理</h1>
-          <p className="text-muted-foreground">基于三表关联的大宽表实时统计预览</p>
+          <h1 className="text-3xl font-bold text-primary">全量数据导出</h1>
+          <p className="text-muted-foreground font-medium">MySQL 核心链路：三表实时关联大宽表预览</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={loadData} disabled={isSyncing} className="gap-2">
             {isSyncing ? <Loader2 className="size-4 animate-spin" /> : <Database className="size-4" />}
-            刷新同步
+            刷新数据
           </Button>
           <Button onClick={handleExport} className="gap-2 h-11 px-8 shadow-lg" disabled={filteredData.length === 0}>
             <FileSpreadsheet className="size-5" /> 导出 CSV 报表
@@ -122,7 +127,7 @@ export default function StatsPage() {
       <div className="grid grid-cols-4 gap-8">
         <Card className="col-span-1 border-none shadow-md h-fit">
           <CardHeader className="bg-primary/5 py-3">
-            <CardTitle className="text-sm">字段多选 (默认全选)</CardTitle>
+            <CardTitle className="text-sm">报表字段配置 (默认全选)</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <ScrollArea className="h-[500px] pr-4">
@@ -142,14 +147,14 @@ export default function StatsPage() {
         </Card>
 
         <Card className="col-span-3 border-none shadow-md overflow-hidden flex flex-col">
-          <div className="p-4 border-b flex justify-between items-center">
-            <h3 className="font-bold flex items-center gap-2"><TableIcon className="size-4" /> 实时业务预览 ({filteredData.length} 条)</h3>
-            <Input placeholder="搜索..." className="w-64" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <div className="p-4 border-b flex justify-between items-center bg-muted/20">
+            <h3 className="font-bold flex items-center gap-2 text-primary"><TableIcon className="size-4" /> 实时业务明细 ({filteredData.length} 条)</h3>
+            <Input placeholder="搜索预览内容..." className="w-64" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           <CardContent className="p-0">
             <ScrollArea className="h-[600px]">
               <Table>
-                <TableHeader className="bg-muted/30 sticky top-0">
+                <TableHeader className="bg-muted/30 sticky top-0 z-10">
                   <TableRow>
                     {selectedCols.map(id => (
                       <TableHead key={id} className="whitespace-nowrap font-bold text-xs">
@@ -160,7 +165,7 @@ export default function StatsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredData.map((row, idx) => (
-                    <TableRow key={idx}>
+                    <TableRow key={idx} className="hover:bg-muted/10">
                       {selectedCols.map(id => <TableCell key={id} className="text-[10px] max-w-[150px] truncate">{String(row[id] || "-")}</TableCell>)}
                     </TableRow>
                   ))}

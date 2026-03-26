@@ -4,19 +4,12 @@
 import * as React from "react"
 import { 
   Search, 
-  Download, 
   MoreVertical, 
-  Edit, 
-  Trash2, 
   Eye, 
   Plus,
-  ClipboardList,
   Activity,
   Loader2,
   User,
-  Phone,
-  Building,
-  CreditCard,
   AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -34,14 +27,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog"
 import {
   AlertDialog,
@@ -61,6 +52,11 @@ import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { fetchAllRecords, syncAnomalyToMysql } from "@/app/actions/mysql-sync"
 
+/**
+ * 重要异常结果管理
+ * 全维度展示：SP_PERSON (档案、姓名、性别、年龄、身份证号、电话、状态) + SP_YCJG (全部字段)
+ * 数据 100% 来源于 MySQL。
+ */
 export default function RecordsPage() {
   const db = useFirestore()
   const { toast } = useToast()
@@ -91,8 +87,8 @@ export default function RecordsPage() {
   const filteredRecords = React.useMemo(() => {
     return records.filter(r => 
       (r.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       r.archiveNo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       r.checkupNumber?.toLowerCase().includes(searchTerm.toLowerCase()))
+       r.patientProfileId?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       r.patientIdNumber?.toLowerCase().includes(searchTerm.toLowerCase()))
     )
   }, [records, searchTerm])
 
@@ -114,11 +110,11 @@ export default function RecordsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">重要异常结果管理</h1>
-          <p className="text-muted-foreground">联表预览：患者档案 (SP_PERSON) + 异常登记 (SP_YCJG)</p>
+          <p className="text-muted-foreground">全维度联表预览：患者档案 (SP_PERSON) + 异常结果 (SP_YCJG)</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={loadRecords} disabled={isLoading}>
-            <Activity className="size-4 mr-2" /> 刷新数据
+            <Activity className="size-4 mr-2" /> 同步数据
           </Button>
           <Button asChild className="shadow-md">
             <Link href="/records/new"><Plus className="size-4 mr-2" /> 新增登记</Link>
@@ -129,7 +125,7 @@ export default function RecordsPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input 
-          placeholder="搜索姓名、档案编号、体检号、身份证..." 
+          placeholder="搜索姓名、档案号、身份证号、体检号..." 
           className="pl-10 h-11" 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -140,23 +136,21 @@ export default function RecordsPage() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="font-bold">体检日期</TableHead>
               <TableHead className="font-bold">档案编号</TableHead>
               <TableHead className="font-bold">姓名</TableHead>
               <TableHead className="font-bold">性别/年龄</TableHead>
               <TableHead className="font-bold">身份证号</TableHead>
-              <TableHead className="font-bold">电话</TableHead>
-              <TableHead className="font-bold">状态</TableHead>
-              <TableHead className="font-bold">异常详情</TableHead>
+              <TableHead className="font-bold">联系电话</TableHead>
+              <TableHead className="font-bold">档案状态</TableHead>
+              <TableHead className="font-bold">异常详情 (SP_YCJG)</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-10"><Loader2 className="animate-spin mx-auto" /> 加载中...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-10"><Loader2 className="animate-spin mx-auto" /> 检索中...</TableCell></TableRow>
             ) : filteredRecords.map((r) => (
               <TableRow key={r.id} className="hover:bg-muted/5 group">
-                <TableCell className="text-xs">{r.checkupDate}</TableCell>
                 <TableCell className="font-bold text-primary">{r.patientProfileId}</TableCell>
                 <TableCell className="font-medium">{r.patientName}</TableCell>
                 <TableCell>{r.patientGender} / {r.patientAge}岁</TableCell>
@@ -167,7 +161,7 @@ export default function RecordsPage() {
                     {r.patientStatus}
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-[200px] truncate text-xs" title={r.anomalyDetails}>
+                <TableCell className="max-w-[250px] truncate text-xs" title={r.anomalyDetails}>
                   {r.anomalyDetails}
                 </TableCell>
                 <TableCell className="text-right">
@@ -176,8 +170,8 @@ export default function RecordsPage() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => setSelectedRecord(r)}>查看全字段</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(r)}>撤销登记</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setSelectedRecord(r)}>查看详细医学档案</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(r)}>撤销此条记录</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -191,36 +185,35 @@ export default function RecordsPage() {
       <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 bg-primary text-white">
-            <DialogTitle>临床档案全维度预览</DialogTitle>
+            <DialogTitle>全维度临床档案预览 (MySQL 联表)</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1 p-6">
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-4">
-                <h3 className="font-bold flex items-center gap-2 border-b pb-2"><User className="size-4" /> 档案信息 (SP_PERSON)</h3>
+                <h3 className="font-bold flex items-center gap-2 border-b pb-2"><User className="size-4" /> 患者基础档案 (SP_PERSON)</h3>
                 <div className="grid grid-cols-2 gap-y-3 text-sm">
                   <span className="text-muted-foreground">姓名</span><span>{selectedRecord?.patientName}</span>
                   <span className="text-muted-foreground">档案编号</span><span className="font-mono">{selectedRecord?.patientProfileId}</span>
                   <span className="text-muted-foreground">性别/年龄</span><span>{selectedRecord?.patientGender} / {selectedRecord?.patientAge}岁</span>
                   <span className="text-muted-foreground">身份证号</span><span className="font-mono">{selectedRecord?.patientIdNumber}</span>
                   <span className="text-muted-foreground">联系电话</span><span>{selectedRecord?.patientPhone}</span>
-                  <span className="text-muted-foreground">所属单位</span><span>{selectedRecord?.patientOrg}</span>
                   <span className="text-muted-foreground">档案状态</span><Badge>{selectedRecord?.patientStatus}</Badge>
                 </div>
               </div>
               <div className="space-y-4">
-                <h3 className="font-bold flex items-center gap-2 border-b pb-2 text-destructive"><Activity className="size-4" /> 异常结果 (SP_YCJG)</h3>
+                <h3 className="font-bold flex items-center gap-2 border-b pb-2 text-destructive"><Activity className="size-4" /> 临床异常发现 (SP_YCJG)</h3>
                 <div className="grid grid-cols-2 gap-y-3 text-sm">
                   <span className="text-muted-foreground">体检编号</span><span className="font-mono">{selectedRecord?.checkupNumber}</span>
-                  <span className="text-muted-foreground">检查日期</span><span>{selectedRecord?.checkupDate}</span>
                   <span className="text-muted-foreground">异常类别</span><Badge variant="destructive">{selectedRecord?.anomalyCategory}类</Badge>
+                  <span className="text-muted-foreground">体检日期</span><span>{selectedRecord?.checkupDate}</span>
                   <span className="text-muted-foreground">告知状态</span><span>{selectedRecord?.isNotified ? '已告知' : '未告知'}</span>
                   <div className="col-span-2 mt-2">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">异常发现详情</p>
-                    <p className="p-3 bg-muted/30 rounded text-xs">{selectedRecord?.anomalyDetails}</p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">医学异常描述</p>
+                    <p className="p-3 bg-muted/30 rounded text-xs leading-relaxed">{selectedRecord?.anomalyDetails}</p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">处置建议</p>
-                    <p className="p-3 bg-blue-50 border border-blue-100 rounded text-xs">{selectedRecord?.disposalSuggestions}</p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">临床处置意见</p>
+                    <p className="p-3 bg-blue-50 border border-blue-100 rounded text-xs leading-relaxed">{selectedRecord?.disposalSuggestions}</p>
                   </div>
                 </div>
               </div>
@@ -233,7 +226,7 @@ export default function RecordsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" /> 确认撤销登记？</AlertDialogTitle>
-            <AlertDialogDescription>该操作将从 MySQL 数据库中永久移除此临床记录。</AlertDialogDescription>
+            <AlertDialogDescription>该操作将永久从中心 MySQL 数据库中移除此条异常记录。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
