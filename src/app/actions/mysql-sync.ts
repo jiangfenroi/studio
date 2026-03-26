@@ -136,26 +136,19 @@ export async function fetchPatients(config: any) {
   try {
     connection = await getConnection(config);
     const [rows] = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo DESC');
-    return (rows as any[]).map(r => serializeRow(r));
+    return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.archiveNo }));
   } finally {
     if (connection) await connection.end();
   }
 }
 
-export async function fetchPatientDetail(config: any, archiveNo: string) {
-  if (!config || !config.host) return null;
+export async function fetchStaffMembers(config: any) {
+  if (!config || !config.host) return [];
   let connection;
   try {
     connection = await getConnection(config);
-    const [[patient]]: any = await connection.execute('SELECT * FROM SP_PERSON WHERE archiveNo = ?', [archiveNo]);
-    const [records]: any = await connection.execute('SELECT * FROM SP_YCJG WHERE patientProfileId = ? ORDER BY checkupDate DESC', [archiveNo]);
-    const [followups]: any = await connection.execute('SELECT * FROM SP_SF WHERE patientProfileId = ? ORDER BY followUpDate DESC', [archiveNo]);
-    
-    return {
-      patient: patient ? serializeRow(patient) : null,
-      records: records.map((r: any) => serializeRow(r)),
-      followups: followups.map((f: any) => serializeRow(f))
-    };
+    const [rows] = await connection.execute('SELECT * FROM SP_STAFF ORDER BY jobId ASC');
+    return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.jobId }));
   } finally {
     if (connection) await connection.end();
   }
@@ -317,6 +310,32 @@ export async function fetchDataForStats(config: any) {
     `;
     const [rows] = await connection.execute(sql);
     return (rows as any[]).map(row => serializeRow(row));
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchFollowUpTasks(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    // 获取所有异常记录及其关联的最新随访
+    const sql = `
+      SELECT 
+        y.*, 
+        p.name as patientName, p.gender as patientGender, p.age as patientAge, p.phoneNumber as patientPhone, p.status as patientStatus
+      FROM SP_YCJG y
+      JOIN SP_PERSON p ON y.patientProfileId = p.archiveNo
+      ORDER BY y.createdAt DESC
+    `;
+    const [records] = await connection.execute(sql);
+    const [followups] = await connection.execute('SELECT * FROM SP_SF ORDER BY followUpDate DESC');
+    
+    return {
+      records: (records as any[]).map(r => serializeRow(r)),
+      followups: (followups as any[]).map(f => serializeRow(f))
+    };
   } finally {
     if (connection) await connection.end();
   }

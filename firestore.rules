@@ -2,42 +2,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
     /**
-     * MEDICAL ANOMALY RESULT MANAGEMENT SYSTEM - SECURITY POSTURE
+     * 禁用所有临床数据同步。
+     * 系统已切换至 MySQL 核心驱动，Firestore 不再存储任何业务数据。
      */
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isMedicalStaff() {
-      return isSignedIn();
-    }
-
-    match /systemConfig/{configId} {
-      // 允许所有内网终端读取和初始化配置，确保部署初期能顺利设置 MySQL 地址
-      allow read, write: if true;
-    }
-
-    match /staffProfiles/{staffId} {
-      allow read, write: if isMedicalStaff();
-    }
-
-    match /medicalReportFiles/{fileId} {
-      allow read, write: if isMedicalStaff();
-    }
-
-    match /patientProfiles/{patientProfileId} {
-      allow read, write: if isMedicalStaff();
-
-      match /medicalAnomalyRecords/{medicalAnomalyRecordId} {
-        allow read, write: if isMedicalStaff();
-      }
-    }
-
-    match /{path=**}/medicalAnomalyRecords/{medicalAnomalyRecordId} {
-      allow list: if isMedicalStaff();
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
