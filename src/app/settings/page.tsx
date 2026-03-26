@@ -12,6 +12,10 @@ import {
   Plus,
   Trash2,
   Edit,
+  Wrench,
+  RotateCcw,
+  Eraser,
+  AlertTriangle
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -25,14 +29,12 @@ import {
   useDoc, 
   useCollection, 
   useMemoFirebase, 
-  setDocumentNonBlocking, 
-  addDocumentNonBlocking,
-  updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-  useUser
+  useUser,
+  initiateSignOut,
+  useAuth
 } from "@/firebase"
 import { doc, collection } from "firebase/firestore"
-import { updatePassword } from "firebase/auth"
+import { useRouter } from "next/navigation"
 import {
   Table,
   TableBody,
@@ -57,14 +59,26 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { syncStaffToMysql, syncConfigToMysql } from "@/app/actions/mysql-sync"
+import { syncStaffToMysql, syncConfigToMysql, clearAllStaffData } from "@/app/actions/mysql-sync"
+
+// 默认内网数据库配置
+const DEFAULT_MYSQL = {
+  host: '8.137.162.142',
+  port: '3306',
+  user: 'root',
+  password: '',
+  database: 'meditrack_db'
+};
 
 export default function SettingsPage() {
   const db = useFirestore()
+  const auth = useAuth()
   const { user } = useUser()
   const { toast } = useToast()
+  const router = useRouter()
   
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: config } = useDoc(configRef)
@@ -76,20 +90,19 @@ export default function SettingsPage() {
   const { data: staffMembers } = useCollection(staffQuery)
   
   const [activeTab, setActiveTab] = React.useState("general")
+  const [isSyncing, setIsSyncing] = React.useState(false)
   const [testing, setTesting] = React.useState(false)
   const [editingUser, setEditingUser] = React.useState<any | null>(null)
   const [userToDelete, setUserToDelete] = React.useState<any | null>(null)
-  const [newPassword, setNewPassword] = React.useState("")
   
   const [formData, setFormData] = React.useState({
     appName: "HealthInsight Registry",
-    appLogoFileName: "logo.png",
     pdfStoragePath: "",
     pacsUrlBase: "http://172.16.201.61:7242/?ChtId=",
-    mysqlHost: "172.17.168.18",
-    mysqlPort: "10699",
-    mysqlUser: "medi_admin",
-    mysqlPassword: "AdminPassword123",
+    mysqlHost: "8.137.162.142",
+    mysqlPort: "3306",
+    mysqlUser: "root",
+    mysqlPassword: "",
     mysqlDatabase: "meditrack_db"
   })
 
@@ -97,111 +110,64 @@ export default function SettingsPage() {
     if (config) {
       setFormData({
         appName: config.appName || "HealthInsight Registry",
-        appLogoFileName: config.appLogoFileName || "logo.png",
         pdfStoragePath: config.pdfStoragePath || "",
         pacsUrlBase: config.pacsUrlBase || "http://172.16.201.61:7242/?ChtId=",
-        mysqlHost: config.mysql?.host || "172.17.168.18",
-        mysqlPort: config.mysql?.port || "10699",
-        mysqlUser: config.mysql?.user || "medi_admin",
-        mysqlPassword: config.mysql?.password || "AdminPassword123",
+        mysqlHost: config.mysql?.host || "8.137.162.142",
+        mysqlPort: config.mysql?.port || "3306",
+        mysqlUser: config.mysql?.user || "root",
+        mysqlPassword: config.mysql?.password || "",
         mysqlDatabase: config.mysql?.database || "meditrack_db"
       })
     }
   }, [config])
 
-  const handleSaveConfig = () => {
-    const updateData = {
-      appName: formData.appName,
-      appLogoFileName: formData.appLogoFileName,
-      pdfStoragePath: formData.pdfStoragePath,
-      pacsUrlBase: formData.pacsUrlBase,
-      mysql: {
-        host: formData.mysqlHost,
-        port: formData.mysqlPort,
-        user: formData.mysqlUser,
-        password: formData.mysqlPassword,
-        database: formData.mysqlDatabase
-      },
-      lastUpdated: new Date().toISOString()
+  const handleSaveConfig = async () => {
+    const mysqlConfig = {
+      host: formData.mysqlHost,
+      port: formData.mysqlPort,
+      user: formData.mysqlUser,
+      password: formData.mysqlPassword,
+      database: formData.mysqlDatabase
     };
     
-    setDocumentNonBlocking(configRef, updateData, { merge: true })
-    
-    if (updateData.mysql) {
-      syncConfigToMysql(updateData.mysql, updateData);
+    setIsSyncing(true)
+    try {
+      await syncConfigToMysql(mysqlConfig, {
+        appName: formData.appName,
+        pacsUrlBase: formData.pacsUrlBase,
+        pdfStoragePath: formData.pdfStoragePath
+      });
+      sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
+      toast({ title: "配置已保存", description: "系统参数已同步至本地 MySQL 库。" })
+    } finally {
+      setIsSyncing(false)
     }
-    
-    toast({
-      title: "系统配置已保存",
-      description: "配置信息已同步至中心 MySQL 数据库。",
-    })
   }
 
-  const handleTestConnection = () => {
-    setTesting(true)
-    setTimeout(() => {
-      setTesting(false)
-      toast({
-        title: "路径连接测试成功",
-        description: "内网共享路径响应正常。",
-      })
-    }, 1200)
+  const handleClearAppCache = () => {
+    sessionStorage.clear();
+    localStorage.clear();
+    toast({ title: "本地缓存已清除", description: "系统配置已重置为代码默认值。" });
+    window.location.reload();
   }
 
-  const handleAddUser = () => {
-    const newUser = {
-      name: "新员工",
-      email: "staff@meditrack.local",
-      role: "医生",
-      jobId: `STAFF-${Date.now().toString().slice(-4)}`,
-      status: "在职"
-    }
-    addDocumentNonBlocking(collection(db, "staffProfiles"), newUser)
+  const handleResetStaffDB = async () => {
+    const stored = typeof window !== 'undefined' ? sessionStorage.getItem('mysql_config') : null;
+    const mysqlConfig = stored ? JSON.parse(stored) : DEFAULT_MYSQL;
     
-    if (config?.mysql) {
-      syncStaffToMysql(config.mysql, newUser, 'SAVE');
-    }
-
-    toast({ title: "已预设新账户" })
-  }
-
-  const handleConfirmDeleteUser = () => {
-    if (!userToDelete) return
-    if (userToDelete.jobId === '1058') {
-      toast({ variant: "destructive", title: "禁止删除内置管理员账户" })
-      return
-    }
-
-    deleteDocumentNonBlocking(doc(db, "staffProfiles", userToDelete.id))
-    
-    if (config?.mysql) {
-      syncStaffToMysql(config.mysql, userToDelete, 'DELETE');
-    }
-
-    toast({ title: "账户已注销" })
-    setUserToDelete(null)
-  }
-
-  const handleSaveUserEdit = async () => {
-    if (!editingUser) return
-    updateDocumentNonBlocking(doc(db, "staffProfiles", editingUser.id), editingUser)
-    
-    if (config?.mysql) {
-      syncStaffToMysql(config.mysql, editingUser, 'SAVE');
-    }
-
-    if (newPassword && user && user.email === editingUser.email) {
-      try {
-        await updatePassword(user, newPassword)
-        toast({ title: "密码更新成功" })
-      } catch (error: any) {
-        toast({ variant: "destructive", title: "密码更新失败", description: "请重新登录后再试。" })
+    setIsSyncing(true)
+    try {
+      await clearAllStaffData(mysqlConfig);
+      toast({ title: "员工库已清空", description: "所有注册信息已从 MySQL 中移除。" });
+      if (auth) {
+        initiateSignOut(auth);
+        router.push("/login");
       }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "操作失败", description: err.message });
+    } finally {
+      setIsSyncing(false)
     }
-
-    setEditingUser(null)
-    setNewPassword("")
-    toast({ title: "账户信息已更新" })
   }
 
   return (
@@ -209,32 +175,27 @@ export default function SettingsPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-primary">系统中心配置</h1>
-          <p className="text-muted-foreground">统筹内网数据库、外部集成及临床权限</p>
+          <p className="text-muted-foreground font-medium">MySQL 核心驱动 • 禁止任何云端临床同步</p>
         </div>
-        <Button onClick={handleSaveConfig} className="gap-2 shadow-lg">
-          <Save className="size-4" />
+        <Button onClick={handleSaveConfig} className="gap-2 shadow-lg" disabled={isSyncing}>
+          {isSyncing ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
           保存全局配置
         </Button>
       </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12 mb-8 bg-muted/50">
-          <TabsTrigger value="general" className="gap-2 text-base">
-            <Monitor className="size-4" /> 基础与集成
-          </TabsTrigger>
-          <TabsTrigger value="mysql" className="gap-2 text-base">
-            <Database className="size-4" /> MySQL 业务库
-          </TabsTrigger>
-          <TabsTrigger value="users" className="gap-2 text-base">
-            <Users className="size-4" /> 账户权限
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 h-12 mb-8 bg-muted/50">
+          <TabsTrigger value="general" className="gap-2 text-base"><Monitor className="size-4" /> 基础与集成</TabsTrigger>
+          <TabsTrigger value="mysql" className="gap-2 text-base"><Database className="size-4" /> MySQL 连接</TabsTrigger>
+          <TabsTrigger value="users" className="gap-2 text-base"><Users className="size-4" /> 账户列表</TabsTrigger>
+          <TabsTrigger value="maintenance" className="gap-2 text-base text-destructive"><Wrench className="size-4" /> 系统维护</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
           <Card className="border-none shadow-md">
             <CardHeader className="bg-primary/5">
-              <CardTitle>系统名称与外部集成</CardTitle>
-              <CardDescription>配置 PACS 地址及共享路径。</CardDescription>
+              <CardTitle>基础信息集成</CardTitle>
+              <CardDescription>配置内网 PACS 基准地址及共享存储路径。</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               <div className="grid grid-cols-2 gap-6">
@@ -248,14 +209,8 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>PDF 报告存储共享路径</Label>
-                <div className="flex gap-2">
-                  <Input value={formData.pdfStoragePath} onChange={e => setFormData({...formData, pdfStoragePath: e.target.value})} className="font-mono text-xs" />
-                  <Button variant="secondary" onClick={handleTestConnection} disabled={testing}>
-                    {testing ? <Loader2 className="size-3 animate-spin mr-1" /> : <ShieldCheck className="size-3 mr-1" />}
-                    测试连接
-                  </Button>
-                </div>
+                <Label>PDF 报告共享路径</Label>
+                <Input value={formData.pdfStoragePath} onChange={e => setFormData({...formData, pdfStoragePath: e.target.value})} className="font-mono text-xs" />
               </div>
             </CardContent>
           </Card>
@@ -264,99 +219,89 @@ export default function SettingsPage() {
         <TabsContent value="mysql" className="space-y-6">
           <Card className="border-none shadow-md">
             <CardHeader className="bg-primary/5">
-              <CardTitle className="flex items-center gap-2">
-                <Database className="size-5 text-primary" />
-                MySQL 8.4 连接配置
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2"><Database className="size-5 text-primary" /> MySQL 8.4 通讯配置</CardTitle>
             </CardHeader>
             <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-2"><Label>主机地址</Label><Input value={formData.mysqlHost} onChange={e => setFormData({...formData, mysqlHost: e.target.value})} /></div>
-              <div className="space-y-2"><Label>通信端口</Label><Input value={formData.mysqlPort} onChange={e => setFormData({...formData, mysqlPort: e.target.value})} /></div>
-              <div className="space-y-2"><Label>数据库名</Label><Input value={formData.mysqlDatabase} onChange={e => setFormData({...formData, mysqlDatabase: e.target.value})} /></div>
-              <div className="space-y-2"><Label>用户名</Label><Input value={formData.mysqlUser} onChange={e => setFormData({...formData, mysqlUser: e.target.value})} /></div>
+              <div className="space-y-2"><Label>端口</Label><Input value={formData.mysqlPort} onChange={e => setFormData({...formData, mysqlPort: e.target.value})} /></div>
+              <div className="space-y-2"><Label>数据库</Label><Input value={formData.mysqlDatabase} onChange={e => setFormData({...formData, mysqlDatabase: e.target.value})} /></div>
+              <div className="space-y-2"><Label>用户</Label><Input value={formData.mysqlUser} onChange={e => setFormData({...formData, mysqlUser: e.target.value})} /></div>
               <div className="space-y-2"><Label>密码</Label><Input type="password" value={formData.mysqlPassword} onChange={e => setFormData({...formData, mysqlPassword: e.target.value})} /></div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">
-          <Card className="border-none shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between bg-primary/5">
-              <div>
-                <CardTitle>系统账户列表</CardTitle>
-                <CardDescription>管理所有临床人员的访问权限。</CardDescription>
-              </div>
-              <Button onClick={handleAddUser} size="sm" className="gap-1"><Plus className="size-4" /> 预设账户</Button>
+          <Card className="border-none shadow-md overflow-hidden">
+            <CardHeader className="bg-primary/5">
+              <CardTitle>员工账户中心</CardTitle>
+              <CardDescription>同步自 MySQL 的所有在职人员信息。</CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/30">
-                  <TableRow>
-                    <TableHead>工号</TableHead>
-                    <TableHead>姓名</TableHead>
-                    <TableHead>角色</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  <TableHead>工号</TableHead>
+                  <TableHead>姓名</TableHead>
+                  <TableHead>角色</TableHead>
+                  <TableHead>状态</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {staffMembers?.map(staff => (
+                  <TableRow key={staff.id}>
+                    <TableCell className="font-mono font-bold text-primary">{staff.jobId}</TableCell>
+                    <TableCell>{staff.name}</TableCell>
+                    <TableCell><Badge variant="outline">{staff.role}</Badge></TableCell>
+                    <TableCell><Badge className={staff.status === '在职' ? 'bg-green-500' : 'bg-red-500'}>{staff.status}</Badge></TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {staffMembers?.map(staff => (
-                    <TableRow key={staff.id}>
-                      <TableCell className="font-mono font-bold text-primary">{staff.jobId}</TableCell>
-                      <TableCell>{staff.name}</TableCell>
-                      <TableCell><Badge variant="outline">{staff.role}</Badge></TableCell>
-                      <TableCell><Badge className={staff.status === '在职' ? 'bg-green-500' : 'bg-red-500'}>{staff.status}</Badge></TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setEditingUser(staff)}><Edit className="size-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => setUserToDelete(staff)}><Trash2 className="size-4 text-red-500" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
+                ))}
+              </TableBody>
+            </Table>
           </Card>
         </TabsContent>
-      </Tabs>
 
-      <Dialog open={!!editingUser} onOpenChange={o => !o && setEditingUser(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>账户资料维护</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">姓名</Label>
-              <Input 
-                value={editingUser?.name || ""} 
-                onChange={e => setEditingUser({...editingUser, name: e.target.value})} 
-                className="col-span-3" 
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">新密码</Label>
-              <Input 
-                type="password" 
-                value={newPassword} 
-                onChange={e => setNewPassword(e.target.value)} 
-                className="col-span-3" 
-                placeholder="留空不修改" 
-              />
-            </div>
+        <TabsContent value="maintenance" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card className="border-amber-200 bg-amber-50/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><RotateCcw className="size-5 text-amber-600" /> 重置本地缓存</CardTitle>
+                <CardDescription>清除浏览器暂存的数据库连接信息，将所有配置恢复至代码预设值。</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-100" onClick={handleClearAppCache}>
+                  <Eraser className="size-4 mr-2" /> 立即清理缓存
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-red-200 bg-red-50/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-600"><AlertTriangle className="size-5" /> 初始化员工库</CardTitle>
+                <CardDescription>危险操作！将物理清空 MySQL 中的 SP_STAFF 表。清空后所有工号需重新注册。</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="w-full shadow-lg">清空所有员工记录</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确定要执行初始化吗？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        此操作将清空您的 MySQL 员工档案表。系统将自动退出，您需要重新注册管理员账号。临床异常数据（SP_YCJG）将保留，不受影响。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleResetStaffDB} className="bg-destructive">确认重置</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
           </div>
-          <DialogFooter><Button onClick={handleSaveUserEdit}>保存更改</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!userToDelete} onOpenChange={o => !o && setUserToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>确认注销此账户？</AlertDialogTitle><AlertDialogDescription>此操作不可恢复。</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDeleteUser} className="bg-red-500">确认注销</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
