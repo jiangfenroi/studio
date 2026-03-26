@@ -21,6 +21,10 @@
     - 文件路径: `src/app/settings/page.tsx`
     - 修改位置: 搜索 `const [formData, setFormData] = React.useState({ ... })`。在这里同步更改对应的初始值。
 
+3.  **首页/全局默认配置**:
+    - 文件路径: `src/app/page.tsx`
+    - 修改位置: 搜索 `const DEFAULT_MYSQL = { ... }`。在这里更改默认的连接参数。
+
 ## 3. MySQL 数据库初始化脚本 (最新增强版)
 
 请在您的 MySQL 8.0+ 环境中执行以下脚本。注意：`SP_SF` 表已增加了 `archiveNo` 和 `checkupNumber` 溯源字段。
