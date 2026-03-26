@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -6,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2, AlertCircle } from "lucide-react"
+import { CalendarIcon, Upload, FileText, Trash2, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 import { doc, collection } from "firebase/firestore"
 import { useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, useUser, useCollection } from "@/firebase"
 import { useToast } from "@/hooks/use-toast"
@@ -55,6 +54,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   const db = useFirestore()
   const { user } = useUser()
   const { toast } = useToast()
+  const [isSyncing, setIsSyncing] = React.useState(false)
   const [uploadedFiles, setUploadedFiles] = React.useState<{name: string, path: string, category: string, checkDate: string}[]>([])
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
@@ -136,7 +136,8 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
     fileInputRef.current?.click()
   }
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsSyncing(true)
     const anomalyRecordId = `${values.archiveNo}_${values.examNo}_${Date.now().toString().slice(-4)}`
     const anomalyRef = doc(db, `patientProfiles/${values.archiveNo}/medicalAnomalyRecords`, anomalyRecordId)
     
@@ -153,13 +154,27 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       createdAt: new Date().toISOString()
     };
 
+    // 1. 同步到 Firestore
     setDocumentNonBlocking(anomalyRef, finalRecord, { merge: true })
 
-    // 同步到 MySQL
-    if (systemConfig?.mysql) {
-      syncAnomalyToMysql(systemConfig.mysql, finalRecord, 'SAVE');
+    // 2. 同步到 MySQL (等待完成以确保可靠性)
+    try {
+      if (systemConfig?.mysql) {
+        await syncAnomalyToMysql(systemConfig.mysql, finalRecord, 'SAVE');
+      } else {
+        console.warn("MySQL 配置未就绪，跳过同步");
+      }
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "MySQL 同步失败",
+        description: err.message || "请检查网络或数据库配置。"
+      });
+    } finally {
+      setIsSyncing(false);
     }
 
+    // 处理文件关联
     for (const file of uploadedFiles) {
       const fileId = `${anomalyRecordId}_file_${Date.now()}`
       const fileData = {
@@ -445,10 +460,10 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
         </Card>
 
         <div className="flex justify-end gap-4 pb-20">
-          <Button type="button" variant="outline" size="lg" onClick={() => form.reset()}>清空重填</Button>
-          <Button type="submit" size="lg" className="px-10 gap-2 shadow-xl bg-primary hover:bg-primary/90">
-            <CheckCircle2 className="size-5" />
-            保存并补充个人信息
+          <Button type="button" variant="outline" size="lg" onClick={() => form.reset()} disabled={isSyncing}>清空重填</Button>
+          <Button type="submit" size="lg" className="px-10 gap-2 shadow-xl bg-primary hover:bg-primary/90" disabled={isSyncing}>
+            {isSyncing ? <Loader2 className="animate-spin size-5" /> : <CheckCircle2 className="size-5" />}
+            {isSyncing ? "正在同步 MySQL..." : "保存并补充个人信息"}
           </Button>
         </div>
       </form>

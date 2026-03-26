@@ -1,24 +1,27 @@
-
 'use server';
 
 /**
- * @fileOverview MySQL 数据同步与实时计算引擎 (核心逻辑版)
- * 强化了错误抛出机制，确保网络不可达时前端能实时感知。
+ * @fileOverview MySQL 数据同步与实时计算引擎 (增强型)
+ * 增加了显式的连接日志和错误上抛机制，确保在互联网环境下同步失败时能即时反馈。
  */
 
 import mysql from 'mysql2/promise';
 
 async function getConnection(config: any) {
   if (!config || !config.host) {
+    console.error('[MySQL] 尝试连接失败：数据库配置信息为空');
     throw new Error('MySQL 配置缺失，请先在配置中心设置数据库信息。');
   }
+  
+  console.log(`[MySQL] 正在尝试连接至: ${config.host}:${config.port || '3306'} (库名: ${config.database})`);
+  
   return await mysql.createConnection({
     host: config.host,
     port: parseInt(config.port || '3306'),
     user: config.user,
     password: config.password,
     database: config.database,
-    connectTimeout: 5000, // 5秒连接超时，适合内网环境
+    connectTimeout: 10000, // 增加到10秒超时，适应公网跨地域连接
   });
 }
 
@@ -46,9 +49,11 @@ export async function testMysqlConnection(config: any) {
   try {
     connection = await getConnection(config);
     await connection.ping();
+    console.log('[MySQL] 连通性测试成功');
     return { success: true, message: 'MySQL 数据库连接成功' };
   } catch (err: any) {
-    return { success: false, message: `连接失败: ${err.message}。提示：如果您在云端 IDE 预览，请确保数据库外网可达，或部署到本地内网后再测试。` };
+    console.error(`[MySQL] 连通性测试失败: ${err.message}`);
+    return { success: false, message: `连接失败: ${err.message}。请检查防火墙设置、公网 IP 白名单或数据库权限。` };
   } finally {
     if (connection) await connection.end();
   }
@@ -116,8 +121,8 @@ export async function fetchHomeStats(config: any) {
       })),
       recentTasks: (recentTasks as any[]).map(t => serializeRow(t))
     };
-  } catch (err) {
-    console.error('MySQL 首页统计同步失败:', err);
+  } catch (err: any) {
+    console.error('[MySQL] 首页统计同步失败:', err.message);
     throw err;
   } finally {
     if (connection) await connection.end();
@@ -128,7 +133,10 @@ export async function fetchHomeStats(config: any) {
  * 异常记录同步
  */
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
-  if (!config || !config.host) return;
+  if (!config || !config.host) {
+    console.warn('[MySQL] 跳过同步：配置信息不完整');
+    return;
+  }
   let connection;
   try {
     connection = await getConnection(config);
@@ -157,11 +165,13 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
       const sql = `INSERT INTO SP_YCJG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
+      console.log(`[MySQL] 异常记录同步成功: ${record.id}`);
     } else {
       await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [record.id]);
+      console.log(`[MySQL] 异常记录删除成功: ${record.id}`);
     }
   } catch (err: any) {
-    console.error('MySQL 异常记录同步失败:', err.message);
+    console.error(`[MySQL] 异常记录同步失败 [${operation}]:`, err.message);
     throw err;
   } finally {
     if (connection) await connection.end();
@@ -194,11 +204,13 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
       const sql = `INSERT INTO SP_PERSON (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
+      console.log(`[MySQL] 患者档案同步成功: ${data.archiveNo}`);
     } else {
       await connection.execute('DELETE FROM SP_PERSON WHERE archiveNo = ?', [patient.id || patient.archiveNo]);
+      console.log(`[MySQL] 患者档案删除成功: ${patient.id || patient.archiveNo}`);
     }
   } catch (err: any) {
-    console.error('MySQL 患者档案同步失败:', err.message);
+    console.error(`[MySQL] 患者档案同步失败 [${operation}]:`, err.message);
     throw err;
   } finally {
     if (connection) await connection.end();
@@ -230,11 +242,13 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
       const sql = `INSERT INTO SP_SF (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
+      console.log(`[MySQL] 随访记录同步成功: ${record.id}`);
     } else {
       await connection.execute('DELETE FROM SP_SF WHERE id = ?', [record.id]);
+      console.log(`[MySQL] 随访记录删除成功: ${record.id}`);
     }
   } catch (err: any) {
-    console.error('MySQL 随访记录同步失败:', err.message);
+    console.error(`[MySQL] 随访记录同步失败 [${operation}]:`, err.message);
     throw err;
   } finally {
     if (connection) await connection.end();
@@ -263,11 +277,13 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
       const sql = `INSERT INTO SP_STAFF (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
+      console.log(`[MySQL] 工作人员同步成功: ${staff.jobId}`);
     } else {
       await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
+      console.log(`[MySQL] 工作人员删除成功: ${staff.jobId}`);
     }
   } catch (err: any) {
-    console.error('MySQL 工作人员同步失败:', err.message);
+    console.error(`[MySQL] 工作人员同步失败 [${operation}]:`, err.message);
     throw err;
   } finally {
     if (connection) await connection.end();
@@ -295,8 +311,9 @@ export async function syncConfigToMysql(config: any, systemConfig: any) {
     const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
     const sql = `INSERT INTO SP_CONFIG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
     await connection.execute(sql, values);
+    console.log('[MySQL] 全局配置同步成功');
   } catch (err: any) {
-    console.error('MySQL 全局配置同步失败:', err.message);
+    console.error('[MySQL] 全局配置同步失败:', err.message);
     throw err;
   } finally {
     if (connection) await connection.end();
@@ -326,7 +343,7 @@ export async function fetchDataForStats(config: any) {
     const [rows] = await connection.execute(sql);
     return (rows as any[]).map(row => serializeRow(row));
   } catch (err: any) {
-    console.error('MySQL 报表同步失败:', err.message);
+    console.error('[MySQL] 报表数据抓取失败:', err.message);
     throw err;
   } finally {
     if (connection) await connection.end();
