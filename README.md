@@ -9,7 +9,7 @@
 - **操作系统**: Windows 7 SP1 或更高版本。
 - **关键补丁**: 必须安装 **KB2999226** 补丁（通用 C 运行库），否则 Node.js 无法运行。
 - **Node.js**: 推荐安装离线版 `v18.18.0`（支持 Win7 的最后一个稳定大版本）。
-- **环境变量**: 启动脚本会自动处理 `NODE_SKIP_PLATFORM_CHECK=1`。
+- **环境变量**: 启动脚本 `start-app.bat` 会自动处理 `NODE_SKIP_PLATFORM_CHECK=1`。
 
 ### Ubuntu 24.04 终端 (新式服务器)
 - **操作系统**: Ubuntu 24.04 LTS。
@@ -24,8 +24,6 @@
 ### 第一步：在中转机（有网环境）准备
 1. 进入项目源码目录，执行 `npm install` 下载所有依赖。
 2. 执行 `npm run build` 生成 `.next` 生产环境编译文件夹。
-3. **打包 EXE (可选)**: 使用 `nativefier` 针对 `http://127.0.0.1:9002` 进行封装。
-   - 命令示例: `npx nativefier --name "医疗异常管理" "http://127.0.0.1:9002"`
 
 ### 第二步：离线迁移（无网环境）
 1. 将包含 `node_modules`、`.next`、`package.json`、`public`、`start-app.bat` 及 `start-app.sh` 的整个文件夹拷贝到 U盘。
@@ -45,10 +43,6 @@
 2. 按下键盘 `Win + R` 键，输入 `shell:startup` 并回车。
 3. 将刚才创建的**快捷方式**粘贴进打开的“启动”文件夹。
 4. **效果**：开机进入桌面后，系统自动弹出命令行窗口并启动后台服务，不会干扰医生操作。
-
-### Ubuntu 24.04 设置 (Systemd)
-1. 创建服务文件：`sudo nano /etc/systemd/system/healthapp.service`
-2. 配置 `ExecStart` 指向您的项目目录并运行 `./start-app.sh`。
 
 ---
 
@@ -128,7 +122,33 @@ CREATE TABLE IF NOT EXISTS SP_CONFIG (
 
 ---
 
-## 5. 逻辑安全性
+## 5. 数据库配置修改指南
+
+系统默认提供了 MySQL 的预设连接信息。如果您需要修改默认值，可以通过以下两种方式：
+
+### 方式 A：通过 UI 修改（推荐）
+1. 在登录页面，点击底部的 **“配置内网 MySQL 数据库”** 齿轮图标。
+2. 输入您的数据库 IP、端口、账号和密码。
+3. 点击 **“测试连通性”** 确认无误后，点击 **“应用并同步”**。配置将持久化到系统后台。
+
+### 方式 B：手动修改源码（开发环境/强制重置）
+如果您需要更改代码中的硬编码默认值，请修改以下文件：
+
+1. **登录页默认配置**:
+   - 文件路径: `src/app/login/page.tsx`
+   - 搜索代码段: `const [mysqlConfig, setMysqlConfig] = React.useState({ ... });`
+   - 在此修改 `host`, `port`, `user`, `password` 等默认值。
+
+2. **管理后台默认配置**:
+   - 文件路径: `src/app/settings/page.tsx`
+   - 搜索代码段: `const [formData, setFormData] = React.useState({ ... });`
+   - 修改其中以 `mysql` 开头的字段（如 `mysqlHost`, `mysqlPort`）。
+
+**注意**: 系统启动后会优先尝试从数据库拉取最新的配置。如果在 UI 上点击了“保存/应用”，则代码里的默认值将不再生效。
+
+---
+
+## 6. 逻辑安全性
 - **自动注销**: 采用会话级持久化。关闭命令行窗口或重启电脑后，登录状态立即销毁，保障临床数据安全。
 - **零后台残留**: 关闭运行窗口后，所有后台服务进程将彻底释放。
 - **多终端同步**: 100% 实时请求中心 MySQL，多终端访问时数据绝对同步。
