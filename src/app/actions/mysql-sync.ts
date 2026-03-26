@@ -20,11 +20,11 @@ async function getConnection(config: any) {
     user: config.user,
     password: config.password,
     database: config.database,
-    connectTimeout: 10000, // 增加到 10 秒
+    connectTimeout: 15000, // 增加到 15 秒，适应公网链路
   });
 }
 
-// 序列化 MySQL 返回的行数据
+// 序列化 MySQL 返回的行数据，解决 BigInt 和 Date 的 JSON 传输问题
 function serializeRow(row: any) {
   const serialized = { ...row };
   for (const key in serialized) {
@@ -45,6 +45,9 @@ export async function fetchSystemConfig(dbConfig: any) {
     connection = await getConnection(dbConfig);
     const [rows]: any = await connection.execute('SELECT * FROM SP_CONFIG WHERE configKey = "default"');
     return rows[0] ? serializeRow(rows[0]) : null;
+  } catch (e) {
+    console.error("[MySQL] fetchSystemConfig 失败:", e);
+    return null;
   } finally {
     if (connection) await connection.end();
   }
@@ -128,6 +131,9 @@ export async function fetchHomeStats(config: any) {
       })),
       recentTasks: (recentTasks as any[]).map(t => serializeRow(t))
     };
+  } catch (e) {
+    console.error("[MySQL] fetchHomeStats 失败:", e);
+    return null;
   } finally {
     if (connection) await connection.end();
   }
@@ -166,6 +172,9 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
     } else {
       await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [record.id]);
     }
+  } catch (e: any) {
+    console.error("[MySQL] syncAnomalyToMysql 失败:", e);
+    throw e;
   } finally {
     if (connection) await connection.end();
   }
@@ -195,6 +204,9 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
     } else {
       await connection.execute('DELETE FROM SP_PERSON WHERE archiveNo = ?', [patient.id || patient.archiveNo]);
     }
+  } catch (e: any) {
+    console.error("[MySQL] syncPatientToMysql 失败:", e);
+    throw e;
   } finally {
     if (connection) await connection.end();
   }
@@ -220,6 +232,9 @@ export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE
     } else {
       await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
     }
+  } catch (e: any) {
+    console.error("[MySQL] syncStaffToMysql 失败:", e);
+    throw e;
   } finally {
     if (connection) await connection.end();
   }
@@ -241,12 +256,13 @@ export async function syncConfigToMysql(config: any, sysConfig: any) {
     const updates = Object.keys(data).map(key => `${key} = VALUES(${key})`).join(', ');
     const sql = `INSERT INTO SP_CONFIG (${Object.keys(data).join(', ')}) VALUES (${Object.keys(data).map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${updates}`;
     await connection.execute(sql, Object.values(data));
+  } catch (e: any) {
+    console.error("[MySQL] syncConfigToMysql 失败:", e);
   } finally {
     if (connection) await connection.end();
   }
 }
 
-// 其他数据拉取函数保持一致...
 export async function fetchPatients(config: any) {
   if (!config || !config.host) return [];
   let connection;
@@ -254,6 +270,9 @@ export async function fetchPatients(config: any) {
     connection = await getConnection(config);
     const [rows] = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo DESC');
     return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.archiveNo }));
+  } catch (e) {
+    console.error("[MySQL] fetchPatients 失败:", e);
+    return [];
   } finally {
     if (connection) await connection.end();
   }
@@ -266,6 +285,9 @@ export async function fetchStaffMembers(config: any) {
     connection = await getConnection(config);
     const [rows] = await connection.execute('SELECT * FROM SP_STAFF ORDER BY jobId ASC');
     return (rows as any[]).map(r => ({ ...serializeRow(r), id: r.jobId }));
+  } catch (e) {
+    console.error("[MySQL] fetchStaffMembers 失败:", e);
+    return [];
   } finally {
     if (connection) await connection.end();
   }
@@ -288,6 +310,9 @@ export async function fetchAllRecords(config: any) {
     `;
     const [rows] = await connection.execute(sql);
     return (rows as any[]).map(r => serializeRow(r));
+  } catch (e) {
+    console.error("[MySQL] fetchAllRecords 失败:", e);
+    return [];
   } finally {
     if (connection) await connection.end();
   }
@@ -312,6 +337,9 @@ export async function fetchDataForStats(config: any) {
     `;
     const [rows] = await connection.execute(sql);
     return (rows as any[]).map(row => serializeRow(row));
+  } catch (e) {
+    console.error("[MySQL] fetchDataForStats 失败:", e);
+    return [];
   } finally {
     if (connection) await connection.end();
   }
@@ -337,6 +365,9 @@ export async function fetchFollowUpTasks(config: any) {
       records: (records as any[]).map(r => serializeRow(r)),
       followups: (followups as any[]).map(f => serializeRow(f))
     };
+  } catch (e) {
+    console.error("[MySQL] fetchFollowUpTasks 失败:", e);
+    return { records: [], followups: [] };
   } finally {
     if (connection) await connection.end();
   }
@@ -365,6 +396,9 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
     } else {
       await connection.execute('DELETE FROM SP_SF WHERE id = ?', [record.id]);
     }
+  } catch (e: any) {
+    console.error("[MySQL] syncFollowUpToMysql 失败:", e);
+    throw e;
   } finally {
     if (connection) await connection.end();
   }

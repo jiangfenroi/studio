@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { fetchHomeStats } from "@/app/actions/mysql-sync"
 
-// 默认内网数据库配置
+// 默认内网数据库配置 (对齐 8.137.162.142)
 const DEFAULT_MYSQL = {
   host: '8.137.162.142',
   port: '3306',
@@ -35,7 +35,7 @@ export default function Home() {
   const loadData = React.useCallback(async () => {
     setIsLoading(true)
     try {
-      // 优先从 session 读取，否则使用默认
+      // 优先从 sessionStorage 读取本地配置，解决 Firestore 无法同步配置的问题
       const stored = typeof window !== 'undefined' ? sessionStorage.getItem('mysql_config') : null;
       const config = stored ? JSON.parse(stored) : DEFAULT_MYSQL;
       

@@ -20,7 +20,8 @@ const SYSTEM_AUTH_CODE = "HEALTH-INSIGHT-2025";
 
 /**
  * 登录与注册页面
- * 针对医疗内网优化：移除 Firestore 写入，配置仅存于本地及 MySQL 数据库。
+ * 针对医疗内网优化：彻底移除 Firestore 交互。
+ * 默认数据库 IP 已更新为: 8.137.162.142
  */
 export default function LoginPage() {
   const auth = useAuth();
@@ -36,12 +37,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isTestingConnection, setIsTestingConnection] = React.useState(false);
   
-  // 默认数据库配置 (对应用户提供的信息)
+  // 默认数据库配置
   const [mysqlConfig, setMysqlConfig] = React.useState({
     host: '8.137.162.142',
     port: '3306',
     user: 'root',
-    password: '', // 提示：请根据实际情况在界面输入
+    password: '', 
     database: 'meditrack_db'
   });
 
@@ -64,7 +65,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "登录失败",
-        description: "请检查工号或密码是否正确。如为首次使用，请先注册。",
+        description: "请检查工号或密码。如未注册，请先切换至注册选项卡。",
       });
     } finally {
       setIsLoading(false);
@@ -88,37 +89,45 @@ export default function LoginPage() {
     const internalEmail = `${jobId}@meditrack.local`;
     
     try {
-      // 1. 先验证 MySQL 连接，防止注册成功但数据同步失败
+      // 1. 验证 MySQL 连接
       const testResult = await testMysqlConnection(mysqlConfig);
       if (!testResult.success) {
-        throw new Error(`MySQL 同步失败，请先检查数据库连接配置。${testResult.message}`);
+        throw new Error(`MySQL 无法连接，请先配置数据库。${testResult.message}`);
       }
 
-      // 2. 创建 Firebase 账户 (仅作为令牌验证)
-      await createUserWithEmailAndPassword(auth, internalEmail, password);
-      
-      const isAdmin = jobId === '1058';
       const staffData = {
         jobId,
         name: name,
-        role: isAdmin ? '管理员' : '医生',
+        role: jobId === '1058' ? '管理员' : '医生',
         email: internalEmail,
         status: '在职'
       };
+
+      try {
+        // 2. 尝试创建 Firebase 令牌
+        await createUserWithEmailAndPassword(auth, internalEmail, password);
+      } catch (authError: any) {
+        // 如果邮箱已被占用，说明 Auth 已存在，我们仅尝试同步 MySQL 记录
+        if (authError.code === 'auth/email-already-in-use') {
+          console.warn("[Auth] 账号已在 Auth 系统中存在，尝试同步 MySQL 记录...");
+        } else {
+          throw authError;
+        }
+      }
       
-      // 3. 直接同步到 MySQL
+      // 3. 同步至 MySQL (使用 ON DUPLICATE KEY UPDATE 确保不冲突)
       await syncStaffToMysql(mysqlConfig, staffData, 'SAVE');
 
       toast({
-        title: "账户已创建",
-        description: `工号 ${jobId} 已同步至 MySQL 中心数据库。`,
+        title: "资料同步完成",
+        description: `工号 ${jobId} 已完成 MySQL 中心库注册。如提示账号已存在，请直接登录。`,
       });
       setActiveTab('login');
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "操作失败",
-        description: error.message || "注册过程中发生错误，请检查网络或工号是否重复。",
+        title: "注册同步失败",
+        description: error.message || "同步过程中发生错误，请检查网络。",
       });
     } finally {
       setIsLoading(false);
@@ -142,18 +151,17 @@ export default function LoginPage() {
   const handleSaveConfig = async () => {
     setIsLoading(true);
     try {
-      // 验证连接
       const result = await testMysqlConnection(mysqlConfig);
       if (!result.success) {
         throw new Error(result.message);
       }
       
-      // 将配置临时保存在 SessionStorage，确保页面刷新后不丢失
+      // 仅暂存在本地会话，不再尝试写入 Firestore
       sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
       
       toast({
-        title: "配置已应用",
-        description: "系统将使用指定的 MySQL 数据库进行业务交互。",
+        title: "本地配置已应用",
+        description: "系统将使用指定的 MySQL 环境进行业务交互。",
       });
     } catch (error: any) {
       toast({
@@ -206,7 +214,7 @@ export default function LoginPage() {
               <form onSubmit={handleJobIdSignUp} className="space-y-4">
                 <div className="space-y-2">
                   <Label>真实姓名</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="例如：宫医生" />
+                  <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="例如：姜医生" />
                 </div>
                 <div className="space-y-2">
                   <Label>工号</Label>
@@ -241,7 +249,7 @@ export default function LoginPage() {
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary transition-colors">
-                <Settings className="mr-2 size-4" />配置中心 MySQL 数据库
+                <Settings className="mr-2 size-4" />配置内网 MySQL 数据库
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
