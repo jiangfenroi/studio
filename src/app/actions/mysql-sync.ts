@@ -3,7 +3,7 @@
 
 /**
  * @fileOverview MySQL 数据同步与实时计算引擎 (高性能版)
- * 增加连通性测试及异常处理机制，确保内网环境稳定性。
+ * 增加连通性测试及异常处理机制，并确保所有返回数据均为可序列化的纯 JSON 对象。
  */
 
 import mysql from 'mysql2/promise';
@@ -15,8 +15,23 @@ async function getConnection(config: any) {
     user: config.user,
     password: config.password,
     database: config.database,
-    connectTimeout: 5000, // 5秒连接超时
+    connectTimeout: 5000,
   });
+}
+
+/**
+ * 辅助函数：将数据库返回的行数据转换为纯 JSON
+ */
+function serializeRow(row: any) {
+  const serialized = { ...row };
+  for (const key in serialized) {
+    if (serialized[key] instanceof Date) {
+      serialized[key] = serialized[key].toISOString().split('T')[0];
+    } else if (typeof serialized[key] === 'bigint') {
+      serialized[key] = Number(serialized[key]);
+    }
+  }
+  return serialized;
 }
 
 /**
@@ -30,7 +45,6 @@ export async function testMysqlConnection(config: any) {
     await connection.ping();
     return { success: true, message: 'MySQL 数据库连接成功' };
   } catch (err: any) {
-    console.error('MySQL 连通性测试失败:', err);
     return { success: false, message: `连接失败: ${err.message}` };
   } finally {
     if (connection) await connection.end();
@@ -83,33 +97,37 @@ export async function fetchHomeStats(config: any) {
       `)
     ]);
 
-    const totalCount = Number(totalAnomalies[0].count) || 0;
-    const notifiedCount = Number(notifiedAnomalies[0].count) || 0;
+    const totalCount = Number(totalAnomalies?.[0]?.count) || 0;
+    const notifiedCount = Number(notifiedAnomalies?.[0]?.count) || 0;
     const completionRate = totalCount > 0 ? Math.round((notifiedCount / totalCount) * 100) : 0;
 
     return {
-      totalPatients: Number(patientRows[0].count),
-      todayNew: Number(todayRows[0].count),
-      pendingTasks: Number(pendingRows[0].count),
+      totalPatients: Number(patientRows?.[0]?.count) || 0,
+      todayNew: Number(todayRows?.[0]?.count) || 0,
+      pendingTasks: Number(pendingRows?.[0]?.count) || 0,
       completionRate,
       trend: (trendRows as any[]).map((r: any) => ({
         month: Number(r.month),
-        total: Number(r.total),
-        notified: Number(r.notified)
+        total: Number(r.total) || 0,
+        notified: Number(r.notified) || 0
       })),
       categories: (catRows as any[]).map((r: any) => ({
         category: r.category,
-        count: Number(r.count)
+        count: Number(r.count) || 0
       })),
-      recentTasks: (recentTasks as any[]).map(t => ({
-        ...t,
-        isNotified: Number(t.isNotified),
-        isClosed: Number(t.isClosed)
-      }))
+      recentTasks: (recentTasks as any[]).map(t => serializeRow(t))
     };
   } catch (err) {
     console.error('MySQL 首页统计同步失败:', err);
-    return null;
+    return {
+      totalPatients: 0,
+      todayNew: 0,
+      pendingTasks: 0,
+      completionRate: 0,
+      trend: [],
+      categories: [],
+      recentTasks: []
+    };
   } finally {
     if (connection) await connection.end();
   }
@@ -136,13 +154,7 @@ export async function fetchDataForStats(config: any) {
       ORDER BY y.checkupDate DESC
     `;
     const [rows] = await connection.execute(sql);
-    return (rows as any[]).map(row => ({
-      ...row,
-      age: Number(row.age),
-      isNotified: Number(row.isNotified),
-      isHealthEducationProvided: Number(row.isHealthEducationProvided),
-      isReExamined: Number(row.isReExamined)
-    }));
+    return (rows as any[]).map(row => serializeRow(row));
   } catch (err) {
     console.error('MySQL 报表同步失败:', err);
     return [];
@@ -173,7 +185,7 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
         isHealthEducationProvided: record.isHealthEducationProvided ? 1 : 0,
         notifiedPersonFeedback: record.notifiedPersonFeedback || '',
         isClosed: record.isClosed ? 1 : 0,
-        createdAt: record.createdAt || new Date().toISOString().replace('T', ' ').substring(0, 19)
+        createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('T', ' ').substring(0, 19) : new Date().toISOString().replace('T', ' ').substring(0, 19)
       };
       const keys = Object.keys(data);
       const values = Object.values(data);
@@ -198,15 +210,15 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
     connection = await getConnection(config);
     if (operation === 'SAVE') {
       const data = {
-        archiveNo: patient.id,
+        archiveNo: patient.id || patient.archiveNo,
         name: patient.name,
         gender: patient.gender,
-        age: Number(patient.age),
+        age: Number(patient.age) || 0,
         idNumber: patient.idNumber,
         organization: patient.organization || '',
         address: patient.address || '',
-        phoneNumber: patient.phoneNumber,
-        status: patient.status
+        phoneNumber: patient.phoneNumber || patient.phone || '',
+        status: patient.status || '正常'
       };
       const keys = Object.keys(data);
       const values = Object.values(data);
@@ -215,7 +227,7 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
       const sql = `INSERT INTO SP_PERSON (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
     } else {
-      await connection.execute('DELETE FROM SP_PERSON WHERE archiveNo = ?', [patient.id]);
+      await connection.execute('DELETE FROM SP_PERSON WHERE archiveNo = ?', [patient.id || patient.archiveNo]);
     }
   } catch (err) {
     console.error('MySQL 患者档案同步失败:', err);
