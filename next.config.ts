@@ -23,8 +23,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // 针对医疗内网优化：移除所有实验性/不稳定的开发配置
-  // 确保在 Windows 7 环境下启动性能最优化
+  // 针对医疗内网极速启动优化
   devIndicators: {
     appIsrStatus: false,
   },
