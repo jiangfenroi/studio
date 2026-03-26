@@ -133,7 +133,7 @@ export async function fetchHomeStats(config: any) {
   }
 }
 
-// 同步员工数据并清空
+// 清空员工数据
 export async function clearAllStaffData(config: any) {
   if (!config || !config.host) throw new Error("数据库配置缺失");
   let connection;
@@ -145,6 +145,26 @@ export async function clearAllStaffData(config: any) {
     return { success: true };
   } catch (e: any) {
     console.error("[MySQL] clearAllStaffData 失败:", e);
+    throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+// 清空临床业务数据（患者、异常结果、随访记录）
+export async function clearAllClinicalData(config: any) {
+  if (!config || !config.host) throw new Error("数据库配置缺失");
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.execute('SET FOREIGN_KEY_CHECKS = 0');
+    await connection.execute('TRUNCATE TABLE SP_SF');
+    await connection.execute('TRUNCATE TABLE SP_YCJG');
+    await connection.execute('TRUNCATE TABLE SP_PERSON');
+    await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
+    return { success: true };
+  } catch (e: any) {
+    console.error("[MySQL] clearAllClinicalData 失败:", e);
     throw e;
   } finally {
     if (connection) await connection.end();

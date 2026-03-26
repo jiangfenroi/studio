@@ -15,7 +15,8 @@ import {
   Wrench,
   RotateCcw,
   Eraser,
-  AlertTriangle
+  AlertTriangle,
+  History
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -62,7 +63,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { syncStaffToMysql, syncConfigToMysql, clearAllStaffData } from "@/app/actions/mysql-sync"
+import { syncStaffToMysql, syncConfigToMysql, clearAllStaffData, clearAllClinicalData } from "@/app/actions/mysql-sync"
 
 // 默认内网数据库配置
 const DEFAULT_MYSQL = {
@@ -91,9 +92,6 @@ export default function SettingsPage() {
   
   const [activeTab, setActiveTab] = React.useState("general")
   const [isSyncing, setIsSyncing] = React.useState(false)
-  const [testing, setTesting] = React.useState(false)
-  const [editingUser, setEditingUser] = React.useState<any | null>(null)
-  const [userToDelete, setUserToDelete] = React.useState<any | null>(null)
   
   const [formData, setFormData] = React.useState({
     appName: "HealthInsight Registry",
@@ -147,7 +145,7 @@ export default function SettingsPage() {
   const handleClearAppCache = () => {
     sessionStorage.clear();
     localStorage.clear();
-    toast({ title: "本地缓存已清除", description: "系统配置已重置为代码默认值。" });
+    toast({ title: "本地缓存已清除", description: "浏览器缓存的数据库连接配置及页面状态已重置。" });
     window.location.reload();
   }
 
@@ -158,11 +156,27 @@ export default function SettingsPage() {
     setIsSyncing(true)
     try {
       await clearAllStaffData(mysqlConfig);
-      toast({ title: "员工库已清空", description: "所有注册信息已从 MySQL 中移除。" });
+      toast({ title: "员工库已初始化", description: "所有注册信息已清空。" });
       if (auth) {
         initiateSignOut(auth);
         router.push("/login");
       }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "操作失败", description: err.message });
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleResetClinicalDB = async () => {
+    const stored = typeof window !== 'undefined' ? sessionStorage.getItem('mysql_config') : null;
+    const mysqlConfig = stored ? JSON.parse(stored) : DEFAULT_MYSQL;
+    
+    setIsSyncing(true)
+    try {
+      await clearAllClinicalData(mysqlConfig);
+      toast({ title: "临床业务库已清空", description: "患者档案、异常记录及随访历史已全部删除。" });
+      loadDataStats(); // 如果有需要刷新全局状态
     } catch (err: any) {
       toast({ variant: "destructive", title: "操作失败", description: err.message });
     } finally {
@@ -260,12 +274,12 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="maintenance" className="space-y-6">
+        <TabsContent value="maintenance" className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <Card className="border-amber-200 bg-amber-50/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><RotateCcw className="size-5 text-amber-600" /> 重置本地缓存</CardTitle>
-                <CardDescription>清除浏览器暂存的数据库连接信息，将所有配置恢复至代码预设值。</CardDescription>
+                <CardDescription>清除浏览器暂存的数据库连接信息，解决配置不同步问题。</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-100" onClick={handleClearAppCache}>
@@ -276,19 +290,45 @@ export default function SettingsPage() {
 
             <Card className="border-red-200 bg-red-50/30">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600"><AlertTriangle className="size-5" /> 初始化员工库</CardTitle>
-                <CardDescription>危险操作！将物理清空 MySQL 中的 SP_STAFF 表。清空后所有工号需重新注册。</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-red-600"><AlertTriangle className="size-5" /> 初始化临床业务库</CardTitle>
+                <CardDescription>危险！物理清空【患者档案、异常记录、随访历史】。此操作不可撤销。</CardDescription>
               </CardHeader>
               <CardContent>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" className="w-full shadow-lg">清空所有员工记录</Button>
+                    <Button variant="destructive" className="w-full shadow-lg">清空全量业务数据</Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>确定要执行初始化吗？</AlertDialogTitle>
+                      <AlertDialogTitle>确认清空临床数据吗？</AlertDialogTitle>
                       <AlertDialogDescription>
-                        此操作将清空您的 MySQL 员工档案表。系统将自动退出，您需要重新注册管理员账号。临床异常数据（SP_YCJG）将保留，不受影响。
+                        此操作将清空 MySQL 中的 SP_PERSON、SP_YCJG 和 SP_SF 三张表。所有已录入的异常结果和随访记录将永久消失。员工账号将保留。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleResetClinicalDB} className="bg-destructive">确认清空</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+
+            <Card className="border-red-200 bg-red-50/30 col-span-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-600"><Users className="size-5" /> 初始化账户库</CardTitle>
+                <CardDescription>物理清空 MySQL 员工表。清空后系统将自动注销并要求重新注册管理员。</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="w-full border-red-300 text-red-600 hover:bg-red-100">重置所有员工账户</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确定要清空账户吗？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        此操作仅清空员工档案。业务数据（异常记录等）会保留，但您必须重新注册才能访问系统。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
