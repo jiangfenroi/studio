@@ -1,3 +1,4 @@
+
 # HealthInsight Registry - 重要异常结果管理系统
 
 本系统是专为医疗内网（通常为无外网、高安全要求环境）设计的体检重要异常结果登记与随访管理系统。
@@ -6,8 +7,8 @@
 临床工作站常使用 Windows 7 系统，部署前请确保满足以下条件：
 - **操作系统**: Windows 7 SP1 或更高版本。
 - **关键补丁**: 必须安装 **KB2999226** 补丁（通用 C 运行库），否则 Node.js 18+ 无法运行。
-- **Node.js**: 推荐版本 `v18.18.0`。在 Win7 上运行需设置环境变量 `NODE_SKIP_PLATFORM_CHECK=1`。
-- **内网权限**: 确保终端能通过 10699 端口访问中心 MySQL 服务器。
+- **Node.js**: 推荐版本 `v18.18.0`。
+- **环境变量**: 必须设置 `NODE_SKIP_PLATFORM_CHECK=1`。
 
 ## 2. MySQL 服务器部署 (中心业务库)
 请在内网中心服务器上创建 `meditrack_db` 数据库，并执行以下 SQL 初始化：
@@ -83,30 +84,34 @@ CREATE TABLE SP_CONFIG (
 由于生产环境无法连接互联网，请使用 **“中转机”** 方案：
 
 ### 第一步：在中转机（有网）上打包
-1. 下载源码并进入目录：`npm install`
-2. 执行生产环境编译：`npm run build`
-3. 安装打包工具：`npm install -g nativefier`
-4. 将本地服务封装为 EXE：
+1. 下载源码：`git clone` 或 拷贝源码。
+2. 安装依赖：`npm install`。
+3. 执行生产编译：`npm run build`。
+4. 打包为 EXE 壳（可选）：
    ```bash
-   nativefier "http://localhost:9002" --name "HealthInsight" --platform "windows" --arch "x64" --single-instance --internal-urls ".*"
+   npm install -g nativefier
+   nativefier "http://localhost:9002" --name "HealthInsight" --platform "windows" --arch "x64" --single-instance
    ```
-5. 完成后，你会得到一个名为 `HealthInsight-win32-x64` 的文件夹。
 
 ### 第二步：离线迁移与安装
-1. 将 `HealthInsight-win32-x64` 文件夹及编译后的整个项目源码文件夹拷贝到 U盘。
-2. 在无网的临床 Win7 终端：
-   - 安装离线版 Node.js v18.18.0。
-   - 安装 `KB2999226` 补丁。
-   - 将项目文件夹拷贝到硬盘（如 `D:\HealthApp`）。
-3. 启动后台服务：在该目录下运行 `node_modules/.bin/next start -p 9002`。
-4. 运行 `HealthInsight.exe` 即可进入系统。
+1. 将源码文件夹（包含 `node_modules` 和 `.next`）整体拷贝到 U盘。
+2. 在无网的 Windows 7 终端：
+   - 安装离线版 **Node.js v18.18.0**。
+   - 安装 **KB2999226** 补丁。
+   - 将文件夹拷贝到 `D:\HealthApp`。
+
+### 第三步：更方便的启动方式 (推荐)
+我们在根目录提供了 `start-app.bat` 脚本，双击即可一键启动：
+- 自动跳过平台检查。
+- 自动在 9002 端口开启后台服务。
+- 启动后，直接在浏览器访问 `http://localhost:9002` 即可。
 
 ## 4. 逻辑设计原则
 - **自动注销**: 采用会话级持久化。关闭程序窗口后，登录状态立即销毁。再次启动必进登录页，保障账户安全。
-- **无后台残留**: 程序窗口关闭后，相关 Node 进程将彻底释放内存，绝不驻留后台，保障老旧电脑流畅。
+- **无后台残留**: 程序窗口关闭后，手动关闭命令行窗口（或退出 EXE），相关 Node 进程将彻底释放内存，绝不驻留后台。
 - **零本地缓存**: 临床数据完全实时请求中心 MySQL，确保多终端数据绝对唯一。
 - **启动优化**: 已清理所有冗余配置，解决启动时“验证权限”缓慢的问题。
 
 ## 5. 常见问题
-- **报错 "FirebaseError"**: 请检查登录页底部的“配置中心”，确保内网 MySQL IP 和端口配置正确。
-- **显示异常图表失败**: 确保中心数据库已根据上方 SQL 完成初始化，且 `TINYINT` 字段正确映射。
+- **运行报错 "Unsupported platform"**: 请确保是通过 `start-app.bat` 启动，或手动设置了 `NODE_SKIP_PLATFORM_CHECK=1`。
+- **图表加载失败**: 确保 MySQL 已根据上方 SQL 初始化，且终端能访问服务器的 10699 端口。
