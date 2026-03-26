@@ -57,7 +57,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/badge"
+import { Badge } from "@/components/ui/badge"
 import { syncStaffToMysql, syncConfigToMysql } from "@/app/actions/mysql-sync"
 
 export default function SettingsPage() {
