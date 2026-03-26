@@ -1,22 +1,40 @@
+
 'use server';
 
 /**
  * @fileOverview MySQL 数据同步与实时计算引擎 (高性能版)
- * 采用并发查询机制，确保临床数据在中心业务库的唯一性与准确性。
- * 针对无网络环境优化，确保所有聚合计算在服务端完成序列化。
+ * 增加连通性测试及异常处理机制，确保内网环境稳定性。
  */
 
 import mysql from 'mysql2/promise';
 
 async function getConnection(config: any) {
   return await mysql.createConnection({
-    host: config.host || '172.17.168.18',
-    port: parseInt(config.port || '10699'),
-    user: config.user || 'medi_admin',
-    password: config.password || 'AdminPassword123',
-    database: config.database || 'meditrack_db',
-    connectTimeout: 5000, 
+    host: config.host,
+    port: parseInt(config.port || '3306'),
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    connectTimeout: 5000, // 5秒连接超时
   });
+}
+
+/**
+ * 测试数据库连通性
+ */
+export async function testMysqlConnection(config: any) {
+  if (!config || !config.host) return { success: false, message: '无效的配置信息' };
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.ping();
+    return { success: true, message: 'MySQL 数据库连接成功' };
+  } catch (err: any) {
+    console.error('MySQL 连通性测试失败:', err);
+    return { success: false, message: `连接失败: ${err.message}` };
+  } finally {
+    if (connection) await connection.end();
+  }
 }
 
 /**

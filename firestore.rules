@@ -16,8 +16,8 @@ service cloud.firestore {
     }
 
     match /systemConfig/{configId} {
-      allow read: if true;
-      allow write: if isMedicalStaff();
+      // 允许所有内网终端读取和初始化配置，确保部署初期能顺利设置 MySQL 地址
+      allow read, write: if true;
     }
 
     match /staffProfiles/{staffId} {

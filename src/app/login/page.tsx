@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -6,14 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert, LogIn, Settings, UserPlus, Loader2, KeyRound, Database, Server, Globe, Lock, User as UserIcon } from 'lucide-react';
+import { ShieldAlert, LogIn, Settings, UserPlus, Loader2, KeyRound, Database, Server, Globe, Lock, User as UserIcon, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { doc, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { syncStaffToMysql, syncConfigToMysql } from '@/app/actions/mysql-sync';
+import { syncStaffToMysql, syncConfigToMysql, testMysqlConnection } from '@/app/actions/mysql-sync';
 
 // 系统预设注册授权码
 const SYSTEM_AUTH_CODE = "HEALTH-INSIGHT-2025";
@@ -31,6 +32,7 @@ export default function LoginPage() {
   const [authCode, setAuthCode] = React.useState('');
   const [activeTab, setActiveTab] = React.useState('login');
   const [isLoading, setIsLoading] = React.useState(false);
+  const [isTestingConnection, setIsTestingConnection] = React.useState(false);
   
   const [mysqlConfig, setMysqlConfig] = React.useState({
     host: '172.17.168.18',
@@ -59,7 +61,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "登录失败",
-        description: "请检查工号或密码是否正确。",
+        description: "请检查工号或密码是否正确。如为首次使用，请先注册。",
       });
     } finally {
       setIsLoading(false);
@@ -70,12 +72,11 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !jobId || !password || !name) return;
     
-    // 校验特定授权编码
     if (authCode !== SYSTEM_AUTH_CODE) {
       toast({
         variant: "destructive",
         title: "授权码错误",
-        description: "请输入有效的系统验证编码以完成注册。请联系中心管理员获取。",
+        description: "请输入有效的系统验证编码。请联系管理员获取。",
       });
       return;
     }
@@ -84,54 +85,89 @@ export default function LoginPage() {
     const internalEmail = `${jobId}@meditrack.local`;
     
     try {
+      // 1. 先验证 MySQL 连接，防止注册成功但数据同步失败
+      const testResult = await testMysqlConnection(mysqlConfig);
+      if (!testResult.success) {
+        throw new Error(`MySQL 同步失败，请先在下方配置中心修正数据库地址。${testResult.message}`);
+      }
+
+      // 2. 创建 Firebase 账户
       await createUserWithEmailAndPassword(auth, internalEmail, password);
       
       const isAdmin = jobId === '1058';
       const staffData = {
         jobId,
-        name: isAdmin ? '姜锋' : name,
+        name: name,
         role: isAdmin ? '管理员' : '医生',
         email: internalEmail,
         status: '在职'
       };
       
+      // 3. 保存至 Firestore
       const staffRef = doc(db, 'staffProfiles', `staff_${jobId}`);
       await setDoc(staffRef, staffData, { merge: true });
 
-      // 同步到 MySQL SP_STAFF
+      // 4. 同步到 MySQL
       await syncStaffToMysql(mysqlConfig, staffData, 'SAVE');
 
       toast({
         title: "账户已创建",
-        description: `工号 ${jobId} 已注册并同步至中心 MySQL 数据库。`,
+        description: `工号 ${jobId} 已成功注册并同步至中心数据库。`,
       });
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "注册失败",
-        description: error.message || "该工号可能已被占用。",
+        title: "操作失败",
+        description: error.message || "注册过程中发生错误，请检查网络或工号是否重复。",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    try {
+      const result = await testMysqlConnection(mysqlConfig);
+      if (result.success) {
+        toast({ title: "连接成功", description: result.message });
+      } else {
+        toast({ variant: "destructive", title: "连接失败", description: result.message });
+      }
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
   const handleSaveConfig = async () => {
-    const configData = {
-      mysql: mysqlConfig,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    const configRef = doc(db, 'systemConfig', 'default');
-    await setDoc(configRef, configData, { merge: true });
-    
-    // 同步到 MySQL SP_CONFIG
-    await syncConfigToMysql(mysqlConfig, { ...configData, appName: 'HealthInsight' });
-    
-    toast({
-      title: "全局配置已更新",
-      description: "MySQL 数据库连接设置已保存并同步至中心库。",
-    });
+    setIsLoading(true);
+    try {
+      const configData = {
+        mysql: mysqlConfig,
+        appName: 'HealthInsight',
+        lastUpdated: new Date().toISOString()
+      };
+      
+      // 保存至 Firestore (现在规则已开放，未登录也可保存)
+      const configRef = doc(db, 'systemConfig', 'default');
+      await setDoc(configRef, configData, { merge: true });
+      
+      // 同步到 MySQL 配置表
+      await syncConfigToMysql(mysqlConfig, configData);
+      
+      toast({
+        title: "配置已应用",
+        description: "数据库连接设置已保存，您可以开始注册或登录了。",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "应用失败",
+        description: "无法保存配置，请检查 Firestore 连接状态。"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -144,7 +180,7 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-primary">HealthInsight Registry</CardTitle>
-          <CardDescription>医疗内网终端 • 数据同步管理系统</CardDescription>
+          <CardDescription>医疗内网终端 • 临床数据管理系统</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -209,14 +245,14 @@ export default function LoginPage() {
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary transition-colors">
-                <Settings className="mr-2 size-4" />内网数据库配置中心
+                <Settings className="mr-2 size-4" />配置内网 MySQL 数据库
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Database className="size-5 text-primary" />
-                  内网 MySQL 数据库连接配置
+                  数据库连接配置
                 </DialogTitle>
               </DialogHeader>
               <div className="grid gap-5 py-6">
@@ -229,7 +265,7 @@ export default function LoginPage() {
                   <Input value={mysqlConfig.port} onChange={(e) => setMysqlConfig({...mysqlConfig, port: e.target.value})} className="col-span-3" placeholder="10699" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label className="text-right flex items-center justify-end gap-1"><Database className="size-3" /> 数据库</Label>
+                  <Label className="text-right flex items-center justify-end gap-1"><Database className="size-3" /> 库名</Label>
                   <Input value={mysqlConfig.database} onChange={(e) => setMysqlConfig({...mysqlConfig, database: e.target.value})} className="col-span-3" placeholder="meditrack_db" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -241,8 +277,24 @@ export default function LoginPage() {
                   <Input type="password" value={mysqlConfig.password} onChange={(e) => setMysqlConfig({...mysqlConfig, password: e.target.value})} className="col-span-3" placeholder="••••••••" />
                 </div>
               </div>
-              <DialogFooter>
-                <Button onClick={handleSaveConfig} className="w-full">应用配置并同步</Button>
+              <DialogFooter className="flex flex-col gap-3 sm:flex-row">
+                <Button 
+                  variant="outline" 
+                  onClick={handleTestConnection} 
+                  disabled={isTestingConnection}
+                  className="flex-1 gap-2"
+                >
+                  {isTestingConnection ? <Loader2 className="size-4 animate-spin" /> : <AlertCircle className="size-4" />}
+                  测试连通性
+                </Button>
+                <Button 
+                  onClick={handleSaveConfig} 
+                  disabled={isLoading}
+                  className="flex-1 gap-2"
+                >
+                  <CheckCircle2 className="size-4" />
+                  应用并同步
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
