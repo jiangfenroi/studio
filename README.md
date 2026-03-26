@@ -6,112 +6,45 @@
 ## 1. 运行环境要求 (Windows 7 特别说明)
 临床工作站常使用 Windows 7 系统，部署前请确保满足以下条件：
 - **操作系统**: Windows 7 SP1 或更高版本。
-- **关键补丁**: 必须安装 **KB2999226** 补丁（通用 C 运行库），否则 Node.js 18+ 无法运行。
-- **Node.js**: 推荐版本 `v18.18.0`。
-- **环境变量**: 必须设置 `NODE_SKIP_PLATFORM_CHECK=1`。
+- **关键补丁**: 必须安装 **KB2999226** 补丁（通用 C 运行库），否则 Node.js 无法运行。
+- **Node.js**: 推荐安装离线版 `v18.18.0`（这是支持 Win7 的最后一个较稳定大版本）。
+- **环境变量**: 必须设置 `NODE_SKIP_PLATFORM_CHECK=1`（本系统提供的 `.bat` 脚本已自动包含此设置）。
 
-## 2. MySQL 服务器部署 (中心业务库)
-请在内网中心服务器上创建 `meditrack_db` 数据库，并执行以下 SQL 初始化：
+## 2. 离线安装与“完美运行”方案
+由于生产环境无网络且需要 EXE 运行效果，请遵循以下 **“中转机”** 方案：
 
-```sql
--- 1. 患者基本信息表
-CREATE TABLE SP_PERSON (
-    archiveNo VARCHAR(50) PRIMARY KEY,
-    name VARCHAR(50),
-    gender ENUM('男', '女', '其他'),
-    age INT,
-    idNumber VARCHAR(18),
-    organization VARCHAR(100),
-    address TEXT,
-    phoneNumber VARCHAR(20),
-    status ENUM('正常', '死亡', '无法联系') DEFAULT '正常'
-);
-
--- 2. 重要异常结果登记表
-CREATE TABLE SP_YCJG (
-    id VARCHAR(50) PRIMARY KEY,
-    patientProfileId VARCHAR(50),
-    checkupNumber VARCHAR(20),
-    checkupDate DATE,
-    anomalyCategory ENUM('A', 'B'),
-    anomalyDetails TEXT,
-    disposalSuggestions TEXT,
-    notifiedPerson VARCHAR(50),
-    notifier VARCHAR(50),
-    notificationDate DATE,
-    notificationTime TIME,
-    isNotified TINYINT(1) DEFAULT 1,
-    isHealthEducationProvided TINYINT(1) DEFAULT 1,
-    notifiedPersonFeedback TEXT,
-    isClosed TINYINT(1) DEFAULT 0,
-    createdAt DATETIME,
-    FOREIGN KEY (patientProfileId) REFERENCES SP_PERSON(archiveNo)
-);
-
--- 3. 随访记录表
-CREATE TABLE SP_SF (
-    id VARCHAR(50) PRIMARY KEY,
-    associatedAnomalyId VARCHAR(50),
-    patientProfileId VARCHAR(50),
-    followUpResult TEXT,
-    followUpPerson VARCHAR(50),
-    followUpDate DATE,
-    followUpTime TIME,
-    isReExamined TINYINT(1) DEFAULT 0,
-    FOREIGN KEY (associatedAnomalyId) REFERENCES SP_YCJG(id)
-);
-
--- 4. 工作人员表
-CREATE TABLE SP_STAFF (
-    jobId VARCHAR(20) PRIMARY KEY,
-    name VARCHAR(50),
-    email VARCHAR(100),
-    role ENUM('管理员', '医生', '护士'),
-    status ENUM('在职', '离职') DEFAULT '在职'
-);
-
--- 5. 系统配置表
-CREATE TABLE SP_CONFIG (
-    configKey VARCHAR(20) PRIMARY KEY,
-    appName VARCHAR(100),
-    pacsUrlBase TEXT,
-    pdfStoragePath TEXT,
-    lastUpdated DATETIME
-);
-```
-
-## 3. 离线安装与打包流程 (生产环境无网络)
-由于生产环境无法连接互联网，请使用 **“中转机”** 方案：
-
-### 第一步：在中转机（有网）上打包
-1. 下载源码：`git clone` 或 拷贝源码。
-2. 安装依赖：`npm install`。
-3. 执行生产编译：`npm run build`。
-4. 打包为 EXE 壳（可选）：
+### 第一步：在中转机（有网环境）准备
+1. 下载源码并进入目录。
+2. 执行 `npm install` 下载所有依赖。
+3. 执行 `npm run build` 生成生产环境编译文件（`.next` 文件夹）。
+4. (可选) 打包 EXE 壳：使用 Nativefier 将 `http://localhost:9002` 封装为 `HealthApp.exe`。
    ```bash
-   npm install -g nativefier
-   nativefier "http://localhost:9002" --name "HealthInsight" --platform "windows" --arch "x64" --single-instance
+   nativefier "http://localhost:9002" --name "医疗异常结果系统" --platform "windows"
    ```
 
-### 第二步：离线迁移与安装
-1. 将源码文件夹（包含 `node_modules` 和 `.next`）整体拷贝到 U盘。
-2. 在无网的 Windows 7 终端：
-   - 安装离线版 **Node.js v18.18.0**。
-   - 安装 **KB2999226** 补丁。
-   - 将文件夹拷贝到 `D:\HealthApp`。
+### 第二步：离线迁移（无网环境）
+1. 将包含 `node_modules`、`.next`、`package.json` 及 `start-app.bat` 的整个文件夹拷贝到 U盘。
+2. 拷贝至无网 Win7 电脑的 `D:\HealthApp` 目录下。
 
-### 第三步：更方便的启动方式 (推荐)
-我们在根目录提供了 `start-app.bat` 脚本，双击即可一键启动：
-- 自动跳过平台检查。
-- 自动在 9002 端口开启后台服务。
-- 启动后，直接在浏览器访问 `http://localhost:9002` 即可。
+### 第三步：一键启动 (推荐)
+- **双击根目录下的 `start-app.bat`**：
+  - 它会自动跳过系统版本检查。
+  - 它会在后台启动 Next.js 生产服务（占用 9002 端口）。
+  - 启动后，您可以直接双击您打包的 `HealthApp.exe` 壳，或直接在浏览器访问 `http://localhost:9002`。
+
+## 3. MySQL 服务器部署 (中心业务库)
+请在内网中心服务器上创建 `meditrack_db` 数据库，并执行 `docs/backend.json` 中定义的实体结构初始化。核心表包括：
+- `SP_PERSON`: 患者基本信息。
+- `SP_YCJG`: 重要异常结果登记。
+- `SP_SF`: 随访记录。
+- `SP_STAFF`: 工作人员。
+- `SP_CONFIG`: 全局配置。
 
 ## 4. 逻辑设计原则
-- **自动注销**: 采用会话级持久化。关闭程序窗口后，登录状态立即销毁。再次启动必进登录页，保障账户安全。
-- **无后台残留**: 程序窗口关闭后，手动关闭命令行窗口（或退出 EXE），相关 Node 进程将彻底释放内存，绝不驻留后台。
+- **自动注销**: 采用会话级持久化。关闭程序窗口或重启电脑后，登录状态立即销毁。再次启动必进登录页，保障账户安全。
+- **无后台残留**: 程序窗口关闭后，手动关闭命令行窗口（或退出后台服务），相关 Node 进程将彻底释放内存，绝不驻留后台，避免电脑卡顿。
 - **零本地缓存**: 临床数据完全实时请求中心 MySQL，确保多终端数据绝对唯一。
-- **启动优化**: 已清理所有冗余配置，解决启动时“验证权限”缓慢的问题。
 
 ## 5. 常见问题
-- **运行报错 "Unsupported platform"**: 请确保是通过 `start-app.bat` 启动，或手动设置了 `NODE_SKIP_PLATFORM_CHECK=1`。
-- **图表加载失败**: 确保 MySQL 已根据上方 SQL 初始化，且终端能访问服务器的 10699 端口。
+- **运行报错 "Unsupported platform"**: 请确保是通过 `start-app.bat` 启动。
+- **启动缓慢**: 首次启动会建立内网通信链路，请确保能正常访问中心服务器的 MySQL 端口（默认 10699）。
