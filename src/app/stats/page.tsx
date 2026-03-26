@@ -213,7 +213,7 @@ export default function StatsPage() {
                 </TableBody>
               </Table>
             </div>
-          </TableBody>
+          </CardContent>
         </Card>
       </div>
     </div>
