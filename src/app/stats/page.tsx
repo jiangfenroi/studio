@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -147,26 +146,28 @@ export default function StatsPage() {
             <h3 className="font-bold flex items-center gap-2"><TableIcon className="size-4" /> 实时业务预览 ({filteredData.length} 条)</h3>
             <Input placeholder="搜索..." className="w-64" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-          <ScrollArea className="h-[600px]">
-            <Table>
-              <TableHeader className="bg-muted/30 sticky top-0">
-                <TableRow>
-                  {selectedCols.map(id => (
-                    <TableHead key={id} className="whitespace-nowrap font-bold text-xs">
-                      {[...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF].find(c => c.id === id)?.label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((row, idx) => (
-                  <TableRow key={idx}>
-                    {selectedCols.map(id => <TableCell key={id} className="text-[10px] max-w-[150px] truncate">{String(row[id] || "-")}</TableCell>)}
+          <CardContent className="p-0">
+            <ScrollArea className="h-[600px]">
+              <Table>
+                <TableHeader className="bg-muted/30 sticky top-0">
+                  <TableRow>
+                    {selectedCols.map(id => (
+                      <TableHead key={id} className="whitespace-nowrap font-bold text-xs">
+                        {[...COLUMNS.SP_PERSON, ...COLUMNS.SP_YCJG, ...COLUMNS.SP_SF].find(c => c.id === id)?.label}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.map((row, idx) => (
+                    <TableRow key={idx}>
+                      {selectedCols.map(id => <TableCell key={id} className="text-[10px] max-w-[150px] truncate">{String(row[id] || "-")}</TableCell>)}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
         </Card>
       </div>
     </div>

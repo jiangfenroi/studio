@@ -103,9 +103,6 @@ export async function fetchHomeStats(config: any) {
       })),
       recentTasks: (recentTasks as any[]).map(t => serializeRow(t))
     };
-  } catch (err: any) {
-    console.error('[MySQL] 首页统计失败:', err.message);
-    throw err;
   } finally {
     if (connection) await connection.end();
   }
@@ -133,6 +130,37 @@ export async function fetchAllRecords(config: any) {
   }
 }
 
+export async function fetchPatients(config: any) {
+  if (!config || !config.host) return [];
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows] = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo DESC');
+    return (rows as any[]).map(r => serializeRow(r));
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchPatientDetail(config: any, archiveNo: string) {
+  if (!config || !config.host) return null;
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [[patient]]: any = await connection.execute('SELECT * FROM SP_PERSON WHERE archiveNo = ?', [archiveNo]);
+    const [records]: any = await connection.execute('SELECT * FROM SP_YCJG WHERE patientProfileId = ? ORDER BY checkupDate DESC', [archiveNo]);
+    const [followups]: any = await connection.execute('SELECT * FROM SP_SF WHERE patientProfileId = ? ORDER BY followUpDate DESC', [archiveNo]);
+    
+    return {
+      patient: patient ? serializeRow(patient) : null,
+      records: records.map((r: any) => serializeRow(r)),
+      followups: followups.map((f: any) => serializeRow(f))
+    };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function syncAnomalyToMysql(config: any, record: any, operation: 'SAVE' | 'DELETE') {
   if (!config || !config.host) return;
   let connection;
@@ -155,14 +183,12 @@ export async function syncAnomalyToMysql(config: any, record: any, operation: 'S
         isHealthEducationProvided: record.isHealthEducationProvided ? 1 : 0,
         notifiedPersonFeedback: record.notifiedPersonFeedback || '',
         isClosed: record.isClosed ? 1 : 0,
-        createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('T', ' ').substring(0, 19) : null,
-        nextFollowUpDate: record.nextFollowUpDate || null
+        createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('T', ' ').substring(0, 19) : null
       };
       const keys = Object.keys(data);
       const values = Object.values(data);
-      const placeholders = keys.map(() => '?').join(', ');
       const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      const sql = `INSERT INTO SP_YCJG (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
+      const sql = `INSERT INTO SP_YCJG (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${updates}`;
       await connection.execute(sql, values);
     } else {
       await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [record.id]);
@@ -189,12 +215,9 @@ export async function syncPatientToMysql(config: any, patient: any, operation: '
         phoneNumber: patient.phoneNumber || '',
         status: patient.status || '正常'
       };
-      const keys = Object.keys(data);
-      const values = Object.values(data);
-      const placeholders = keys.map(() => '?').join(', ');
-      const updates = keys.map(key => `${key} = VALUES(${key})`).join(', ');
-      const sql = `INSERT INTO SP_PERSON (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
-      await connection.execute(sql, values);
+      const updates = Object.keys(data).map(key => `${key} = VALUES(${key})`).join(', ');
+      const sql = `INSERT INTO SP_PERSON (${Object.keys(data).join(', ')}) VALUES (${Object.keys(data).map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${updates}`;
+      await connection.execute(sql, Object.values(data));
     } else {
       await connection.execute('DELETE FROM SP_PERSON WHERE archiveNo = ?', [patient.id || patient.archiveNo]);
     }
@@ -221,14 +244,55 @@ export async function syncFollowUpToMysql(config: any, record: any, operation: '
         followUpTime: record.followUpTime,
         isReExamined: record.isReExamined ? 1 : 0
       };
-      const keys = Object.keys(data);
-      const values = Object.values(data);
-      const placeholders = keys.map(() => '?').join(', ');
-      const sql = `INSERT INTO SP_SF (${keys.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE followUpResult=VALUES(followUpResult), isReExamined=VALUES(isReExamined)`;
-      await connection.execute(sql, values);
+      const sql = `INSERT INTO SP_SF (${Object.keys(data).join(', ')}) VALUES (${Object.keys(data).map(() => '?').join(', ')})`;
+      await connection.execute(sql, Object.values(data));
     } else {
       await connection.execute('DELETE FROM SP_SF WHERE id = ?', [record.id]);
     }
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function syncStaffToMysql(config: any, staff: any, operation: 'SAVE' | 'DELETE') {
+  if (!config || !config.host) return;
+  let connection;
+  try {
+    connection = await getConnection(config);
+    if (operation === 'SAVE') {
+      const data = {
+        jobId: staff.jobId,
+        name: staff.name,
+        email: staff.email,
+        role: staff.role,
+        status: staff.status || '在职'
+      };
+      const updates = Object.keys(data).map(key => `${key} = VALUES(${key})`).join(', ');
+      const sql = `INSERT INTO SP_STAFF (${Object.keys(data).join(', ')}) VALUES (${Object.keys(data).map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${updates}`;
+      await connection.execute(sql, Object.values(data));
+    } else {
+      await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
+    }
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function syncConfigToMysql(config: any, sysConfig: any) {
+  if (!config || !config.host) return;
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const data = {
+      configKey: 'default',
+      appName: sysConfig.appName,
+      pacsUrlBase: sysConfig.pacsUrlBase,
+      pdfStoragePath: sysConfig.pdfStoragePath,
+      lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 19)
+    };
+    const updates = Object.keys(data).map(key => `${key} = VALUES(${key})`).join(', ');
+    const sql = `INSERT INTO SP_CONFIG (${Object.keys(data).join(', ')}) VALUES (${Object.keys(data).map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${updates}`;
+    await connection.execute(sql, Object.values(data));
   } finally {
     if (connection) await connection.end();
   }

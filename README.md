@@ -6,19 +6,20 @@
 ## 1. 核心网络架构
 
 - **数据引擎**: 临床数据（患者、异常、随访）完全存储于 **MySQL**。Firebase 仅用于基础身份验证。
-- **内网部署**: 在医院内网服务器运行 `npm start` 后，全院终端通过服务器 IP 访问。
+- **内网部署**: 在医院内网服务器运行 `start-app.bat` 后，全院终端通过服务器 IP 访问。
 
 ## 2. 数据库配置
 
 ### 手动修改代码默认值
-- **登录页**: `src/app/login/page.tsx` 中的 `mysqlConfig`。
-- **管理页**: `src/app/settings/page.tsx` 中的 `formData`。
+如果需要手动更改默认数据库连接（无需通过 UI），请修改以下文件：
+- **登录页**: `src/app/login/page.tsx` 中的 `mysqlConfig` 初始状态。
+- **管理页**: `src/app/settings/page.tsx` 中的 `formData` 初始状态。
 
 ## 3. 运行环境要求 (Win7/Ubuntu)
 
 ### Windows 7 终端
 - **补丁**: 必须安装 **KB2999226**。
-- **启动**: 使用 `start-app.bat`。
+- **启动**: 使用 `start-app.bat`，脚本已自动配置 `NODE_SKIP_PLATFORM_CHECK=1`。
 
 ## 4. MySQL 数据库初始化脚本 (最新)
 
@@ -57,8 +58,6 @@ CREATE TABLE IF NOT EXISTS SP_YCJG (
   notifiedPersonFeedback TEXT,
   isClosed TINYINT(1) DEFAULT 0,
   createdAt DATETIME,
-  lastFollowUpAt DATETIME,
-  nextFollowUpDate DATE,
   FOREIGN KEY (patientProfileId) REFERENCES SP_PERSON(archiveNo)
 );
 
@@ -67,8 +66,8 @@ CREATE TABLE IF NOT EXISTS SP_SF (
   id VARCHAR(100) PRIMARY KEY,
   associatedAnomalyId VARCHAR(100),
   patientProfileId VARCHAR(50),
-  archiveNo VARCHAR(50), -- 冗余字段方便查询
-  checkupNumber VARCHAR(12), -- 冗余字段方便查询
+  archiveNo VARCHAR(50), -- 溯源档案号
+  checkupNumber VARCHAR(12), -- 溯源体检号
   followUpResult TEXT,
   followUpPerson VARCHAR(50),
   followUpDate DATE,
