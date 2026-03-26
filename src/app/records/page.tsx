@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -17,7 +18,9 @@ import {
   Phone,
   Activity,
   CheckCircle2,
-  Clock
+  Clock,
+  MapPin,
+  Building
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -60,7 +63,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/react-hook-form"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
@@ -92,30 +95,30 @@ export default function RecordsPage() {
   const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
   const { data: systemConfig } = useDoc(configRef)
 
-  // 获取所有异常记录
+  // 获取所有异常记录 (对应 SP_YCJG)
   const recordsQuery = useMemoFirebase(() => {
     if (!user || !db) return null;
     return query(collectionGroup(db, "medicalAnomalyRecords"));
   }, [db, user])
   const { data: rawRecords, isLoading: isRecordsLoading } = useCollection(recordsQuery)
 
-  // 获取所有患者档案用于联表
+  // 获取所有患者档案用于联表 (对应 SP_PERSON)
   const patientsQuery = useMemoFirebase(() => {
     if (!user || !db) return null;
     return collection(db, "patientProfiles");
   }, [db, user])
   const { data: patients } = useCollection(patientsQuery)
 
-  // 深度联表逻辑：合并 SP_PERSON (PatientProfile) 与 SP_YCJG (MedicalAnomalyRecord)
+  // 深度联表逻辑：合并 SP_PERSON 与 SP_YCJG 全字段信息
   const joinedRecords = React.useMemo(() => {
     if (!rawRecords) return []
     return rawRecords
-      .filter(r => r.anomalyCategory) // 仅保留主异常记录（排除单纯的随访记录）
+      .filter(r => r.anomalyCategory) // 仅保留主异常记录
       .map(record => {
         const patient = patients?.find(p => p.id === record.patientProfileId)
         return {
           ...record,
-          // 患者基本资料 (SP_PERSON)
+          // 关联 SP_PERSON 字段
           patientName: patient?.name || "未补录",
           patientGender: patient?.gender || "-",
           patientAge: patient?.age || "-",
@@ -187,7 +190,7 @@ export default function RecordsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">重要异常结果管理</h1>
-          <p className="text-muted-foreground">联合展示档案资料 (SP_PERSON) 与临床登记 (SP_YCJG) 全字段信息</p>
+          <p className="text-muted-foreground">全字段联表：个人档案 (SP_PERSON) + 临床登记 (SP_YCJG)</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={() => toast({ title: "报表生成中", description: "正在汇总全字段 Excel 报表..." })}>
@@ -221,27 +224,27 @@ export default function RecordsPage() {
             <TableRow>
               <TableHead className="font-bold whitespace-nowrap">体检日期</TableHead>
               <TableHead className="font-bold">档案编号/姓名</TableHead>
-              <TableHead className="font-bold">身份证号</TableHead>
               <TableHead className="font-bold">性别/年龄</TableHead>
+              <TableHead className="font-bold">身份证号</TableHead>
               <TableHead className="font-bold">联系电话</TableHead>
               <TableHead className="font-bold">档案状态</TableHead>
               <TableHead className="font-bold">体检编号</TableHead>
-              <TableHead className="font-bold">分类</TableHead>
+              <TableHead className="font-bold">异常类别</TableHead>
               <TableHead className="font-bold text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredRecords.map((record) => (
               <TableRow key={record.id} className="hover:bg-muted/5 group">
-                <TableCell className="font-medium whitespace-nowrap">{record.checkupDate}</TableCell>
+                <TableCell className="font-medium whitespace-nowrap text-xs">{record.checkupDate}</TableCell>
                 <TableCell>
                   <div className="flex flex-col">
                     <span className="font-bold text-primary">{record.patientName}</span>
                     <span className="text-[10px] text-muted-foreground font-mono">ID: {record.archiveNo}</span>
                   </div>
                 </TableCell>
+                <TableCell className="whitespace-nowrap text-xs">{record.patientGender} / {record.patientAge}岁</TableCell>
                 <TableCell className="text-xs font-mono">{record.patientIdNumber}</TableCell>
-                <TableCell className="whitespace-nowrap">{record.patientGender} / {record.patientAge}岁</TableCell>
                 <TableCell className="text-xs">{record.patientPhone}</TableCell>
                 <TableCell>
                   <Badge 
@@ -251,15 +254,15 @@ export default function RecordsPage() {
                     {record.patientStatus}
                   </Badge>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">{record.checkupNumber}</TableCell>
+                <TableCell className="font-mono text-[10px] text-muted-foreground">{record.checkupNumber}</TableCell>
                 <TableCell>
-                  <Badge variant={record.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="font-bold">
+                  <Badge variant={record.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="font-bold text-[10px]">
                     {record.anomalyCategory}类
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="size-8" onClick={() => setSelectedRecord(record)} title="查看完整详情">
+                    <Button variant="ghost" size="icon" className="size-8" onClick={() => setSelectedRecord(record)} title="查看详情">
                       <Eye className="size-4 text-primary" />
                     </Button>
                     <DropdownMenu>
@@ -270,20 +273,20 @@ export default function RecordsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem className="gap-2" onSelect={() => setSelectedRecord(record)}>
-                          <ClipboardList className="size-4" /> 查看全字段详情
+                          <ClipboardList className="size-4" /> 全字段详情
                         </DropdownMenuItem>
                         <DropdownMenuItem className="gap-2" onSelect={() => setEditingRecord(record)}>
-                          <Edit className="size-4" /> 维护结果信息
+                          <Edit className="size-4" /> 维护医学结果
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="gap-2 text-primary" asChild>
                            <Link href={`/patients/${record.archiveNo}`}>
-                            <FileText className="size-4" /> 进入电子病历
+                            <FileText className="size-4" /> 查看完整病历
                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="gap-2 text-destructive" onSelect={() => setRecordToDelete(record)}>
-                          <Trash2 className="size-4" /> 撤销此条登记
+                          <Trash2 className="size-4" /> 撤销登记
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -296,19 +299,19 @@ export default function RecordsPage() {
         {(filteredRecords.length === 0 && !isRecordsLoading) && (
           <div className="py-24 text-center">
             <ClipboardList className="size-12 mx-auto text-muted-foreground opacity-20 mb-4" />
-            <p className="text-muted-foreground font-medium">暂无符合条件的临床异常记录</p>
+            <p className="text-muted-foreground font-medium">暂无临床异常记录</p>
           </div>
         )}
       </div>
 
-      {/* 全字段详情查看弹窗 */}
+      {/* 详情查看弹窗 (全字段视图) */}
       <Dialog open={!!selectedRecord} onOpenChange={(open) => !open && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="p-6 bg-primary text-white">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-2xl flex items-center gap-3">
                 <Activity className="size-6" />
-                临床记录全字段详情
+                临床档案全字段详情
               </DialogTitle>
               <Badge className="bg-white/20 text-white border-white/40">
                 异常类别: {selectedRecord?.anomalyCategory}类
@@ -318,7 +321,7 @@ export default function RecordsPage() {
           
           <ScrollArea className="flex-1 p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* 左侧：个人档案信息 (SP_PERSON) */}
+              {/* 左侧：SP_PERSON 字段 */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 text-primary border-b pb-2">
                   <User className="size-4" />
@@ -359,12 +362,15 @@ export default function RecordsPage() {
                   </div>
                   <div className="col-span-2 space-y-1">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">所属单位</p>
-                    <p className="text-sm text-muted-foreground">{selectedRecord?.patientOrg}</p>
+                    <div className="flex items-center gap-2">
+                      <Building className="size-3 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground">{selectedRecord?.patientOrg}</p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 右侧：异常结果信息 (SP_YCJG) */}
+              {/* 右侧：SP_YCJG 字段 */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 text-destructive border-b pb-2">
                   <AlertTriangle className="size-4" />
@@ -380,7 +386,7 @@ export default function RecordsPage() {
                     <p className="text-sm">{selectedRecord?.checkupDate}</p>
                   </div>
                   <div className="col-span-2 space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">异常详情</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">医学详情</p>
                     <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs leading-relaxed">
                       {selectedRecord?.anomalyDetails}
                     </div>
@@ -392,28 +398,24 @@ export default function RecordsPage() {
                     </div>
                   </div>
                   <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">被告知人</p>
+                    <p className="text-sm">{selectedRecord?.notifiedPerson || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">告知状态</p>
-                    <div className="flex items-center gap-1">
-                      {selectedRecord?.isNotified ? 
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">已告知</Badge> : 
-                        <Badge variant="destructive">未告知</Badge>
-                      }
-                    </div>
+                    <Badge variant={selectedRecord?.isNotified ? 'default' : 'outline'} className="h-5">
+                      {selectedRecord?.isNotified ? "已告知" : "未告知"}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">告知人/日期</p>
+                    <p className="text-[10px] font-medium">{selectedRecord?.notifier || "-"} / {selectedRecord?.notificationDate}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">宣教状态</p>
-                    {selectedRecord?.isHealthEducationProvided ? 
-                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">已宣教</Badge> : 
-                      <Badge variant="outline">未宣教</Badge>
-                    }
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">告知人</p>
-                    <p className="text-sm">{selectedRecord?.notifier || "-"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">告知日期</p>
-                    <p className="text-sm">{selectedRecord?.notificationDate} {selectedRecord?.notificationTime}</p>
+                    <Badge variant={selectedRecord?.isHealthEducationProvided ? 'outline' : 'secondary'} className="h-5">
+                      {selectedRecord?.isHealthEducationProvided ? "已宣教" : "未宣教"}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -421,9 +423,9 @@ export default function RecordsPage() {
               <div className="col-span-full mt-4 p-4 bg-muted/30 rounded-xl border-dashed border-2">
                 <div className="flex items-center gap-2 mb-2">
                   <Clock className="size-4 text-muted-foreground" />
-                  <span className="text-sm font-bold">被告知人反馈</span>
+                  <span className="text-sm font-bold">反馈反馈</span>
                 </div>
-                <p className="text-sm italic text-muted-foreground">
+                <p className="text-sm italic text-muted-foreground leading-relaxed">
                   {selectedRecord?.notifiedPersonFeedback || "暂无初始沟通反馈记录"}
                 </p>
               </div>
@@ -441,17 +443,17 @@ export default function RecordsPage() {
       {/* 修改结果弹窗 */}
       <Dialog open={!!editingRecord} onOpenChange={(open) => !open && setEditingRecord(null)}>
         <DialogContent className="max-xl">
-          <DialogHeader><DialogTitle>临床结果维护</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>医学结果维护</DialogTitle></DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleEditSave)} className="space-y-4">
               <FormField control={editForm.control} name="anomalyDetails" render={({ field }) => (
                 <FormItem><FormLabel>医学异常发现</FormLabel><FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={editForm.control} name="disposalSuggestions" render={({ field }) => (
-                <FormItem><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>处置建议</FormLabel><FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={editForm.control} name="notifiedPersonFeedback" render={({ field }) => (
-                <FormItem><FormLabel>初始告知反馈 (补录/修改)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>告知反馈 (补录/修改)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={() => setEditingRecord(null)}>取消</Button>
@@ -471,7 +473,7 @@ export default function RecordsPage() {
               确认撤销临床登记？
             </AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除这条异常结果记录吗？此操作将永久移除相关数据并从中心数据库同步。
+              确定要删除该条异常结果记录吗？此操作将永久移除相关数据并同步至中心数据库。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
