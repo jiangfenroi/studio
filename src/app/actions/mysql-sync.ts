@@ -68,7 +68,6 @@ export async function registerUser(config: any, staff: any) {
     if (existing.length > 0) {
       throw new Error('账号已存在，请直接前往登录。');
     }
-    // 账号1058注册自动为管理员账户,其他账号注册自动为普通账户
     const permissions = staff.jobId === '1058' ? '管理员' : '普通';
     const sql = `INSERT INTO SP_STAFF (jobId, password, name, status, role, permissions) VALUES (?, ?, ?, '在职', ?, ?)`;
     await connection.execute(sql, [staff.jobId, staff.password, staff.name, staff.role || '医生', permissions]);
@@ -181,23 +180,15 @@ export async function saveAnomalyResult(config: any, data: any) {
     await connection.beginTransaction();
 
     const anomalyId = `YCJG${Date.now()}`;
-    let pdfId = null;
-
-    if (data.pdf) {
-      pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
-      const sqlPDF = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
-      await connection.execute(sqlPDF, [pdfId, data.archiveNo, data.checkupDate, '体检报告', data.pdf.path]);
-    }
-    
     const sqlYCJG = `INSERT INTO SP_YCJG 
-      (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     
     await connection.execute(sqlYCJG, [
       anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory, 
       data.anomalyDetails, data.notifier, data.notifiedPerson, data.notificationDate, 
       data.notificationTime, data.disposalSuggestions, data.notifiedPersonFeedback,
-      data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, 0, pdfId
+      data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, 0
     ]);
 
     const nextDate = new Date(data.notificationDate);
@@ -282,18 +273,10 @@ export async function saveFollowUpRecord(config: any, data: any) {
     await connection.beginTransaction();
 
     const sfId = `SF${Date.now()}`;
-    let pdfId = null;
-
-    if (data.pdf) {
-      pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
-      const sqlPDF = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
-      await connection.execute(sqlPDF, [pdfId, data.archiveNo, data.pdf.checkDate, data.pdf.category, data.pdf.path]);
-    }
-
-    const sqlSF = `INSERT INTO SP_SF (id, archiveNo, associatedAnomalyId, followUpResult, followUpPerson, followUpDate, followUpTime, isReExamined, pdfId)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    const sqlSF = `INSERT INTO SP_SF (id, archiveNo, associatedAnomalyId, followUpResult, followUpPerson, followUpDate, followUpTime, isReExamined)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
     await connection.execute(sqlSF, [
-      sfId, data.archiveNo, data.anomalyId, data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, data.isReExamined ? 1 : 0, pdfId
+      sfId, data.archiveNo, data.anomalyId, data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, data.isReExamined ? 1 : 0
     ]);
 
     const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
@@ -375,18 +358,32 @@ export async function fetchDataForStats(config: any) {
   }
 }
 
-export async function fetchDashboardStats(config: any) {
+export async function fetchDashboardStats(config: any, selectedYear: number) {
   let connection;
   try {
     connection = await getConnection(config);
     const [todayCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE notificationDate = CURRENT_DATE');
     const [pendingCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_RW WHERE nextFollowUpDate <= CURRENT_DATE');
     const [totalPatients]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
+    
+    // 获取指定年份的月度统计
     const [trend]: any = await connection.execute(`
-      SELECT DATE_FORMAT(notificationDate, '%Y-%m') as month, COUNT(*) as total, SUM(CASE WHEN isFollowUpRequired = 1 THEN 1 ELSE 0 END) as followed
-      FROM SP_YCJG GROUP BY month ORDER BY month DESC LIMIT 12
-    `);
-    return { todayNew: todayCount[0].count, pendingTasks: pendingCount[0].count, totalPatients: totalPatients[0].count, trend: trend.map(serializeRow) };
+      SELECT 
+        DATE_FORMAT(notificationDate, '%Y-%m') as month, 
+        COUNT(*) as total, 
+        SUM(CASE WHEN isFollowUpRequired = 1 THEN 1 ELSE 0 END) as followed
+      FROM SP_YCJG 
+      WHERE YEAR(notificationDate) = ?
+      GROUP BY month 
+      ORDER BY month ASC
+    `, [selectedYear]);
+
+    return { 
+      todayNew: todayCount[0].count, 
+      pendingTasks: pendingCount[0].count, 
+      totalPatients: totalPatients[0].count, 
+      trend: trend.map(serializeRow) 
+    };
   } finally {
     if (connection) await connection.end();
   }
@@ -415,6 +412,30 @@ export async function clearAllStaffData(config: any) {
     await connection.execute('SET FOREIGN_KEY_CHECKS = 0');
     await connection.execute('TRUNCATE TABLE SP_STAFF');
     await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function savePdfMetadata(config: any, data: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
+    const sql = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
+    await connection.execute(sql, [pdfId, data.archiveNo, data.checkDate, data.reportCategory, data.fullPath]);
+    return { success: true, pdfId };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deletePdfMetadata(config: any, id: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.execute('DELETE FROM SP_PDF WHERE id = ?', [id]);
+    return { success: true };
   } finally {
     if (connection) await connection.end();
   }
