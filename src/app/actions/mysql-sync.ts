@@ -64,20 +64,13 @@ export async function registerUser(config: any, staff: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    
-    // 检查账号是否已存在
     const [existing]: any = await connection.execute('SELECT jobId FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
     if (existing.length > 0) {
       throw new Error('账号已存在，请直接前往登录。');
     }
-
-    // 逻辑判定：1058 为管理员，其他为普通
     const permissions = staff.jobId === '1058' ? '管理员' : '普通';
-    const sql = `INSERT INTO SP_STAFF (jobId, password, name, status, role, permissions) 
-                 VALUES (?, ?, ?, '在职', ?, ?)`;
-    await connection.execute(sql, [
-      staff.jobId, staff.password, staff.name, staff.role, permissions
-    ]);
+    const sql = `INSERT INTO SP_STAFF (jobId, password, name, status, role, permissions) VALUES (?, ?, ?, '在职', ?, ?)`;
+    await connection.execute(sql, [staff.jobId, staff.password, staff.name, staff.role || '医生', permissions]);
     return { success: true };
   } finally {
     if (connection) await connection.end();
@@ -118,6 +111,33 @@ export async function deleteStaff(config: any, jobId: string) {
   }
 }
 
+// ---------------- 系统设置相关 ----------------
+
+export async function fetchConfigFromMysql(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows]: any = await connection.execute('SELECT * FROM SP_CONFIG WHERE configKey = "default"');
+    return rows[0] ? serializeRow(rows[0]) : null;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function syncConfigToMysql(config: any, sys: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `INSERT INTO SP_CONFIG (configKey, appName, pacsUrlBase, pdfStoragePath) 
+                 VALUES ('default', ?, ?, ?) 
+                 ON DUPLICATE KEY UPDATE appName=VALUES(appName), pacsUrlBase=VALUES(pacsUrlBase), pdfStoragePath=VALUES(pdfStoragePath)`;
+    await connection.execute(sql, [sys.appName, sys.pacsUrlBase, sys.pdfStoragePath]);
+    return { success: true };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 // ---------------- 临床业务逻辑 ----------------
 
 export async function fetchPatients(config: any) {
@@ -144,8 +164,6 @@ export async function syncPatientToMysql(config: any, patient: any) {
       patient.id, patient.name, patient.gender, patient.age, patient.idNumber, 
       patient.organization, patient.address, patient.phoneNumber, patient.status
     ]);
-    
-    // 如果状态为死亡，自动清理随访日期
     if (patient.status === '死亡') {
       await connection.execute('UPDATE SP_RW SET nextFollowUpDate = NULL WHERE archiveNo = ?', [patient.id]);
     }
@@ -277,11 +295,9 @@ export async function saveFollowUpRecord(config: any, data: any) {
       sfId, data.archiveNo, data.anomalyId, data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, data.isReExamined ? 1 : 0, pdfId
     ]);
 
-    // 更新任务表中的下次随访日期
     const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
     await connection.execute(sqlRW, [data.nextFollowUpDate, data.anomalyId]);
 
-    // 更新异常表中的随访完成标志
     const sqlYCJG = `UPDATE SP_YCJG SET isFollowUpRequired = 1 WHERE id = ?`;
     await connection.execute(sqlYCJG, [data.anomalyId]);
 
@@ -326,7 +342,6 @@ export async function calculateAllAges(config: any) {
     connection = await getConnection(config);
     const [rows]: any = await connection.execute('SELECT archiveNo, idNumber FROM SP_PERSON');
     const currentYear = new Date().getFullYear();
-    
     for (const row of rows) {
       if (row.idNumber && row.idNumber.length === 18) {
         const birthYear = parseInt(row.idNumber.substring(6, 10));
@@ -371,20 +386,6 @@ export async function fetchDashboardStats(config: any) {
       FROM SP_YCJG GROUP BY month ORDER BY month DESC LIMIT 12
     `);
     return { todayNew: todayCount[0].count, pendingTasks: pendingCount[0].count, totalPatients: totalPatients[0].count, trend: trend.map(serializeRow) };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function syncConfigToMysql(config: any, sys: any) {
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const sql = `INSERT INTO SP_CONFIG (configKey, appName, pacsUrlBase, pdfStoragePath) 
-                 VALUES ('default', ?, ?, ?) 
-                 ON DUPLICATE KEY UPDATE appName=VALUES(appName), pacsUrlBase=VALUES(pacsUrlBase), pdfStoragePath=VALUES(pdfStoragePath)`;
-    await connection.execute(sql, [sys.appName, sys.pacsUrlBase, sys.pdfStoragePath]);
-    return { success: true };
   } finally {
     if (connection) await connection.end();
   }

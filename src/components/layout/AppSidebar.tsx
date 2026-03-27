@@ -30,6 +30,7 @@ import {
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { fetchConfigFromMysql } from "@/app/actions/mysql-sync"
 
 const items = [
   {
@@ -68,13 +69,26 @@ export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = React.useState<any>(null)
+  const [config, setConfig] = React.useState<any>(null)
 
-  React.useEffect(() => {
-    const stored = sessionStorage.getItem('staff_user')
-    if (stored) {
-      setUser(JSON.parse(stored))
+  const loadData = React.useCallback(async () => {
+    const storedUser = sessionStorage.getItem('staff_user')
+    if (storedUser) setUser(JSON.parse(storedUser))
+
+    try {
+      const mysqlConfig = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
+      if (mysqlConfig.host) {
+        const remoteConfig = await fetchConfigFromMysql(mysqlConfig)
+        setConfig(remoteConfig)
+      }
+    } catch (e) {
+      console.error("Config fetch failed", e)
     }
   }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData, pathname])
 
   const isAdmin = user?.permissions === '管理员' || user?.jobId === '1058';
 
@@ -92,15 +106,15 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
             <span className="font-bold text-primary truncate max-w-[140px]">
-              HealthInsight
+              {config?.appName || "HealthInsight"}
             </span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">管理控制台</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">医疗终端控制台</span>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">主要功能</SidebarGroupLabel>
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">临床业务功能</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -123,18 +137,18 @@ export function AppSidebar() {
         
         {isAdmin && (
           <SidebarGroup className="mt-auto">
-            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">辅助工具</SidebarGroupLabel>
+            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">系统管理</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
                     isActive={pathname === "/settings"} 
-                    tooltip="系统配置"
+                    tooltip="管理配置中心"
                   >
                     <Link href="/settings">
                       <Settings className="size-5" />
-                      <span>系统配置</span>
+                      <span>配置中心</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -154,11 +168,11 @@ export function AppSidebar() {
                 {user?.name || '未登录'}
               </span>
               <span className="text-[10px] text-muted-foreground truncate">
-                {user?.role || '医疗终端'} ({user?.permissions || '普通'})
+                {user?.role || '医生'} ({user?.permissions || '普通'})
               </span>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={handleLogout} title="退出登录">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={handleLogout} title="退出系统">
             <LogOut className="size-4" />
           </Button>
         </div>
