@@ -34,14 +34,10 @@ function serializeRow(row: any) {
 
 // ---------------- PDF 管理相关接口 ----------------
 
-/**
- * 保存 PDF 元数据并返回生成的 10 位编号
- */
 export async function savePdfMetadata(config: any, data: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    // 生成 10 位倒序 ID (使用当前秒数的时间戳截取或转换)
     const pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
     
     const sql = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) 
@@ -55,9 +51,6 @@ export async function savePdfMetadata(config: any, data: any) {
   }
 }
 
-/**
- * 删除 PDF 记录
- */
 export async function deletePdfMetadata(config: any, pdfId: string) {
   let connection;
   try {
@@ -69,9 +62,6 @@ export async function deletePdfMetadata(config: any, pdfId: string) {
   }
 }
 
-/**
- * 获取患者所有 PDF 报告
- */
 export async function fetchPatientPdfs(config: any, archiveNo: string) {
   let connection;
   try {
@@ -86,9 +76,8 @@ export async function fetchPatientPdfs(config: any, archiveNo: string) {
   }
 }
 
-// ---------------- 临床业务逻辑增强 ----------------
+// ---------------- 临床业务逻辑 ----------------
 
-// 登录校验
 export async function authenticateUser(config: any, jobId: string, pass: string) {
   let connection;
   try {
@@ -103,7 +92,6 @@ export async function authenticateUser(config: any, jobId: string, pass: string)
   }
 }
 
-// 注册用户
 export async function registerUser(config: any, staff: any) {
   let connection;
   try {
@@ -121,7 +109,6 @@ export async function registerUser(config: any, staff: any) {
   }
 }
 
-// 保存异常结果 (含 PDF 关联)
 export async function saveAnomalyResult(config: any, data: any) {
   let connection;
   try {
@@ -131,7 +118,6 @@ export async function saveAnomalyResult(config: any, data: any) {
     const anomalyId = `YCJG${Date.now()}`;
     let pdfId = null;
 
-    // 如果有 PDF 信息，先保存 PDF
     if (data.pdf) {
       pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
       const sqlPDF = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
@@ -149,7 +135,6 @@ export async function saveAnomalyResult(config: any, data: any) {
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, 0, pdfId
     ]);
 
-    // 自动在任务表生成 7 日随访
     const nextDate = new Date(data.notificationDate);
     nextDate.setDate(nextDate.getDate() + 7);
     const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)`;
@@ -165,7 +150,6 @@ export async function saveAnomalyResult(config: any, data: any) {
   }
 }
 
-// 获取随访任务
 export async function fetchFollowUpTasks(config: any) {
   let connection;
   try {
@@ -191,7 +175,6 @@ export async function fetchFollowUpTasks(config: any) {
   }
 }
 
-// 保存随访记录 (含 PDF 关联)
 export async function saveFollowUpRecord(config: any, data: any) {
   let connection;
   try {
@@ -230,7 +213,6 @@ export async function saveFollowUpRecord(config: any, data: any) {
   }
 }
 
-// 档案管理：同步患者
 export async function syncPatientToMysql(config: any, data: any) {
   let connection;
   try {
@@ -257,7 +239,6 @@ export async function syncPatientToMysql(config: any, data: any) {
   }
 }
 
-// 自动计算全院年龄
 export async function calculateAllAges(config: any) {
   let connection;
   try {
@@ -274,7 +255,6 @@ export async function calculateAllAges(config: any) {
   }
 }
 
-// 获取患者完整病历时间轴 (含 PDF)
 export async function fetchPatientFullTimeline(config: any, archiveNo: string) {
   let connection;
   try {
@@ -342,6 +322,27 @@ export async function fetchDashboardStats(config: any) {
   }
 }
 
+export async function fetchDataForStats(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `
+      SELECT 
+        p.archiveNo, p.name, p.gender, p.age, p.phoneNumber, p.idNumber, p.address, p.organization, p.status as patientStatus,
+        y.checkupNumber, y.checkupDate, y.anomalyCategory, y.anomalyDetails, y.notifier, y.notifiedPerson, y.notificationDate, y.notificationTime, y.disposalSuggestions, y.notifiedPersonFeedback, y.isHealthEducationProvided, y.isNotified, y.isFollowUpRequired,
+        s.followUpResult, s.followUpPerson, s.followUpDate, s.followUpTime, s.isReExamined
+      FROM SP_PERSON p
+      LEFT JOIN SP_YCJG y ON p.archiveNo = y.archiveNo
+      LEFT JOIN SP_SF s ON y.id = (SELECT id FROM SP_SF WHERE associatedAnomalyId = y.id ORDER BY followUpDate DESC, followUpTime DESC LIMIT 1)
+      ORDER BY p.archiveNo ASC, y.notificationDate DESC
+    `;
+    const [rows]: any = await connection.execute(sql);
+    return rows.map(serializeRow);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function syncConfigToMysql(config: any, sys: any) {
   let connection;
   try {
@@ -397,26 +398,6 @@ export async function clearAllStaffData(config: any) {
     await connection.execute('SET FOREIGN_KEY_CHECKS = 0');
     await connection.execute('TRUNCATE TABLE SP_STAFF');
     await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function fetchDataForStats(config: any) {
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const sql = `
-      SELECT p.archiveNo, p.name, p.gender, p.age, p.idNumber, p.phoneNumber, p.status as patientStatus,
-             y.checkupNumber as examNo, y.checkupDate as examDate, y.anomalyCategory as category, y.anomalyDetails as details, y.disposalSuggestions as disposalAdvice, y.isNotified, y.notifiedPersonFeedback,
-             s.followUpDate, s.followUpResult, s.followUpPerson, s.isReExamined
-      FROM SP_PERSON p
-      LEFT JOIN SP_YCJG y ON p.archiveNo = y.archiveNo
-      LEFT JOIN SP_SF s ON y.id = s.associatedAnomalyId
-      ORDER BY p.archiveNo ASC
-    `;
-    const [rows]: any = await connection.execute(sql);
-    return rows.map(serializeRow);
   } finally {
     if (connection) await connection.end();
   }
