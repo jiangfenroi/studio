@@ -68,9 +68,10 @@ export async function registerUser(config: any, staff: any) {
     // 检查账号是否已存在
     const [existing]: any = await connection.execute('SELECT jobId FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
     if (existing.length > 0) {
-      throw new Error('账号已存在，请前往登录。');
+      throw new Error('账号已存在，请直接前往登录。');
     }
 
+    // 逻辑判定：1058 为管理员，其他为普通
     const permissions = staff.jobId === '1058' ? '管理员' : '普通';
     const sql = `INSERT INTO SP_STAFF (jobId, password, name, status, role, permissions) 
                  VALUES (?, ?, ?, '在职', ?, ?)`;
@@ -117,7 +118,42 @@ export async function deleteStaff(config: any, jobId: string) {
   }
 }
 
-// ---------------- PDF 与 临床业务 ----------------
+// ---------------- 临床业务逻辑 ----------------
+
+export async function fetchPatients(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows]: any = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo ASC');
+    return rows.map(serializeRow);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function syncPatientToMysql(config: any, patient: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `INSERT INTO SP_PERSON (archiveNo, name, gender, age, idNumber, organization, address, phoneNumber, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE name=VALUES(name), gender=VALUES(gender), age=VALUES(age), 
+                 idNumber=VALUES(idNumber), organization=VALUES(organization), address=VALUES(address), 
+                 phoneNumber=VALUES(phoneNumber), status=VALUES(status)`;
+    await connection.execute(sql, [
+      patient.id, patient.name, patient.gender, patient.age, patient.idNumber, 
+      patient.organization, patient.address, patient.phoneNumber, patient.status
+    ]);
+    
+    // 如果状态为死亡，自动清理随访日期
+    if (patient.status === '死亡') {
+      await connection.execute('UPDATE SP_RW SET nextFollowUpDate = NULL WHERE archiveNo = ?', [patient.id]);
+    }
+    return { success: true };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
 
 export async function saveAnomalyResult(config: any, data: any) {
   let connection;
@@ -160,6 +196,41 @@ export async function saveAnomalyResult(config: any, data: any) {
   }
 }
 
+export async function fetchAllRecords(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `
+      SELECT y.*, p.name as patientName, p.gender as patientGender, p.age as patientAge, p.phoneNumber as patientPhone, p.idNumber as patientIdNumber, p.status as patientStatus
+      FROM SP_YCJG y
+      LEFT JOIN SP_PERSON p ON y.archiveNo = p.archiveNo
+      ORDER BY y.notificationDate DESC, y.notificationTime DESC
+    `;
+    const [rows]: any = await connection.execute(sql);
+    return rows.map(serializeRow);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deleteAnomalyRecord(config: any, id: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.beginTransaction();
+    await connection.execute('DELETE FROM SP_RW WHERE anomalyId = ?', [id]);
+    await connection.execute('DELETE FROM SP_SF WHERE associatedAnomalyId = ?', [id]);
+    await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [id]);
+    await connection.commit();
+    return { success: true };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function fetchFollowUpTasks(config: any) {
   let connection;
   try {
@@ -185,11 +256,103 @@ export async function fetchFollowUpTasks(config: any) {
   }
 }
 
-export async function fetchPatients(config: any) {
+export async function saveFollowUpRecord(config: any, data: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    const [rows]: any = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo ASC');
+    await connection.beginTransaction();
+
+    const sfId = `SF${Date.now()}`;
+    let pdfId = null;
+
+    if (data.pdf) {
+      pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
+      const sqlPDF = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
+      await connection.execute(sqlPDF, [pdfId, data.archiveNo, data.pdf.checkDate, data.pdf.category, data.pdf.path]);
+    }
+
+    const sqlSF = `INSERT INTO SP_SF (id, archiveNo, associatedAnomalyId, followUpResult, followUpPerson, followUpDate, followUpTime, isReExamined, pdfId)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    await connection.execute(sqlSF, [
+      sfId, data.archiveNo, data.anomalyId, data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, data.isReExamined ? 1 : 0, pdfId
+    ]);
+
+    // 更新任务表中的下次随访日期
+    const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
+    await connection.execute(sqlRW, [data.nextFollowUpDate, data.anomalyId]);
+
+    // 更新异常表中的随访完成标志
+    const sqlYCJG = `UPDATE SP_YCJG SET isFollowUpRequired = 1 WHERE id = ?`;
+    await connection.execute(sqlYCJG, [data.anomalyId]);
+
+    await connection.commit();
+    return { success: true };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchPatientFullTimeline(config: any, archiveNo: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [patientRows]: any = await connection.execute('SELECT * FROM SP_PERSON WHERE archiveNo = ?', [archiveNo]);
+    const [anomalyRows]: any = await connection.execute('SELECT *, "abnormal" as type FROM SP_YCJG WHERE archiveNo = ? ORDER BY notificationDate DESC', [archiveNo]);
+    const [followUpRows]: any = await connection.execute('SELECT *, "followup" as type FROM SP_SF WHERE archiveNo = ? ORDER BY followUpDate DESC', [archiveNo]);
+    const [pdfRows]: any = await connection.execute('SELECT * FROM SP_PDF WHERE archiveNo = ? ORDER BY id ASC', [archiveNo]);
+
+    const timeline = [...anomalyRows, ...followUpRows].sort((a: any, b: any) => {
+      const dateA = a.notificationDate || a.followUpDate;
+      const dateB = b.notificationDate || b.followUpDate;
+      return dateB.localeCompare(dateA);
+    });
+
+    return {
+      patient: patientRows[0] ? serializeRow(patientRows[0]) : null,
+      timeline: timeline.map(serializeRow),
+      pdfs: pdfRows.map(serializeRow)
+    };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function calculateAllAges(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows]: any = await connection.execute('SELECT archiveNo, idNumber FROM SP_PERSON');
+    const currentYear = new Date().getFullYear();
+    
+    for (const row of rows) {
+      if (row.idNumber && row.idNumber.length === 18) {
+        const birthYear = parseInt(row.idNumber.substring(6, 10));
+        const age = currentYear - birthYear;
+        await connection.execute('UPDATE SP_PERSON SET age = ? WHERE archiveNo = ?', [age, row.archiveNo]);
+      }
+    }
+    return { success: true };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchDataForStats(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `
+      SELECT p.*, y.checkupNumber, y.checkupDate, y.anomalyCategory, y.anomalyDetails, y.disposalSuggestions, y.notifier, y.notifiedPerson, y.notificationDate, y.isFollowUpRequired,
+             sf.followUpDate, sf.followUpResult, sf.followUpPerson, sf.isReExamined
+      FROM SP_PERSON p
+      LEFT JOIN SP_YCJG y ON p.archiveNo = y.archiveNo
+      LEFT JOIN SP_SF sf ON y.id = sf.associatedAnomalyId
+      ORDER BY y.notificationDate DESC
+    `;
+    const [rows]: any = await connection.execute(sql);
     return rows.map(serializeRow);
   } finally {
     if (connection) await connection.end();

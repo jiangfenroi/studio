@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -28,9 +29,7 @@ import {
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useUser, useAuth, initiateSignOut, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase"
 import { Button } from "@/components/ui/button"
-import { doc, collection } from "firebase/firestore"
 
 const items = [
   {
@@ -68,51 +67,32 @@ const items = [
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const db = useFirestore()
-  const { user } = useUser()
-  const auth = useAuth()
+  const [user, setUser] = React.useState<any>(null)
 
-  const configRef = useMemoFirebase(() => doc(db, 'systemConfig', 'default'), [db])
-  const { data: config } = useDoc(configRef)
+  React.useEffect(() => {
+    const stored = sessionStorage.getItem('staff_user')
+    if (stored) {
+      setUser(JSON.parse(stored))
+    }
+  }, [])
 
-  // Fetch current user's profile to check for Admin role and Name
-  // Only query if the user is authenticated to avoid permission errors
-  const staffQuery = useMemoFirebase(() => {
-    if (!user || !db) return null;
-    return collection(db, "staffProfiles");
-  }, [db, user])
-  const { data: staffMembers } = useCollection(staffQuery)
-  
-  const currentUserProfile = React.useMemo(() => {
-    if (!user || !staffMembers) return null;
-    // Check by email (which we use for mapping jobId)
-    return staffMembers.find(s => s.email === user.email || s.jobId === user.email?.split('@')[0]);
-  }, [user, staffMembers]);
-
-  // Specific check for the requested initial admin jobId
-  const isAdmin = currentUserProfile?.role === "管理员" || user?.email?.startsWith('1058@');
+  const isAdmin = user?.permissions === '管理员' || user?.jobId === '1058';
 
   const handleLogout = () => {
-    if (auth) {
-      initiateSignOut(auth)
-      router.push("/login")
-    }
+    sessionStorage.removeItem('staff_user');
+    router.push("/login");
   }
-
-  // Display Name logic: Prioritize profile name, then jobId, then generic
-  const displayName = currentUserProfile?.name || user?.email?.split('@')[0] || (user?.isAnonymous ? '匿名管理员' : '系统用户');
-  const displayRole = currentUserProfile?.role || '医疗内网接入';
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            {config?.appLogoFileName ? <Activity className="size-5" /> : <ShieldAlert className="size-5" />}
+            <ShieldAlert className="size-5" />
           </div>
           <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
             <span className="font-bold text-primary truncate max-w-[140px]">
-              {config?.appName || "HealthInsight"}
+              HealthInsight
             </span>
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">管理控制台</span>
           </div>
@@ -141,28 +121,27 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        {/* Only show configuration to Admin users */}
-        <SidebarGroup className="mt-auto">
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">辅助工具</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton 
-                  asChild 
-                  isActive={pathname === "/settings"} 
-                  tooltip="系统配置"
-                  disabled={!isAdmin}
-                  className={!isAdmin ? "opacity-30 pointer-events-none" : ""}
-                >
-                  <Link href={isAdmin ? "/settings" : "#"}>
-                    <Settings className="size-5" />
-                    <span>系统配置</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isAdmin && (
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">辅助工具</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={pathname === "/settings"} 
+                    tooltip="系统配置"
+                  >
+                    <Link href="/settings">
+                      <Settings className="size-5" />
+                      <span>系统配置</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t p-4 group-data-[collapsible=icon]:hidden">
         <div className="flex items-center justify-between w-full">
@@ -172,10 +151,10 @@ export function AppSidebar() {
             </div>
             <div className="flex flex-col overflow-hidden">
               <span className="text-sm font-medium truncate">
-                {displayName}
+                {user?.name || '未登录'}
               </span>
               <span className="text-[10px] text-muted-foreground truncate">
-                {displayRole}
+                {user?.role || '医疗终端'} ({user?.permissions || '普通'})
               </span>
             </div>
           </div>
