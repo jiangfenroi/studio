@@ -1,7 +1,7 @@
 
 # HealthInsight Registry - 重要异常结果管理系统 (纯 MySQL 核心版)
 
-本系统专为医疗内网环境设计，**100% 隔离运行**。数据存储、身份验证及逻辑计算完全由本地 **MySQL 8.4** 承载。
+本系统专为医疗内网环境设计，**100% 隔离运行**。数据存储、身份验证及逻辑计算完全由本地 **MySQL 8.4** 承载，严禁与 Firebase 进行临床数据交换。
 
 ## 1. 数据库初始化 (MySQL 8.4)
 
@@ -49,6 +49,7 @@ CREATE TABLE SP_YCJG (
 CREATE TABLE SP_SF (
   id VARCHAR(100) PRIMARY KEY,
   archiveNo VARCHAR(50),
+  checkupNumber VARCHAR(12),
   associatedAnomalyId VARCHAR(100),
   followUpResult TEXT,
   followUpPerson VARCHAR(50),
@@ -56,7 +57,6 @@ CREATE TABLE SP_SF (
   followUpTime TIME,
   isReExamined TINYINT(1) DEFAULT 0,
   pdfId VARCHAR(100),
-  checkupNumber VARCHAR(12),
   FOREIGN KEY (archiveNo) REFERENCES SP_PERSON(archiveNo)
 );
 
@@ -108,10 +108,10 @@ CREATE TABLE SP_CONFIG (
 4. 执行 `npm run build` 生成生产包。
 5. 运行 `npm start` 启动服务。
 
-### Windows 部署
-1. 安装 Node.js 生产环境。
-2. 确保防火墙放行 3000/9002 端口。
-3. 运行 `start-app.sh` (或 Windows 对应的启动批处理)。
+### 核心功能点
+- **自动化排程**：异常结果登记后，系统自动计算 `通知日期 + 7天` 并生成随访任务。
+- **双级录入**：支持“临床结果 -> 个人档案”的分步式录入，保障数据完整。
+- **全维度预览**：管理列表实时联表展示档案与结果信息，支持最新记录置顶。
 
 ---
 *HealthInsight Registry • 100% MySQL 中心化数据引擎*
