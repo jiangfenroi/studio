@@ -21,7 +21,7 @@ async function getConnection(config: any) {
 }
 
 /**
- * 序列化行数据，处理日期和 BigInt
+ * 序列化行数据，处理日期、时间及 BigInt
  */
 function serializeRow(row: any) {
   const serialized = { ...row };
@@ -43,7 +43,7 @@ export async function checkConnection(config: any) {
     connection = await getConnection(config);
     return { success: true };
   } catch (e: any) {
-    throw new Error(`连接失败: ${e.message}`);
+    throw new Error(`中心库连接失败: ${e.message}`);
   } finally {
     if (connection) await connection.end();
   }
@@ -143,10 +143,23 @@ export async function syncConfigToMysql(config: any, sys: any) {
 
 // ---------------- 临床业务逻辑 ----------------
 
+export async function fetchPatients(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows]: any = await connection.execute('SELECT * FROM SP_PERSON ORDER BY archiveNo ASC');
+    return rows.map(serializeRow);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function syncPatientToMysql(config: any, patient: any) {
   let connection;
   try {
     connection = await getConnection(config);
+    await connection.beginTransaction();
+
     const sql = `INSERT INTO SP_PERSON (archiveNo, name, gender, age, idNumber, organization, address, phoneNumber, status)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE name=VALUES(name), gender=VALUES(gender), age=VALUES(age), 
@@ -156,10 +169,17 @@ export async function syncPatientToMysql(config: any, patient: any) {
       patient.id, patient.name, patient.gender, patient.age, patient.idNumber, 
       patient.organization, patient.address, patient.phoneNumber, patient.status
     ]);
+
+    // 联动处理：如果状态为死亡，清空下次随访排程
     if (patient.status === '死亡') {
       await connection.execute('UPDATE SP_RW SET nextFollowUpDate = NULL WHERE archiveNo = ?', [patient.id]);
     }
+
+    await connection.commit();
     return { success: true };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
   } finally {
     if (connection) await connection.end();
   }
@@ -172,7 +192,7 @@ export async function saveAnomalyResult(config: any, data: any) {
     await connection.beginTransaction();
 
     const anomalyId = `YCJG${Date.now()}`;
-    // 1. 确保档案表有此条基础记录（即便只有档案号）
+    // 确保档案表存在此编号（原子性补录）
     await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
 
     const sqlYCJG = `INSERT INTO SP_YCJG 
@@ -186,7 +206,7 @@ export async function saveAnomalyResult(config: any, data: any) {
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0
     ]);
 
-    // 2. 自动生成 7 日随访任务
+    // 自动生成 7 日随访任务并排程
     const nextDate = new Date(data.notificationDate);
     nextDate.setDate(nextDate.getDate() + 7);
     const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)
@@ -258,11 +278,11 @@ export async function saveFollowUpRecord(config: any, data: any) {
       sfId, data.archiveNo, data.anomalyId, data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, data.isReExamined ? 1 : 0
     ]);
 
-    // 更新下次随访日期
+    // 更新下次随访排程日期
     const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
     await connection.execute(sqlRW, [data.nextFollowUpDate, data.anomalyId]);
 
-    // 更新异常表中的已随访标志
+    // 更新主异常表中的已随访状态（闭环标志）
     const sqlYCJG = `UPDATE SP_YCJG SET isFollowUpRequired = 1 WHERE id = ?`;
     await connection.execute(sqlYCJG, [data.anomalyId]);
 
@@ -284,7 +304,7 @@ export async function fetchDashboardStats(config: any, selectedYear: number) {
     const [pendingCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_RW WHERE nextFollowUpDate <= CURRENT_DATE');
     const [totalPatients]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
     
-    // 获取指定年份的月度随访率统计
+    // 按通知日期统计月度告知率（支持跨月随访追溯）
     const [trend]: any = await connection.execute(`
       SELECT 
         DATE_FORMAT(notificationDate, '%Y-%m') as month, 
@@ -307,20 +327,75 @@ export async function fetchDashboardStats(config: any, selectedYear: number) {
   }
 }
 
+/**
+ * 核心功能：全量档案算龄引擎
+ * 逻辑：
+ * 1. 优先解析 18 位身份证。
+ * 2. 若无证，根据 SP_YCJG 中最近一次体检日期，满一年自动增加 1 岁。
+ */
 export async function calculateAllAges(config: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    const [rows]: any = await connection.execute('SELECT archiveNo, idNumber FROM SP_PERSON');
+    const [rows]: any = await connection.execute('SELECT archiveNo, idNumber, age FROM SP_PERSON');
     const currentYear = new Date().getFullYear();
+    const today = new Date();
+
     for (const row of rows) {
+      let newAge = row.age;
+      // 规则 1：基于身份证解析
       if (row.idNumber && row.idNumber.length === 18) {
         const birthYear = parseInt(row.idNumber.substring(6, 10));
-        const age = currentYear - birthYear;
-        await connection.execute('UPDATE SP_PERSON SET age = ? WHERE archiveNo = ?', [age, row.archiveNo]);
+        newAge = currentYear - birthYear;
+      } 
+      // 规则 2：无证档案基于体检日期偏移
+      else {
+        const [lastCheck]: any = await connection.execute(
+          'SELECT checkupDate FROM SP_YCJG WHERE archiveNo = ? ORDER BY checkupDate DESC LIMIT 1',
+          [row.archiveNo]
+        );
+        if (lastCheck[0] && lastCheck[0].checkupDate) {
+          const checkDate = new Date(lastCheck[0].checkupDate);
+          const yearsDiff = today.getFullYear() - checkDate.getFullYear();
+          if (yearsDiff > 0) {
+            newAge = (row.age || 0) + yearsDiff;
+          }
+        }
+      }
+      
+      if (newAge !== row.age) {
+        await connection.execute('UPDATE SP_PERSON SET age = ? WHERE archiveNo = ?', [newAge, row.archiveNo]);
       }
     }
     return { success: true };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchPatientFullTimeline(config: any, archiveNo: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [patient]: any = await connection.execute('SELECT * FROM SP_PERSON WHERE archiveNo = ?', [archiveNo]);
+    const [records]: any = await connection.execute('SELECT * FROM SP_YCJG WHERE archiveNo = ? ORDER BY notificationDate DESC', [archiveNo]);
+    const [followups]: any = await connection.execute('SELECT * FROM SP_SF WHERE archiveNo = ? ORDER BY followUpDate DESC', [archiveNo]);
+    const [pdfs]: any = await connection.execute('SELECT * FROM SP_PDF WHERE archiveNo = ? ORDER BY checkDate DESC', [archiveNo]);
+
+    const timeline = [
+      ...records.map((r: any) => ({ ...serializeRow(r), type: 'abnormal' })),
+      ...followups.map((f: any) => ({ ...serializeRow(f), type: 'followup' }))
+    ].sort((a: any, b: any) => {
+      const dateA = a.notificationDate || a.followUpDate;
+      const dateB = b.notificationDate || b.followUpDate;
+      return dateB.localeCompare(dateA);
+    });
+
+    return { 
+      patient: patient[0] ? serializeRow(patient[0]) : null, 
+      timeline, 
+      pdfs: pdfs.map(serializeRow) 
+    };
   } finally {
     if (connection) await connection.end();
   }
@@ -330,11 +405,29 @@ export async function savePdfMetadata(config: any, data: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    // 生成 10 位倒序 ID
+    // 生成 10 位倒序 ID (越新越小)
     const pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
     const sql = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
     await connection.execute(sql, [pdfId, data.archiveNo, data.checkDate, data.reportCategory, data.fullPath]);
     return { success: true, pdfId };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deleteAnomalyRecord(config: any, id: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.beginTransaction();
+    await connection.execute('DELETE FROM SP_RW WHERE anomalyId = ?', [id]);
+    await connection.execute('DELETE FROM SP_SF WHERE associatedAnomalyId = ?', [id]);
+    await connection.execute('DELETE FROM SP_YCJG WHERE id = ?', [id]);
+    await connection.commit();
+    return { success: true };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
   } finally {
     if (connection) await connection.end();
   }
@@ -351,6 +444,17 @@ export async function clearAllClinicalData(config: any) {
     await connection.execute('TRUNCATE TABLE SP_PERSON');
     await connection.execute('TRUNCATE TABLE SP_PDF');
     await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
+    return { success: true };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function clearAllStaffData(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.execute('TRUNCATE TABLE SP_STAFF');
     return { success: true };
   } finally {
     if (connection) await connection.end();

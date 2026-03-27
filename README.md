@@ -1,7 +1,7 @@
 
-# HealthInsight Registry - 重要异常结果管理系统 (MySQL 8.4 离线版)
+# HealthInsight Registry - 重要异常结果管理系统 (MySQL 8.4 隔离版)
 
-本系统专为医疗内网（隔离环境）设计，所有数据存储、身份验证及业务计算完全由中心 **MySQL 8.4** 承载。
+本系统专为医疗内网（物理隔离环境）设计，所有临床数据存储、身份验证及业务计算完全由中心 **MySQL 8.4** 数据库承载。
 
 ## 1. 数据库初始化 (MySQL 8.4)
 
@@ -42,6 +42,7 @@ CREATE TABLE SP_YCJG (
   isNotified TINYINT(1) DEFAULT 1,
   isFollowUpRequired TINYINT(1) DEFAULT 0,
   pdfId VARCHAR(100),
+  INDEX (archiveNo),
   FOREIGN KEY (archiveNo) REFERENCES SP_PERSON(archiveNo)
 );
 
@@ -56,6 +57,7 @@ CREATE TABLE SP_SF (
   followUpTime TIME,
   isReExamined TINYINT(1) DEFAULT 0,
   pdfId VARCHAR(100),
+  INDEX (archiveNo),
   FOREIGN KEY (archiveNo) REFERENCES SP_PERSON(archiveNo)
 );
 
@@ -69,7 +71,7 @@ CREATE TABLE SP_STAFF (
   permissions ENUM('普通', '管理员') DEFAULT '普通'
 );
 
--- 5. PDF 归档表 (SP_PDF)
+-- 5. PDF 归档索引表 (SP_PDF)
 CREATE TABLE SP_PDF (
   id VARCHAR(10) PRIMARY KEY COMMENT '10位倒序ID',
   archiveNo VARCHAR(50),
@@ -84,7 +86,8 @@ CREATE TABLE SP_RW (
   archiveNo VARCHAR(50),
   anomalyId VARCHAR(100),
   nextFollowUpDate DATE,
-  PRIMARY KEY (archiveNo, anomalyId)
+  PRIMARY KEY (archiveNo, anomalyId),
+  FOREIGN KEY (anomalyId) REFERENCES SP_YCJG(id)
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
@@ -96,25 +99,33 @@ CREATE TABLE SP_CONFIG (
   pdfStoragePath TEXT DEFAULT 'C:\\HealthReports\\',
   authKey VARCHAR(50) DEFAULT 'HEALTH-INSIGHT-2025'
 );
+
+-- 初始管理员：1058 (请注册后在数据库手动确认或通过系统直接注册)
 ```
 
 ## 2. 核心架构特性
 
-- **物理隔离**：程序不使用任何 Firebase 或云端服务。
-- **自动算龄**：内置身份证解析与日期差值算龄逻辑。
-- **闭环随访**：异常登记后自动锁定 7 日随访，随访完成后自动滚动年度计划。
-- **中心配置**：登录页一键配置 MySQL，全网终端同步生效。
+- **数据中心性**：100% 依赖 MySQL 8.4，不缓存业务数据，确保实时唯一。
+- **计算本地化**：所有年龄计算、告知率统计均由 Server Actions 在本地 Node.js 运行时执行。
+- **物理隔离**：程序不依赖任何互联网云端服务（如 Firebase），适配封闭医疗内网。
+- **自动算龄引擎**：内置 18 位身份证解析及基于体检周期的偏移算龄逻辑。
 
 ## 3. 部署指南
 
-### Ubuntu 24.04
+### Ubuntu 24.04 (推荐)
 1. 安装 Node.js 20+ 及 MySQL 8.4。
-2. 运行 `npm install`。
-3. 运行 `npm run build`。
-4. 执行 `./start-app.sh`。
+2. 配置 MySQL 允许远程连接（如有需要）。
+3. 运行 `npm install`。
+4. 运行 `npm run build`。
+5. 执行 `npm start`。默认访问端口 `9002`。
 
-### Windows
-1. 安装 Node.js 及 MySQL。
-2. 运行 `npm install`。
-3. 运行 `npm start`。
-4. 在浏览器访问 `http://localhost:9002`。
+### Windows (Windows 10/11/Server)
+1. 安装 Node.js 及 MySQL 8.4。
+2. 将项目解压至非中文路径。
+3. 在目录下执行 `npm install`。
+4. 运行 `npm run build`。
+5. 通过任务计划程序或 PM2 设置 `npm start` 自动运行。
+
+## 4. 维护说明
+- **重置数据**：管理员可在“配置中心”->“系统维护”中一键清空临床数据或账户库。
+- **配置同步**：登录页一键配置数据库连接，配置将自动同步至全院终端。
