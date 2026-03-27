@@ -72,7 +72,7 @@ CREATE TABLE SP_STAFF (
 
 -- 5. PDF 路径表 (SP_PDF)
 CREATE TABLE SP_PDF (
-  id VARCHAR(100) PRIMARY KEY,
+  id VARCHAR(10) PRIMARY KEY COMMENT '10位倒序ID',
   archiveNo VARCHAR(50),
   checkDate DATE,
   reportCategory ENUM('体检报告', '影像检查报告', '内镜检查报告', '病理检查报告', '电生理检查报告'),
@@ -99,19 +99,18 @@ CREATE TABLE SP_CONFIG (
 );
 ```
 
-## 2. 部署指南
+## 2. 核心逻辑说明
 
-### Ubuntu 24.04 (内网部署)
+- **PDF 自动化归档**：系统基于 `SP_CONFIG` 中的 `pdfStoragePath`，自动按照 `档案编号\类别\文件名` 的逻辑生成物理存储路径，并记录至 `SP_PDF`。
+- **倒序 ID 引擎**：PDF 编号采用 `2000000000 - timestamp` 的 10 位倒序逻辑，确保最新报告始终优先展示。
+- **状态联动**：患者标记为“死亡”时，系统会自动清空 `SP_RW` 对应的随访日期，实现结案。
+
+## 3. 部署指南
+
 1. 安装 Node.js 20+ 及 MySQL 8.4。
-2. 配置 MySQL 允许内网连接 (`bind-address = 0.0.0.0`)。
-3. 执行 `npm install`。
-4. 执行 `npm run build` 生成生产包。
-5. 运行 `npm start` 启动服务。
-
-### 核心功能点
-- **自动化排程**：异常结果登记后，系统自动计算 `通知日期 + 7天` 并生成随访任务。
-- **双级录入**：支持“临床结果 -> 个人档案”的分步式录入，保障数据完整。
-- **全维度预览**：管理列表实时联表展示档案与结果信息，支持最新记录置顶。
+2. 执行 `npm install`。
+3. 运行 `npm start` 启动服务。
+4. 首次登录请使用工号 `1058` 注册管理员账号。
 
 ---
-*HealthInsight Registry • 100% MySQL 中心化数据引擎*
+*HealthInsight Registry • 100% MySQL 中心化报告管理中心*

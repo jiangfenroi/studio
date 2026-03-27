@@ -11,17 +11,15 @@ import {
   User,
   Building,
   Activity,
-  BadgeCheck,
-  Stethoscope,
-  ClipboardCheck,
   PlusCircle,
   MoreVertical,
   Trash2,
   AlertCircle,
   MapPin,
   Phone,
-  AlertTriangle,
-  Loader2
+  Loader2,
+  Download,
+  Upload
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,6 +39,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { FollowUpForm } from "@/components/forms/FollowUpForm"
+import { PdfUploadForm } from "@/components/forms/PdfUploadForm"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,8 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import Link from "next/link"
-import { fetchPatientFullTimeline, deleteAnomalyRecord } from "@/app/actions/mysql-sync"
+import { fetchPatientFullTimeline, deleteAnomalyRecord, deletePdfMetadata } from "@/app/actions/mysql-sync"
 
 export default function PatientProfilePage() {
   const params = useParams()
@@ -60,7 +58,9 @@ export default function PatientProfilePage() {
   const [data, setData] = React.useState<any>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isFollowUpOpen, setIsFollowUpOpen] = React.useState(false)
+  const [isUploadOpen, setIsUploadOpen] = React.useState(false)
   const [recordToDelete, setRecordToDelete] = React.useState<any>(null)
+  const [pdfToDelete, setPdfToDelete] = React.useState<any>(null)
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true)
@@ -80,20 +80,21 @@ export default function PatientProfilePage() {
   }, [loadData])
 
   const handleOpenPACS = () => {
-    const pacsBase = "http://172.16.201.61:7242/?ChtId="
+    const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
+    const pacsBase = config.pacsUrlBase || "http://172.16.201.61:7242/?ChtId="
     window.open(`${pacsBase}${id}`, '_blank')
-    toast({ title: "外呼PACS", description: `调取档案号: ${id}` })
+    toast({ title: "调用 PACS", description: `检索档案号: ${id}` })
   }
 
-  const confirmDelete = async () => {
-    if (!recordToDelete) return
+  const handleDeletePdf = async () => {
+    if (!pdfToDelete) return
     try {
       const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
-      await deleteAnomalyRecord(config, recordToDelete.id)
-      toast({ title: "记录已删除", variant: "destructive" })
+      await deletePdfMetadata(config, pdfToDelete.id)
+      toast({ title: "报告已移除", variant: "destructive" })
       loadData()
     } finally {
-      setRecordToDelete(null)
+      setPdfToDelete(null)
     }
   }
 
@@ -109,21 +110,31 @@ export default function PatientProfilePage() {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="size-5" /></Button>
           <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
-            个人档案病历系统
-            <Badge variant="secondary" className="bg-primary/10 text-primary">档案编号: {id}</Badge>
+            患者全生命周期病历
+            <Badge variant="secondary" className="bg-primary/10 text-primary">档案号: {id}</Badge>
           </h1>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200" onClick={handleOpenPACS}>
-            <ExternalLink className="size-4" /> PACS调用
+          <Button variant="outline" className="gap-2 text-blue-700 border-blue-200" onClick={handleOpenPACS}>
+            <ExternalLink className="size-4" /> PACS 联动
           </Button>
           
+          <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2"><Upload className="size-4" /> 报告归档</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader><DialogTitle>上传 PDF 报告 - {patient?.name}</DialogTitle></DialogHeader>
+              <PdfUploadForm archiveNo={id} onSuccess={() => { setIsUploadOpen(false); loadData(); }} />
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={isFollowUpOpen} onOpenChange={setIsFollowUpOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-amber-500 hover:bg-amber-600"><PlusCircle className="size-4" /> 新增随访</Button>
+              <Button className="gap-2 bg-amber-500 hover:bg-amber-600 shadow-md"><PlusCircle className="size-4" /> 录入随访</Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>录入随访记录 - {patient?.name}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>随访结果记录 - {patient?.name}</DialogTitle></DialogHeader>
               <FollowUpForm 
                 archiveNo={id} 
                 patientName={patient?.name} 
@@ -138,8 +149,8 @@ export default function PatientProfilePage() {
       {patient?.status === '死亡' && (
         <Alert variant="destructive" className="bg-red-50 border-red-200">
           <AlertCircle className="size-4" />
-          <AlertTitle>临床结案提示</AlertTitle>
-          <AlertDescription>该患者已标记为“死亡”，后续随访任务已永久终止。</AlertDescription>
+          <AlertTitle>随访永久终止</AlertTitle>
+          <AlertDescription>该患者已标记为“死亡”，后续临床任务已自动清理。</AlertDescription>
         </Alert>
       )}
 
@@ -148,8 +159,8 @@ export default function PatientProfilePage() {
           <Card className="shadow-md border-none overflow-hidden">
             <CardHeader className="bg-primary/5 pb-8">
               <div className="flex flex-col items-center">
-                <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-4 ring-4 ring-white shadow-sm">
-                  <User className="size-12 text-primary" />
+                <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center mb-4 ring-2 ring-white shadow">
+                  <User className="size-10 text-primary" />
                 </div>
                 <h2 className="text-2xl font-bold">{patient?.name || "未补录"}</h2>
                 <div className="flex gap-2 mt-2">
@@ -158,26 +169,11 @@ export default function PatientProfilePage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="pt-6 space-y-5">
+            <CardContent className="pt-6 space-y-5 text-sm">
               <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <MapPin className="size-4 text-muted-foreground mt-1" />
-                  <div><p className="text-[10px] text-muted-foreground uppercase font-bold">住址</p><p className="text-sm">{patient?.address || "未登记"}</p></div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Building className="size-4 text-muted-foreground mt-1" />
-                  <div><p className="text-[10px] text-muted-foreground uppercase font-bold">单位</p><p className="text-sm">{patient?.organization || "未登记"}</p></div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Phone className="size-4 text-muted-foreground mt-1" />
-                  <div><p className="text-[10px] text-muted-foreground uppercase font-bold">电话</p><p className="text-sm">{patient?.phoneNumber || "未登记"}</p></div>
-                </div>
-              </div>
-              <Separator />
-              <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                <p className="text-xs text-blue-700 leading-relaxed font-bold italic">
-                  档案中心性标识：{id} > 身份证号
-                </p>
+                <div className="flex items-start gap-3"><MapPin className="size-4 text-muted-foreground mt-1" /><p>{patient?.address || "地址未登记"}</p></div>
+                <div className="flex items-start gap-3"><Building className="size-4 text-muted-foreground mt-1" /><p>{patient?.organization || "单位未登记"}</p></div>
+                <div className="flex items-start gap-3"><Phone className="size-4 text-muted-foreground mt-1" /><p className="font-mono">{patient?.phoneNumber || "电话未登记"}</p></div>
               </div>
             </CardContent>
           </Card>
@@ -185,29 +181,23 @@ export default function PatientProfilePage() {
 
         <div className="lg:col-span-3">
           <Tabs defaultValue="timeline">
-            <TabsList className="w-full justify-start h-12 bg-white border-b rounded-none px-0 gap-8">
-              <TabsTrigger value="timeline" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full text-base gap-2">
-                <History className="size-4" /> 临床病程轴
-              </TabsTrigger>
-              <TabsTrigger value="pdfs" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full text-base gap-2">
-                <FileText className="size-4" /> 报告库 ({pdfs?.length || 0})
-              </TabsTrigger>
+            <TabsList className="w-full justify-start h-12 bg-transparent border-b rounded-none px-0 gap-8">
+              <TabsTrigger value="timeline" className="rounded-none h-full data-[state=active]:border-b-2 data-[state=active]:border-primary text-base gap-2"><History className="size-4" /> 临床病史轴</TabsTrigger>
+              <TabsTrigger value="pdfs" className="rounded-none h-full data-[state=active]:border-b-2 data-[state=active]:border-primary text-base gap-2"><FileText className="size-4" /> PDF 报告库 ({pdfs?.length || 0})</TabsTrigger>
             </TabsList>
             
             <TabsContent value="timeline" className="mt-8">
               <div className="relative pl-8 ml-4 border-l-2 border-primary/10 space-y-10">
                 {timeline.map((event: any, idx: number) => (
-                  <div key={idx} className="relative">
-                    <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow-md flex items-center justify-center ${
-                      event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'
-                    }`}>
-                      {event.type === 'abnormal' ? <Stethoscope className="size-4 text-white" /> : <ClipboardCheck className="size-4 text-white" />}
+                  <div key={idx} className="relative group">
+                    <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow flex items-center justify-center ${event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'}`}>
+                      {event.type === 'abnormal' ? <AlertCircle className="size-4 text-white" /> : <Activity className="size-4 text-white" />}
                     </div>
-                    <div className="bg-white p-5 rounded-xl shadow-sm border hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-4">
+                    <div className="bg-white p-5 rounded-xl border shadow-sm group-hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
                         <div>
-                          <h4 className="text-xl font-bold">{event.type === 'abnormal' ? '重要异常发现' : '临床随访反馈'}</h4>
-                          <span className="text-xs text-muted-foreground font-mono">日期：{event.checkupDate || event.followUpDate}</span>
+                          <h4 className="text-lg font-bold">{event.type === 'abnormal' ? '重要异常发现' : '随访结果'}</h4>
+                          <span className="text-[10px] text-muted-foreground font-mono">{event.checkupDate || event.followUpDate} {event.notificationTime || event.followUpTime}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           {event.anomalyCategory && <Badge variant="destructive">{event.anomalyCategory}类</Badge>}
@@ -219,7 +209,15 @@ export default function PatientProfilePage() {
                           </DropdownMenu>
                         </div>
                       </div>
-                      <p className="text-sm bg-muted/20 p-4 rounded-lg whitespace-pre-wrap">{event.anomalyDetails || event.followUpResult}</p>
+                      <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap">{event.anomalyDetails || event.followUpResult}</p>
+                      
+                      {/* 如果有关联 PDF */}
+                      {event.pdfId && (
+                        <div className="mt-4 flex items-center gap-2 text-xs text-primary font-bold">
+                          <FileText className="size-3" /> 关联报告: #{event.pdfId} 
+                          <Button variant="link" className="h-auto p-0 text-xs" onClick={() => toast({ title: "打开报告", description: "已尝试在内网浏览器打开指定本地路径。" })}>查看报告</Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -228,26 +226,33 @@ export default function PatientProfilePage() {
 
             <TabsContent value="pdfs" className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
               {pdfs.map((pdf: any) => (
-                <Card key={pdf.id} className="hover:shadow-md">
+                <Card key={pdf.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4 flex items-center gap-4">
-                    <FileText className="size-8 text-primary opacity-50" />
+                    <div className="size-10 bg-primary/10 rounded flex items-center justify-center shrink-0">
+                      <FileText className="size-6 text-primary" />
+                    </div>
                     <div className="flex-1 overflow-hidden">
                       <p className="text-sm font-bold truncate">{pdf.reportCategory}</p>
-                      <p className="text-[10px] text-muted-foreground">{pdf.checkDate} • {pdf.fullPath}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{pdf.checkDate} • ID: {pdf.id}</p>
+                      <p className="text-[8px] text-muted-foreground truncate opacity-50">{pdf.fullPath}</p>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => window.open(pdf.fullPath, '_blank')}><ExternalLink className="size-4" /></Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => window.open(pdf.fullPath, '_blank')} title="下载/打开"><Download className="size-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPdfToDelete(pdf)}><Trash2 className="size-4" /></Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
+              {pdfs.length === 0 && <div className="col-span-full py-20 text-center text-muted-foreground border-2 border-dashed rounded-xl">暂无已归档的 PDF 报告</div>}
             </TabsContent>
           </Tabs>
         </div>
       </div>
 
-      <AlertDialog open={!!recordToDelete} onOpenChange={() => setRecordToDelete(null)}>
+      <AlertDialog open={!!pdfToDelete} onOpenChange={() => setPdfToDelete(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>确认删除？</AlertDialogTitle><AlertDialogDescription>此操作将永久移除该条临床病程记录。</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-destructive">确认删除</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>确认删除 PDF 索引？</AlertDialogTitle><AlertDialogDescription>此操作仅移除数据库关联，请手动清理物理存储中的文件。</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={handleDeletePdf} className="bg-destructive">确认删除</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
