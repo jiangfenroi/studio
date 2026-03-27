@@ -24,7 +24,7 @@ export default function LoginPage() {
   const [isConnecting, setIsConnecting] = React.useState(false);
   const [isConnected, setIsConnected] = React.useState(false);
   
-  // 中心数据库默认配置 (内网环境)
+  // 中心数据库配置
   const [mysqlConfig, setMysqlConfig] = React.useState({
     host: '8.137.162.142',
     port: '3306',
@@ -77,8 +77,9 @@ export default function LoginPage() {
       toast({ variant: "destructive", title: "请先测试数据库连接", description: "必须成功连接中心库后方可操作。" });
       return;
     }
+    // 隐藏校验密钥
     if (authCode !== 'HEALTH-INSIGHT-2025') {
-      toast({ variant: "destructive", title: "授权密钥错误", description: "请输入有效的内网注册密钥。" });
+      toast({ variant: "destructive", title: "授权密钥错误", description: "请输入有效的注册密钥。" });
       return;
     }
     setIsLoading(true);
@@ -103,12 +104,12 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight">HealthInsight Registry</CardTitle>
-          <CardDescription>医疗内网重要异常结果管理终端 (MySQL 驱动)</CardDescription>
+          <CardDescription>医疗内网管理终端 (中心 MySQL 驱动)</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">账号登录</TabsTrigger>
+              <TabsTrigger value="login">账户登录</TabsTrigger>
               <TabsTrigger value="signup">内网注册</TabsTrigger>
             </TabsList>
             
@@ -146,13 +147,13 @@ export default function LoginPage() {
                   <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-primary font-bold">注册授权密钥</Label>
+                  <Label className="text-primary font-bold">系统注册授权密钥</Label>
                   <Input 
                     type="password"
                     value={authCode} 
                     onChange={(e) => setAuthCode(e.target.value)} 
                     required 
-                    placeholder="请输入内网分发的 10 位密钥" 
+                    placeholder="请输入内网授权密钥" 
                   />
                 </div>
                 <Button type="submit" variant="secondary" className="w-full h-11 shadow-sm" disabled={isLoading || !isConnected}>
@@ -167,15 +168,16 @@ export default function LoginPage() {
           <div className="flex flex-col gap-3 w-full p-4 bg-muted/50 rounded-xl border">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-                <Database className="size-3" /> 内网中心数据库配置
+                <Database className="size-3" /> 中心数据库通讯配置
               </p>
               {isConnected && <Badge variant="secondary" className="bg-green-100 text-green-700 text-[8px] px-1 h-4">已联通</Badge>}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input className="h-8 text-xs bg-white" value={mysqlConfig.host} onChange={e => setMysqlConfig({...mysqlConfig, host: e.target.value})} placeholder="主机IP" />
               <Input className="h-8 text-xs bg-white" value={mysqlConfig.port} onChange={e => setMysqlConfig({...mysqlConfig, port: e.target.value})} placeholder="端口" />
-              <Input className="h-8 text-xs bg-white" value={mysqlConfig.user} onChange={e => setMysqlConfig({...mysqlConfig, user: e.target.value})} placeholder="账户" />
+              <Input className="h-8 text-xs bg-white" value={mysqlConfig.user} onChange={e => setMysqlConfig({...mysqlConfig, user: e.target.value})} placeholder="账号" />
               <Input className="h-8 text-xs bg-white" type="password" value={mysqlConfig.password} onChange={e => setMysqlConfig({...mysqlConfig, password: e.target.value})} placeholder="密码" />
+              <Input className="h-8 text-xs bg-white col-span-full" value={mysqlConfig.database} onChange={e => setMysqlConfig({...mysqlConfig, database: e.target.value})} placeholder="数据库/Schema 名称" />
             </div>
             <Button 
               type="button" 
@@ -185,7 +187,7 @@ export default function LoginPage() {
               disabled={isConnecting}
             >
               {isConnecting ? <Loader2 className="size-3 animate-spin" /> : isConnected ? <CheckCircle2 className="size-3 text-green-600" /> : <Database className="size-3" />}
-              {isConnected ? "应用并同步" : "测试连通性"}
+              {isConnected ? "配置已应用" : "测试数据库连通性"}
             </Button>
           </div>
         </CardFooter>

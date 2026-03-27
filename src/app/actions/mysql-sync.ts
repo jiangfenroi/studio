@@ -68,6 +68,7 @@ export async function registerUser(config: any, staff: any) {
     if (existing.length > 0) {
       throw new Error('账号已存在，请直接前往登录。');
     }
+    // 账号1058注册自动为管理员账户,其他账号注册自动为普通账户
     const permissions = staff.jobId === '1058' ? '管理员' : '普通';
     const sql = `INSERT INTO SP_STAFF (jobId, password, name, status, role, permissions) VALUES (?, ?, ?, '在职', ?, ?)`;
     await connection.execute(sql, [staff.jobId, staff.password, staff.name, staff.role || '医生', permissions]);

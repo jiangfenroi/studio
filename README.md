@@ -1,17 +1,17 @@
 
-# HealthInsight Registry - 重要异常结果管理系统 (纯 MySQL 核心版)
+# HealthInsight Registry - 重要异常结果管理系统 (MySQL 中心化版)
 
-本系统专为医疗内网环境设计，**100% 隔离运行**。数据存储、身份验证及逻辑计算完全由本地 **MySQL 8.4** 承载，严禁与 Firebase 进行临床数据交换。
+本系统专为医疗内网环境设计，临床数据与身份验证完全由中心 **MySQL 8.4** 承载，物理阻断 Firebase 数据同步。
 
-## 1. 数据库初始化 (MySQL 8.4)
+## 1. 中心数据库初始化 (MySQL 8.4)
 
-请在您的中心数据库服务器上执行以下脚本以创建表结构：
+请在中心数据库服务器上执行以下脚本以创建 7 张核心业务表：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS meditrack_db CHARACTER SET utf8mb4;
 USE meditrack_db;
 
--- 1. 个人信息表 (SP_PERSON)
+-- 1. 个人档案表 (SP_PERSON)
 CREATE TABLE SP_PERSON (
   archiveNo VARCHAR(50) PRIMARY KEY COMMENT '档案编号',
   name VARCHAR(50),
@@ -26,7 +26,7 @@ CREATE TABLE SP_PERSON (
 
 -- 2. 重要异常结果记录表 (SP_YCJG)
 CREATE TABLE SP_YCJG (
-  id VARCHAR(100) PRIMARY KEY COMMENT '重要异常结果编号',
+  id VARCHAR(100) PRIMARY KEY COMMENT '异常结果编号',
   archiveNo VARCHAR(50),
   checkupNumber VARCHAR(12),
   checkupDate DATE,
@@ -49,7 +49,6 @@ CREATE TABLE SP_YCJG (
 CREATE TABLE SP_SF (
   id VARCHAR(100) PRIMARY KEY,
   archiveNo VARCHAR(50),
-  checkupNumber VARCHAR(12),
   associatedAnomalyId VARCHAR(100),
   followUpResult TEXT,
   followUpPerson VARCHAR(50),
@@ -60,9 +59,9 @@ CREATE TABLE SP_SF (
   FOREIGN KEY (archiveNo) REFERENCES SP_PERSON(archiveNo)
 );
 
--- 4. 用户表 (SP_STAFF)
+-- 4. 工作人员表 (SP_STAFF)
 CREATE TABLE SP_STAFF (
-  jobId VARCHAR(50) PRIMARY KEY COMMENT '账号',
+  jobId VARCHAR(50) PRIMARY KEY COMMENT '工号/账号',
   password VARCHAR(100) NOT NULL,
   name VARCHAR(50),
   status ENUM('在职', '离职') DEFAULT '在职',
@@ -70,7 +69,7 @@ CREATE TABLE SP_STAFF (
   permissions ENUM('普通', '管理员') DEFAULT '普通'
 );
 
--- 5. PDF 路径表 (SP_PDF)
+-- 5. PDF 归档表 (SP_PDF)
 CREATE TABLE SP_PDF (
   id VARCHAR(10) PRIMARY KEY COMMENT '10位倒序ID',
   archiveNo VARCHAR(50),
@@ -80,7 +79,7 @@ CREATE TABLE SP_PDF (
   FOREIGN KEY (archiveNo) REFERENCES SP_PERSON(archiveNo)
 );
 
--- 6. 待随访任务表 (SP_RW)
+-- 6. 待随访任务池 (SP_RW)
 CREATE TABLE SP_RW (
   archiveNo VARCHAR(50),
   anomalyId VARCHAR(100),
@@ -88,7 +87,7 @@ CREATE TABLE SP_RW (
   PRIMARY KEY (archiveNo, anomalyId)
 );
 
--- 7. 系统设置表 (SP_CONFIG)
+-- 7. 系统配置表 (SP_CONFIG)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY DEFAULT 'default',
   appName VARCHAR(100),
@@ -99,18 +98,18 @@ CREATE TABLE SP_CONFIG (
 );
 ```
 
-## 2. 核心逻辑说明
+## 2. 核心架构特性
 
-- **PDF 自动化归档**：系统基于 `SP_CONFIG` 中的 `pdfStoragePath`，自动按照 `档案编号\类别\文件名` 的逻辑生成物理存储路径，并记录至 `SP_PDF`。
-- **倒序 ID 引擎**：PDF 编号采用 `2000000000 - timestamp` 的 10 位倒序逻辑，确保最新报告始终优先展示。
-- **状态联动**：患者标记为“死亡”时，系统会自动清空 `SP_RW` 对应的随访日期，实现结案。
+- **数据中心化**：所有业务逻辑依赖 MySQL `INNER JOIN` 联表查询。
+- **计算本地化**：年龄计算、任务排程（7日锁定）、导出逻辑均在服务器端 Node.js 执行。
+- **权限自动化**：工号 `1058` 注册即为管理员；注册需通过隐藏密钥 `HEALTH-INSIGHT-2025` 校验。
 
 ## 3. 部署指南
 
 1. 安装 Node.js 20+ 及 MySQL 8.4。
-2. 执行 `npm install`。
-3. 运行 `npm start` 启动服务。
-4. 首次登录请使用工号 `1058` 注册管理员账号。
+2. 运行 `npm install`。
+3. 启动：`npm start`。
+4. 首次登录：在登录页配置 MySQL IP，并使用工号 `1058` 注册管理员。
 
 ---
-*HealthInsight Registry • 100% MySQL 中心化报告管理中心*
+*HealthInsight Registry • 100% MySQL 中心化数据驱动*
