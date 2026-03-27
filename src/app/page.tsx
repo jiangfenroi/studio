@@ -53,21 +53,17 @@ export default function HomePage() {
     loadData();
   }, [loadData]);
 
-  // 构建完整的12个月数据，确保即使某月无数据图表也不断裂
   const chartData = React.useMemo(() => {
     if (!stats?.trend) return [];
-    
     const months = Array.from({ length: 12 }, (_, i) => {
       const month = (i + 1).toString().padStart(2, '0');
       return `${selectedYear}-${month}`;
     });
-
     return months.map(m => {
       const found = stats.trend.find((t: any) => t.month === m);
       const total = found?.total || 0;
       const followed = found?.followed || 0;
       const rate = total > 0 ? Math.round((followed / total) * 100) : 0;
-      
       return {
         month: m.split('-')[1] + '月',
         rate: rate,
@@ -179,32 +175,28 @@ export default function HomePage() {
         </Card>
 
         <Card className="border-none shadow-lg bg-primary text-primary-foreground flex flex-col">
-          <CardHeader><CardTitle>内网中心服务状态</CardTitle></CardHeader>
+          <CardHeader><CardTitle>内网统计逻辑说明</CardTitle></CardHeader>
           <CardContent className="space-y-6 pt-4 flex-1">
             <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
-              <p className="text-xs font-bold uppercase tracking-wider opacity-70">统计引擎说明</p>
+              <p className="text-xs font-bold uppercase tracking-wider opacity-70">数据中心化</p>
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
                 <p className="text-sm leading-relaxed">
-                  系统根据“通知日期”锁定统计月。随访率计算模型支持跨月回溯——即上月遗留的任务在本月完成后，上月随访率将自动同步提升，确保年度数据的闭环准确性。
+                  系统采用实时 SQL 聚合技术。即使随访发生在通知后的下月，统计引擎也会自动追溯并更新通知月份的随访率，确保临床质控数据的真实完整。
                 </p>
               </div>
             </div>
             
             <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
-              <p className="text-xs font-bold uppercase tracking-wider opacity-70">数据计算中心</p>
+              <p className="text-xs font-bold uppercase tracking-wider opacity-70">算龄规则</p>
               <div className="flex items-center gap-2">
                 <Activity className="size-4" />
-                <span className="text-sm">计算模式：本地实时原子聚合</span>
+                <span className="text-sm">规则 1：基于身份证自动解析</span>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="size-4" />
-                <span className="text-sm">数据来源：中心 MySQL 8.4 集群</span>
+                <span className="text-sm">规则 2：无证档案基于周期自增</span>
               </div>
-            </div>
-
-            <div className="mt-auto pt-6 text-[10px] opacity-50 text-center">
-              上次同步时间: {new Date().toLocaleTimeString()}
             </div>
           </CardContent>
         </Card>

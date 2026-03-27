@@ -6,8 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { User, ArrowRight, SkipForward, Loader2 } from "lucide-react"
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { syncPatientToMysql } from "@/app/actions/mysql-sync"
 
@@ -43,12 +41,8 @@ interface PatientInfoFormProps {
 }
 
 export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFormProps) {
-  const db = useFirestore()
   const { toast } = useToast()
   const [isSyncing, setIsSyncing] = React.useState(false)
-  
-  const configRef = useMemoFirebase(() => doc(db, "systemConfig", "default"), [db])
-  const { data: systemConfig } = useDoc(configRef)
 
   const form = useForm<z.infer<typeof patientSchema>>({
     resolver: zodResolver(patientSchema),
@@ -66,12 +60,11 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
   })
 
   async function onSubmit(values: z.infer<typeof patientSchema>) {
-    if (!systemConfig?.mysql) return
+    const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
     setIsSyncing(true)
     try {
-      // 仅向 MySQL 同步
-      await syncPatientToMysql(systemConfig.mysql, values, 'SAVE');
-      toast({ title: "档案已完善", description: "人口学信息已同步至中心数据库。" });
+      await syncPatientToMysql(config, values);
+      toast({ title: "档案已完善", description: "信息已成功同步至中心 MySQL 数据库。" });
       onComplete()
     } catch (err: any) {
       toast({ variant: "destructive", title: "同步失败", description: err.message });
@@ -83,12 +76,12 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Card className="shadow-2xl border-none ring-1 ring-primary/20">
+        <Card className="shadow-2xl border-none ring-1 ring-primary/20 overflow-hidden">
           <CardHeader className="bg-primary text-primary-foreground py-8">
             <div className="flex items-center gap-4">
               <User className="size-8" />
               <div>
-                <CardTitle>补充个人健康档案</CardTitle>
+                <CardTitle>补录个人健康档案 (Step 2)</CardTitle>
                 <CardDescription className="text-primary-foreground/80">档案编号: {archiveNo}</CardDescription>
               </div>
             </div>
@@ -110,16 +103,28 @@ export function PatientInfoForm({ archiveNo, onComplete, onSkip }: PatientInfoFo
               <FormItem><FormLabel>年龄</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="idNumber" render={({ field }) => (
-              <FormItem className="col-span-full"><FormLabel>身份证号</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              <FormItem className="col-span-full"><FormLabel>身份证号 (18位)</FormLabel><FormControl><Input maxLength={18} {...field} /></FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="phoneNumber" render={({ field }) => (
               <FormItem><FormLabel>电话</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
             )} />
+            <FormField control={form.control} name="organization" render={({ field }) => (
+              <FormItem><FormLabel>工作单位</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+            )} />
+            <FormField control={form.control} name="status" render={({ field }) => (
+              <FormItem>
+                <FormLabel>状态</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                  <SelectContent><SelectItem value="正常">正常</SelectItem><SelectItem value="死亡">死亡</SelectItem><SelectItem value="无法联系">无法联系</SelectItem></SelectContent>
+                </Select>
+              </FormItem>
+            )} />
           </CardContent>
           <div className="flex justify-between items-center px-10 pb-10">
-            <Button type="button" variant="ghost" onClick={onSkip} disabled={isSyncing}><SkipForward className="size-4 mr-2" /> 跳过</Button>
+            <Button type="button" variant="ghost" onClick={onSkip} disabled={isSyncing}><SkipForward className="size-4 mr-2" /> 稍后补录 (跳过)</Button>
             <Button type="submit" size="lg" disabled={isSyncing} className="gap-2">
-              {isSyncing ? <Loader2 className="animate-spin" /> : <ArrowRight />} 保存并同步
+              {isSyncing ? <Loader2 className="animate-spin" /> : <ArrowRight />} 保存档案
             </Button>
           </div>
         </Card>

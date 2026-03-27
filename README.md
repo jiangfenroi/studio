@@ -1,11 +1,11 @@
 
-# HealthInsight Registry - 重要异常结果管理系统 (MySQL 中心化版)
+# HealthInsight Registry - 重要异常结果管理系统 (MySQL 8.4 离线版)
 
-本系统专为医疗内网环境设计，临床数据与身份验证完全由中心 **MySQL 8.4** 承载，物理阻断 Firebase 数据同步。
+本系统专为医疗内网（隔离环境）设计，所有数据存储、身份验证及业务计算完全由中心 **MySQL 8.4** 承载。
 
-## 1. 中心数据库初始化 (MySQL 8.4)
+## 1. 数据库初始化 (MySQL 8.4)
 
-请在中心数据库服务器上执行以下脚本以创建 7 张核心业务表：
+请在中心服务器执行以下 SQL 脚本以创建 7 张核心业务表及相关索引。
 
 ```sql
 CREATE DATABASE IF NOT EXISTS meditrack_db CHARACTER SET utf8mb4;
@@ -90,26 +90,31 @@ CREATE TABLE SP_RW (
 -- 7. 系统配置表 (SP_CONFIG)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY DEFAULT 'default',
-  appName VARCHAR(100),
+  appName VARCHAR(100) DEFAULT 'HealthInsight Registry',
   logoPath TEXT,
-  pacsUrlBase TEXT,
-  pdfStoragePath TEXT,
+  pacsUrlBase TEXT DEFAULT 'http://172.16.201.61:7242/?ChtId=',
+  pdfStoragePath TEXT DEFAULT 'C:\\HealthReports\\',
   authKey VARCHAR(50) DEFAULT 'HEALTH-INSIGHT-2025'
 );
 ```
 
 ## 2. 核心架构特性
 
-- **数据中心化**：所有业务逻辑依赖 MySQL `INNER JOIN` 联表查询。
-- **计算本地化**：年龄计算、任务排程（7日锁定）、导出逻辑均在服务器端 Node.js 执行。
-- **权限自动化**：工号 `1058` 注册即为管理员；注册需通过隐藏密钥 `HEALTH-INSIGHT-2025` 校验。
+- **物理隔离**：程序不使用任何 Firebase 或云端服务。
+- **自动算龄**：内置身份证解析与日期差值算龄逻辑。
+- **闭环随访**：异常登记后自动锁定 7 日随访，随访完成后自动滚动年度计划。
+- **中心配置**：登录页一键配置 MySQL，全网终端同步生效。
 
 ## 3. 部署指南
 
+### Ubuntu 24.04
 1. 安装 Node.js 20+ 及 MySQL 8.4。
 2. 运行 `npm install`。
-3. 启动：`npm start`。
-4. 首次登录：在登录页配置 MySQL IP，并使用工号 `1058` 注册管理员。
+3. 运行 `npm run build`。
+4. 执行 `./start-app.sh`。
 
----
-*HealthInsight Registry • 100% MySQL 中心化数据驱动*
+### Windows
+1. 安装 Node.js 及 MySQL。
+2. 运行 `npm install`。
+3. 运行 `npm start`。
+4. 在浏览器访问 `http://localhost:9002`。
