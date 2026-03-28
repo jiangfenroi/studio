@@ -223,7 +223,7 @@ export default function RecordsPage() {
                     <div className="flex flex-col">
                       <span className="font-bold text-foreground text-xl leading-tight">{r.patientName || "待补录"}</span>
                       {r.patientName && (
-                        <span className="text-[11px] text-muted-foreground mt-0.5">
+                        <span className="text-xs text-muted-foreground mt-0.5">
                           {r.patientGender} / {r.patientAge}岁
                         </span>
                       )}

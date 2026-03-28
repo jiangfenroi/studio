@@ -87,10 +87,10 @@ export default function FollowUpsPage() {
           )}
         >
           <div className="p-4">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-3 pb-3 border-b">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
                 <span className="text-xl font-bold text-foreground">{r.patientName || "待补录"}</span>
-                <span className="text-sm font-medium text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {r.patientGender} / {r.patientAge}岁
                 </span>
               </div>
@@ -103,22 +103,21 @@ export default function FollowUpsPage() {
               </Badge>
 
               <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-700 rounded-md text-sm font-bold border border-orange-300 shadow-sm">
-                <Clock className="size-4" />
                 应随访日期: {r.nextFollowUpDate}
               </div>
 
-              <div className="text-base font-bold text-foreground">
+              <div className="text-sm font-bold text-foreground">
                 <span className="font-mono tracking-tighter">{r.patientPhone}</span>
               </div>
 
               <div className="text-sm">
-                <span className="text-muted-foreground mr-1 font-normal text-[11px]">体检号:</span>
-                <span className="font-mono font-bold text-foreground text-[11px]">{r.checkupNumber}</span>
+                <span className="text-muted-foreground mr-1 font-normal text-[10px]">体检号:</span>
+                <span className="font-mono text-foreground text-[10px]">{r.checkupNumber}</span>
               </div>
 
               <div className="text-sm">
-                <span className="text-muted-foreground mr-1 font-normal text-[11px]">末次随访:</span>
-                <span className="font-bold text-green-600 text-[11px]">{r.lastFollowUpDate || "-"}</span>
+                <span className="text-muted-foreground mr-1 font-normal text-[10px]">末次随访:</span>
+                <span className="font-bold text-green-600 text-[10px]">{r.lastFollowUpDate || "-"}</span>
               </div>
               
               <div className="text-[10px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
@@ -174,7 +173,7 @@ export default function FollowUpsPage() {
               <TableCell>
                 <div className="flex flex-col">
                   <span className="font-bold text-foreground text-xl leading-tight">{r.patientName || "待补录"}</span>
-                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                  <span className="text-xs text-muted-foreground mt-0.5">
                     {r.patientGender} / {r.patientAge}岁
                   </span>
                 </div>

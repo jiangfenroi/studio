@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -182,35 +181,38 @@ export default function PatientsPage() {
               <TableHead>姓名</TableHead>
               <TableHead>档案信息</TableHead>
               <TableHead>基本属性</TableHead>
-              <TableHead>电话</TableHead>
               <TableHead>状态</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /> 处理中...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /> 处理中...</TableCell></TableRow>
             ) : filteredPatients.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">暂无档案记录</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">暂无档案记录</TableCell></TableRow>
             ) : filteredPatients.map(p => (
               <TableRow key={p.archiveNo} className="group">
                 <TableCell>
                   <span className={cn(
-                    "text-lg font-bold text-foreground",
+                    "text-xl font-bold text-foreground",
                     !p.name && "text-amber-500 italic"
                   )}>
                     {p.name || "待补录"}
                   </span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-[11px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
-                    {p.archiveNo}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-foreground">
+                      {p.phoneNumber}
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground mt-1 uppercase">
+                      {p.archiveNo}
+                    </span>
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {p.gender} / {p.age}岁 / {p.idNumber || "无ID"}
                 </TableCell>
-                <TableCell className="text-sm font-mono">{p.phoneNumber}</TableCell>
                 <TableCell>
                   <Badge variant={p.status === '正常' ? 'default' : p.status === '死亡' ? 'destructive' : 'secondary'}>{p.status}</Badge>
                 </TableCell>
@@ -252,10 +254,6 @@ export default function PatientsPage() {
                   </div>
                 </div>
               </ScrollArea>
-              <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
-                <AlertCircle className="size-3 inline mr-1" />
-                注：若档案编号重复将自动更新。
-              </p>
             </div>
             
             <div className="flex flex-col gap-3">
