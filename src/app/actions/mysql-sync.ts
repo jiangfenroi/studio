@@ -162,7 +162,7 @@ export async function updateAnomalyResult(config: any, id: string, data: any) {
     await connection.execute(sql, [
       data.checkupNumber, data.checkupDate, data.anomalyCategory, data.anomalyDetails,
       data.notifier, data.notifiedPerson, data.notificationDate, data.notificationTime,
-      data.disboxalSuggestions, data.notifiedPersonFeedback, 
+      data.disposalSuggestions, data.notifiedPersonFeedback, 
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null,
       id
     ]);
@@ -270,7 +270,7 @@ export async function syncConfigToMysql(config: any, sys: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    const sql = `INSERT INTO SP_CONFIG (appName, pacsUrlBase, pdfStoragePath) VALUES (?, ?, ?) 
+    const sql = `INSERT INTO SP_CONFIG (configKey, appName, pacsUrlBase, pdfStoragePath) VALUES ('default', ?, ?, ?) 
                  ON DUPLICATE KEY UPDATE appName=VALUES(appName), pacsUrlBase=VALUES(pacsUrlBase), pdfStoragePath=VALUES(pdfStoragePath)`;
     await connection.execute(sql, [sys.appName, sys.pacsUrlBase, sys.pdfStoragePath]);
     return { success: true };
@@ -354,12 +354,40 @@ export async function deleteAnomalyRecord(config: any, id: string) {
   }
 }
 
+/**
+ * 随访记录删除逻辑增强：
+ * 如果删除后 SP_SF 中不再存在该异常的记录，则将 SP_YCJG 的 isFollowUpRequired 置为 0 (否)。
+ */
 export async function deleteFollowUpRecord(config: any, id: string) {
   let connection;
   try {
     connection = await getConnection(config);
+    await connection.beginTransaction();
+
+    // 1. 获取关联的异常记录ID
+    const [rows]: any = await connection.execute('SELECT associatedAnomalyId FROM SP_SF WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      await connection.rollback();
+      return { success: true };
+    }
+    const anomalyId = rows[0].associatedAnomalyId;
+
+    // 2. 执行物理删除
     await connection.execute('DELETE FROM SP_SF WHERE id = ?', [id]);
+
+    // 3. 统计该异常剩余的随访记录数量
+    const [countResult]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_SF WHERE associatedAnomalyId = ?', [anomalyId]);
+    
+    // 4. 若无剩余随访记录，更新主表状态
+    if (countResult[0].count === 0) {
+      await connection.execute('UPDATE SP_YCJG SET isFollowUpRequired = 0 WHERE id = ?', [anomalyId]);
+    }
+
+    await connection.commit();
     return { success: true };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
   } finally {
     if (connection) await connection.end();
   }
