@@ -27,6 +27,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 const formSchema = z.object({
   archiveNo: z.string().min(1, "档案编号不能为空"),
@@ -156,6 +157,9 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
     }
   }
 
+  // 统一只读输入框样式
+  const readOnlyInputClass = "disabled:opacity-100 disabled:cursor-default text-foreground font-bold"
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -168,26 +172,26 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
             <FormField control={form.control} name="archiveNo" render={({ field }) => (
-              <FormItem><FormLabel className="text-xs font-semibold text-muted-foreground uppercase">档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} className="h-9 text-sm" disabled={!!initialData || readOnly} /></FormControl></FormItem>
+              <FormItem><FormLabel className="text-[10px] font-bold text-muted-foreground uppercase">档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} className={cn("h-9 text-[10px] font-mono", readOnly && readOnlyInputClass)} disabled={!!initialData || readOnly} /></FormControl></FormItem>
             )} />
             <FormField control={form.control} name="checkupNumber" render={({ field }) => (
-              <FormItem><FormLabel className="text-xs font-semibold text-muted-foreground uppercase">体检编号</FormLabel><FormControl><Input maxLength={12} {...field} className="h-9 text-sm font-mono" disabled={readOnly} /></FormControl></FormItem>
+              <FormItem><FormLabel className="text-[10px] font-bold text-muted-foreground uppercase">体检编号</FormLabel><FormControl><Input maxLength={12} {...field} className={cn("h-9 text-[10px] font-mono", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
             )} />
             <FormField control={form.control} name="checkupDate" render={({ field }) => (
-              <FormItem><FormLabel className="text-xs font-semibold text-muted-foreground uppercase">体检日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+              <FormItem><FormLabel className="text-sm font-bold text-muted-foreground uppercase">体检日期</FormLabel><FormControl><Input type="date" {...field} className={cn("h-9 text-sm", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
             )} />
             
             <FormField control={form.control} name="anomalyCategory" render={({ field }) => (
               <FormItem className="col-span-full">
-                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase">异常结果种类</FormLabel>
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase">异常结果种类</FormLabel>
                 <FormControl>
                   <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4" disabled={readOnly}>
                     <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                      <FormControl><RadioGroupItem value="A" /></FormControl>
+                      <FormControl><RadioGroupItem value="A" className={cn(readOnly && "disabled:opacity-100")} /></FormControl>
                       <FormLabel className="font-bold text-destructive text-sm cursor-pointer">A类 (危急干预)</FormLabel>
                     </FormItem>
                     <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                      <FormControl><RadioGroupItem value="B" /></FormControl>
+                      <FormControl><RadioGroupItem value="B" className={cn(readOnly && "disabled:opacity-100")} /></FormControl>
                       <FormLabel className="font-bold text-primary text-sm cursor-pointer">B类 (进一步检查)</FormLabel>
                     </FormItem>
                   </RadioGroup>
@@ -197,14 +201,14 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
 
             <FormField control={form.control} name="anomalyDetails" render={({ field }) => (
               <FormItem className="col-span-full">
-                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase">医学发现/异常详情</FormLabel>
-                <FormControl><Textarea {...field} className="min-h-[140px] text-sm leading-relaxed" disabled={readOnly} /></FormControl>
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase">医学发现/异常详情</FormLabel>
+                <FormControl><Textarea {...field} className={cn("min-h-[140px] text-sm leading-relaxed", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl>
               </FormItem>
             )} />
             <FormField control={form.control} name="disposalSuggestions" render={({ field }) => (
               <FormItem className="col-span-full">
-                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase">临床处置意见</FormLabel>
-                <FormControl><Textarea {...field} className="min-h-[80px] text-sm leading-normal" disabled={readOnly} /></FormControl>
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase">临床处置意见</FormLabel>
+                <FormControl><Textarea {...field} className={cn("min-h-[80px] text-sm leading-normal", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl>
               </FormItem>
             )} />
 
@@ -215,10 +219,10 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="notifier" render={({ field }) => (
-                    <FormItem><FormLabel className="text-[10px] font-bold">通知人</FormLabel><FormControl><Input {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+                    <FormItem><FormLabel className="text-[10px] font-bold">通知人</FormLabel><FormControl><Input {...field} className={cn("h-9 text-sm", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="notifiedPerson" render={({ field }) => (
-                    <FormItem><FormLabel className="text-[10px] font-bold">被通知人</FormLabel><FormControl><Input {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+                    <FormItem><FormLabel className="text-[10px] font-bold">被通知人</FormLabel><FormControl><Input {...field} className={cn("h-9 text-sm", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
                   )} />
                 </div>
               </div>
@@ -234,7 +238,7 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
                         <FormControl>
                           <div className="relative">
                             <LinkIcon className="absolute left-2.5 top-2 size-4 text-muted-foreground" />
-                            <Input placeholder="尚未关联报告编号" {...field} readOnly className="pl-9 h-9 text-sm bg-white" />
+                            <Input placeholder="尚未关联报告编号" {...field} readOnly className={cn("pl-9 h-9 text-sm bg-white font-mono", readOnly && readOnlyInputClass)} />
                           </div>
                         </FormControl>
                       </FormItem>
@@ -267,7 +271,7 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
                     <FormLabel className="text-[10px] font-bold flex items-center gap-1">
                       <MessageSquareText className="size-3 text-muted-foreground" /> 被通知人反馈内容
                     </FormLabel>
-                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="min-h-[80px] text-sm leading-relaxed bg-white" {...field} disabled={readOnly} /></FormControl>
+                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className={cn("min-h-[80px] text-sm leading-relaxed bg-white", readOnly && readOnlyInputClass)} {...field} disabled={readOnly} /></FormControl>
                   </FormItem>
                 )} />
               </div>
@@ -275,10 +279,10 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
 
             <div className="col-span-full grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-2">
               <FormField control={form.control} name="notificationDate" render={({ field }) => (
-                <FormItem><FormLabel className="text-sm font-bold">通知日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm font-bold" disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-sm font-bold">通知日期</FormLabel><FormControl><Input type="date" {...field} className={cn("h-9 text-sm font-bold", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="notificationTime" render={({ field }) => (
-                <FormItem><FormLabel className="text-sm font-bold">通知时间</FormLabel><FormControl><Input type="time" {...field} className="h-9 text-sm font-bold" disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-sm font-bold">通知时间</FormLabel><FormControl><Input type="time" {...field} className={cn("h-9 text-sm font-bold", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
               )} />
               
               <div className="space-y-1.5">
@@ -293,10 +297,10 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
 
               <div className="flex items-center gap-6 pb-2 h-9 justify-end">
                 <FormField control={form.control} name="isNotified" render={({ field }) => (
-                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className="scale-75" /></FormControl><FormLabel className="text-[10px] font-bold">已告知</FormLabel></FormItem>
+                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className={cn("scale-75", readOnly && "disabled:opacity-100")} /></FormControl><FormLabel className="text-[10px] font-bold">已告知</FormLabel></FormItem>
                 )} />
                 <FormField control={form.control} name="isHealthEducationProvided" render={({ field }) => (
-                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className="scale-75" /></FormControl><FormLabel className="text-[10px] font-bold">已宣教</FormLabel></FormItem>
+                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className={cn("scale-75", readOnly && "disabled:opacity-100")} /></FormControl><FormLabel className="text-[10px] font-bold">已宣教</FormLabel></FormItem>
                 )} />
               </div>
             </div>

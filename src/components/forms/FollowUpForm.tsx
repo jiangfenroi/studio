@@ -33,6 +33,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { PdfUploadForm } from "./PdfUploadForm"
+import { cn } from "@/lib/utils"
 
 const formSchema = z.object({
   archiveNo: z.string(),
@@ -133,6 +134,9 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
     }
   }
 
+  // 统一只读输入框样式
+  const readOnlyInputClass = "disabled:opacity-100 disabled:cursor-default text-foreground font-bold"
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -142,7 +146,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
             {readOnly ? '临床随访追溯' : initialData ? '修改随访记录' : '临床随访任务登记'}
           </AlertTitle>
           <AlertDescription className="text-xs font-medium opacity-80">
-            患者: <span className="font-bold underline">[{archiveNo}] {patientName}</span>
+            患者: <span className="font-bold underline text-foreground">[{archiveNo}] {patientName}</span>
           </AlertDescription>
         </Alert>
 
@@ -152,25 +156,25 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
             <CardContent className="pt-6 space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="followUpPerson" render={({ field }) => (
-                  <FormItem><FormLabel className="text-[10px] font-bold uppercase">回访人</FormLabel><FormControl><Input {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+                  <FormItem><FormLabel className="text-[10px] font-bold uppercase">回访人</FormLabel><FormControl><Input {...field} className={cn("h-9 text-sm", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
                 )} />
                 <FormField control={form.control} name="followUpDate" render={({ field }) => (
-                  <FormItem><FormLabel className="text-[10px] font-bold uppercase">回访日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+                  <FormItem><FormLabel className="text-sm font-bold uppercase">回访日期</FormLabel><FormControl><Input type="date" {...field} className={cn("h-9 text-sm", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="followUpTime" render={({ field }) => (
-                <FormItem><FormLabel className="text-[10px] font-bold uppercase">回访时间</FormLabel><FormControl><Input type="time" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-sm font-bold uppercase">回访时间</FormLabel><FormControl><Input type="time" {...field} className={cn("h-9 text-sm", readOnly && readOnlyInputClass)} disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="followUpResult" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-[10px] font-bold uppercase">医学回访记录/反馈结果</FormLabel>
-                  <FormControl><Textarea className="min-h-[140px] text-sm leading-relaxed" {...field} disabled={readOnly} /></FormControl>
+                  <FormControl><Textarea className={cn("min-h-[140px] text-sm leading-relaxed", readOnly && readOnlyInputClass)} {...field} disabled={readOnly} /></FormControl>
                 </FormItem>
               )} />
               <FormField control={form.control} name="isReExamined" render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-muted/5">
                   <FormLabel className="m-0 text-sm font-bold">是否复查/进一步检查</FormLabel>
-                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className="scale-75" /></FormControl>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className={cn("scale-75", readOnly && "disabled:opacity-100")} /></FormControl>
                 </FormItem>
               )} />
             </CardContent>
@@ -184,7 +188,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
                   <FormItem>
                     <FormLabel className="text-[10px] font-bold uppercase">预设周期选择</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value} disabled={readOnly}>
-                      <FormControl><SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger className={cn("h-9 text-sm", readOnly && "disabled:opacity-100 text-foreground font-bold")}><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="1month">1 个月后</SelectItem>
                         <SelectItem value="3months">3 个月后</SelectItem>
@@ -203,7 +207,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
                 <div className="flex gap-2">
                   <FormField control={form.control} name="pdfId" render={({ field }) => (
                     <FormItem className="flex-1">
-                      <FormControl><Input placeholder="PDF 报告 ID" {...field} readOnly className="h-9 text-sm font-mono bg-muted" /></FormControl>
+                      <FormControl><Input placeholder="PDF 报告 ID" {...field} readOnly className={cn("h-9 text-sm font-mono bg-muted", readOnly && readOnlyInputClass)} /></FormControl>
                     </FormItem>
                   )} />
                   {!readOnly && (
