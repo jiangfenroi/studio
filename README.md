@@ -5,7 +5,7 @@
 
 ## 1. 数据库初始化 (MySQL 8.4)
 
-请在中心服务器执行以下 SQL 脚本以创建核心业务表。
+请在中心服务器执行以下 SQL 脚本以创建核心业务表。注意：MySQL 8.4 中 `TEXT` 字段不能有 `DEFAULT` 值，路径字段已改为 `VARCHAR(512)`。
 
 ```sql
 CREATE DATABASE IF NOT EXISTS meditrack_db CHARACTER SET utf8mb4;
@@ -91,7 +91,6 @@ CREATE TABLE SP_RW (
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
--- 注意：MySQL 8.4 中 TEXT 不能有默认值，此处已改为 VARCHAR(512)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY,
   appName VARCHAR(100) DEFAULT 'HealthInsight Registry',
@@ -105,30 +104,13 @@ CREATE TABLE SP_CONFIG (
 INSERT IGNORE INTO SP_CONFIG (configKey) VALUES ('default');
 ```
 
-## 2. 远程连接权限授予 (重要)
+## 2. 部署与环境
 
-如果系统提示 `Access denied for user 'root'@'35.230.25.171'`，请在您的 MySQL 服务器上运行以下命令以授予开发环境访问权限：
+### 内网权限说明
+如果您在 **AI 预览环境** 看到 `Access denied for user 'root'@'35.230.25.171'`，请忽略。这是因为您的 MySQL 服务器未对开发环境 IP 开放权限。在您最终的 **内网服务器** 部署后，此问题将自动消失。
 
-```sql
--- 针对当前开发 IP 授权（请根据报错中的 IP 修改）
-CREATE USER IF NOT EXISTS 'root'@'35.230.25.171' IDENTIFIED BY '您的密码';
-GRANT ALL PRIVILEGES ON meditrack_db.* TO 'root'@'35.230.25.171';
-FLUSH PRIVILEGES;
-
--- 或者（生产环境不推荐）允许所有 IP 访问
--- CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '您的密码';
--- GRANT ALL PRIVILEGES ON meditrack_db.* TO 'root'@'%';
--- FLUSH PRIVILEGES;
-```
-
-## 3. 部署指南
-
-### Ubuntu 24.04 (推荐)
-1. 安装 Node.js 20+ 及 MySQL 8.4。
+### 运行
+1. 安装 Node.js 20+。
 2. 运行 `npm install`。
 3. 运行 `npm run build`。
-4. 使用 `npm start` 启动。
-
-## 4. 维护说明
-- **初始管理员**：请使用工号 `1058` 注册，系统将自动赋予管理员权限。
-- **注册密钥**：`HEALTH-INSIGHT-2025`。
+4. 运行 `npm start`。

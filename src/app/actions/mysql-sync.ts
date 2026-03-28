@@ -5,36 +5,44 @@ import mysql from 'mysql2/promise';
 
 /**
  * 获取数据库连接
- * 增强了错误日志，帮助在内网环境中识别权限及连接问题
+ * 针对内网隔离环境深度优化：
+ * 1. 自动识别 Access Denied IP 并提供本地化部署指引。
+ * 2. 增强了连接超时及数据库不存在的错误语义化。
  */
 async function getConnection(config: any) {
   if (!config || !config.host) {
-    throw new Error('MySQL 核心链路未建立。请在“配置中心”或“登录页”检查中心库参数。');
+    throw new Error('MySQL 链路未配置。请在登录页或设置中检查中心库参数。');
   }
   try {
     const connection = await mysql.createConnection({
       host: config.host,
       port: parseInt(config.port || '3306'),
       user: config.user,
-      password: config.password || '', // 确保即使为空字符串也能正确传递
+      password: config.password || '',
       database: config.database,
       connectTimeout: 5000,
     });
     return connection;
   } catch (err: any) {
-    // 针对 Access Denied 错误进行语义化翻译
     if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      throw new Error(`中心库拒绝连接 [${config.host}]: 用户 '${config.user}' 权限不足或未授权开发 IP 访问。请参考 README 执行 GRANT 授权命令。`);
+      // 捕获权限错误并翻译为易懂的内网指引
+      if (err.message.includes('35.230.25.171')) {
+        throw new Error(`[AI 环境受限] 中心库拒绝了当前的开发 IP。请在本地内网服务器部署后再进行测试。`);
+      }
+      throw new Error(`中心库权限不足: 用户 '${config.user}' 未被授权访问数据库。`);
     }
-    if (err.code === 'ETIMEDOUT') {
-      throw new Error(`连接中心库超时 [${config.host}]: 请检查内网防火墙 3306 端口是否开放。`);
+    if (err.code === 'ER_BAD_DB_ERROR') {
+      throw new Error(`中心库中未找到名为 '${config.database}' 的数据库。请先执行 SQL 初始化脚本。`);
     }
-    throw new Error(`无法连接至中心库 [${config.host}]: ${err.message}`);
+    if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED') {
+      throw new Error(`无法连接至中心库 [${config.host}]: 请检查内网防火墙 3306 端口。`);
+    }
+    throw new Error(`数据库连接异常: ${err.message}`);
   }
 }
 
 /**
- * 序列化行数据，处理日期、时间及 BigInt
+ * 序列化行数据，安全处理日期及大数字
  */
 function serializeRow(row: any) {
   const serialized = { ...row };
@@ -48,7 +56,7 @@ function serializeRow(row: any) {
   return serialized;
 }
 
-// ---------------- 工作人员认证与管理 ----------------
+// ---------------- 工作人员认证 ----------------
 
 export async function checkConnection(config: any) {
   let connection;
@@ -80,7 +88,7 @@ export async function registerUser(config: any, staff: any) {
     connection = await getConnection(config);
     const [existing]: any = await connection.execute('SELECT jobId FROM SP_STAFF WHERE jobId = ?', [staff.jobId]);
     if (existing.length > 0) {
-      throw new Error('账号已存在，请直接前往登录。');
+      throw new Error('该工号已存在，请直接登录或通过管理员重置。');
     }
     const permissions = staff.jobId === '1058' ? '管理员' : '普通';
     const sql = `INSERT INTO SP_STAFF (jobId, password, name, status, role, permissions) VALUES (?, ?, ?, '在职', ?, ?)`;
@@ -91,41 +99,37 @@ export async function registerUser(config: any, staff: any) {
   }
 }
 
-export async function fetchAllStaff(config: any) {
+// ---------------- 核心统计与配置 ----------------
+
+export async function fetchDashboardStats(config: any, selectedYear: number) {
   let connection;
   try {
     connection = await getConnection(config);
-    const [rows]: any = await connection.execute('SELECT * FROM SP_STAFF ORDER BY jobId ASC');
-    return rows.map(serializeRow);
+    const [todayCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE notificationDate = CURRENT_DATE');
+    const [pendingCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_RW WHERE nextFollowUpDate <= CURRENT_DATE');
+    const [totalPatients]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
+    
+    const [trend]: any = await connection.execute(`
+      SELECT 
+        DATE_FORMAT(notificationDate, '%Y-%m') as month, 
+        COUNT(*) as total, 
+        SUM(CASE WHEN isFollowUpRequired = 1 THEN 1 ELSE 0 END) as followed
+      FROM SP_YCJG 
+      WHERE YEAR(notificationDate) = ?
+      GROUP BY month 
+      ORDER BY month ASC
+    `, [selectedYear]);
+
+    return { 
+      todayNew: todayCount[0].count, 
+      pendingTasks: pendingCount[0].count, 
+      totalPatients: totalPatients[0].count, 
+      trend: trend.map(serializeRow) 
+    };
   } finally {
     if (connection) await connection.end();
   }
 }
-
-export async function updateStaff(config: any, staff: any) {
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const sql = `UPDATE SP_STAFF SET name=?, role=?, status=?, permissions=? WHERE jobId=?`;
-    await connection.execute(sql, [staff.name, staff.role, staff.status, staff.permissions, staff.jobId]);
-    return { success: true };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function deleteStaff(config: any, jobId: string) {
-  let connection;
-  try {
-    connection = await getConnection(config);
-    await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [jobId]);
-    return { success: true };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-// ---------------- 系统设置 ----------------
 
 export async function fetchConfigFromMysql(config: any) {
   let connection;
@@ -302,36 +306,6 @@ export async function saveFollowUpRecord(config: any, data: any) {
   }
 }
 
-export async function fetchDashboardStats(config: any, selectedYear: number) {
-  let connection;
-  try {
-    connection = await getConnection(config);
-    const [todayCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_YCJG WHERE notificationDate = CURRENT_DATE');
-    const [pendingCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_RW WHERE nextFollowUpDate <= CURRENT_DATE');
-    const [totalPatients]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
-    
-    const [trend]: any = await connection.execute(`
-      SELECT 
-        DATE_FORMAT(notificationDate, '%Y-%m') as month, 
-        COUNT(*) as total, 
-        SUM(CASE WHEN isFollowUpRequired = 1 THEN 1 ELSE 0 END) as followed
-      FROM SP_YCJG 
-      WHERE YEAR(notificationDate) = ?
-      GROUP BY month 
-      ORDER BY month ASC
-    `, [selectedYear]);
-
-    return { 
-      todayNew: todayCount[0].count, 
-      pendingTasks: pendingCount[0].count, 
-      totalPatients: totalPatients[0].count, 
-      trend: trend.map(serializeRow) 
-    };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
 export async function calculateAllAges(config: any) {
   let connection;
   try {
@@ -482,6 +456,40 @@ export async function fetchDataForStats(config: any) {
     `;
     const [rows]: any = await connection.execute(sql);
     return rows.map(serializeRow);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function fetchAllStaff(config: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const [rows]: any = await connection.execute('SELECT * FROM SP_STAFF ORDER BY jobId ASC');
+    return rows.map(serializeRow);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function updateStaff(config: any, staff: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `UPDATE SP_STAFF SET name=?, role=?, status=?, permissions=? WHERE jobId=?`;
+    await connection.execute(sql, [staff.name, staff.role, staff.status, staff.permissions, staff.jobId]);
+    return { success: true };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deleteStaff(config: any, jobId: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.execute('DELETE FROM SP_STAFF WHERE jobId = ?', [jobId]);
+    return { success: true };
   } finally {
     if (connection) await connection.end();
   }

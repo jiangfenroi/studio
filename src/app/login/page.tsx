@@ -25,7 +25,6 @@ export default function LoginPage() {
   const [isConnecting, setIsConnecting] = React.useState(false);
   const [isConnected, setIsConnected] = React.useState(false);
   
-  // 中心数据库配置
   const [mysqlConfig, setMysqlConfig] = React.useState({
     host: '8.137.162.142',
     port: '3306',
@@ -33,6 +32,20 @@ export default function LoginPage() {
     password: '',
     database: 'meditrack_db'
   });
+
+  // 仅在客户端加载时恢复配置，避免 SSR 渲染错误
+  React.useEffect(() => {
+    const saved = sessionStorage.getItem('mysql_config');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setMysqlConfig(parsed);
+        setIsConnected(true);
+      } catch (e) {
+        console.error("Failed to parse saved config");
+      }
+    }
+  }, []);
 
   const handleTestConnection = async () => {
     setIsConnecting(true);
@@ -42,13 +55,13 @@ export default function LoginPage() {
       if (res.success) {
         setIsConnected(true);
         sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
-        toast({ title: "数据库连接成功", description: "配置已同步至本地会话。" });
+        toast({ title: "数据库连接成功", description: "配置已应用至当前会话。" });
       }
     } catch (err: any) {
       toast({ 
         variant: "destructive", 
         title: "连接失败", 
-        description: err.message || "请检查 MySQL 远程访问权限及防火墙设置。" 
+        description: err.message || "请检查 MySQL 远程访问权限。" 
       });
     } finally {
       setIsConnecting(false);
@@ -58,7 +71,7 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isConnected) {
-      toast({ variant: "destructive", title: "请先测试数据库连接", description: "必须成功连接中心库后方可操作。" });
+      toast({ variant: "destructive", title: "未连接数据库", description: "请先完善下方配置并点击‘测试连通性’。" });
       return;
     }
     setIsLoading(true);
@@ -81,7 +94,7 @@ export default function LoginPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isConnected) {
-      toast({ variant: "destructive", title: "请先测试数据库连接", description: "必须成功连接中心库后方可操作。" });
+      toast({ variant: "destructive", title: "未连接数据库", description: "请先完成数据库连通性测试。" });
       return;
     }
     if (authCode !== 'HEALTH-INSIGHT-2025') {
@@ -101,8 +114,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md shadow-2xl bg-white/95 border-primary/20">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4 font-body">
+      <Card className="w-full max-w-md shadow-2xl bg-white border-primary/20">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-2xl bg-primary shadow-lg ring-4 ring-primary/10">
@@ -129,7 +142,7 @@ export default function LoginPage() {
                   <Label>密码</Label>
                   <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
-                <Button type="submit" className="w-full h-11 shadow-md" disabled={isLoading || !isConnected}>
+                <Button type="submit" className="w-full h-11 shadow-md" disabled={isLoading}>
                   {isLoading ? <Loader2 className="animate-spin" /> : <LogIn className="mr-2" />}
                   立即进入系统
                 </Button>
@@ -144,7 +157,7 @@ export default function LoginPage() {
                     <Input value={jobId} onChange={(e) => setJobId(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
-                    <Label>真实姓名</Label>
+                    <Label>姓名</Label>
                     <Input value={name} onChange={(e) => setName(e.target.value)} required />
                   </div>
                 </div>
@@ -153,16 +166,16 @@ export default function LoginPage() {
                   <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-primary font-bold">系统注册授权密钥</Label>
+                  <Label className="text-primary font-bold">内网授权密钥</Label>
                   <Input 
                     type="password"
                     value={authCode} 
                     onChange={(e) => setAuthCode(e.target.value)} 
                     required 
-                    placeholder="请输入内网授权密钥" 
+                    placeholder="请输入系统授权密钥" 
                   />
                 </div>
-                <Button type="submit" variant="secondary" className="w-full h-11 shadow-sm" disabled={isLoading || !isConnected}>
+                <Button type="submit" variant="secondary" className="w-full h-11 shadow-sm" disabled={isLoading}>
                   {isLoading ? <Loader2 className="animate-spin" /> : <UserPlus className="mr-2" />}
                   确认注册
                 </Button>
@@ -170,20 +183,20 @@ export default function LoginPage() {
             </TabsContent>
           </Tabs>
         </CardContent>
-        <CardFooter className="flex flex-col gap-4 border-t pt-6">
-          <div className="flex flex-col gap-3 w-full p-4 bg-muted/50 rounded-xl border">
+        <CardFooter className="flex flex-col gap-4 border-t pt-6 bg-muted/10 rounded-b-lg">
+          <div className="flex flex-col gap-3 w-full p-4 border rounded-xl bg-white shadow-inner">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-                <Database className="size-3" /> 中心数据库通讯配置
+                <Database className="size-3" /> 中心库配置
               </p>
-              {isConnected && <Badge variant="secondary" className="bg-green-100 text-green-700 text-[8px] px-1 h-4">已联通</Badge>}
+              {isConnected && <Badge variant="secondary" className="bg-green-100 text-green-700 text-[8px] h-4">已联通</Badge>}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Input className="h-8 text-xs bg-white" value={mysqlConfig.host} onChange={e => setMysqlConfig({...mysqlConfig, host: e.target.value})} placeholder="主机IP" />
-              <Input className="h-8 text-xs bg-white" value={mysqlConfig.port} onChange={e => setMysqlConfig({...mysqlConfig, port: e.target.value})} placeholder="端口" />
-              <Input className="h-8 text-xs bg-white" value={mysqlConfig.user} onChange={e => setMysqlConfig({...mysqlConfig, user: e.target.value})} placeholder="账号" />
-              <Input className="h-8 text-xs bg-white" type="password" value={mysqlConfig.password} onChange={e => setMysqlConfig({...mysqlConfig, password: e.target.value})} placeholder="密码" />
-              <Input className="h-8 text-xs bg-white col-span-full" value={mysqlConfig.database} onChange={e => setMysqlConfig({...mysqlConfig, database: e.target.value})} placeholder="数据库/Schema 名称" />
+              <Input className="h-8 text-xs" value={mysqlConfig.host} onChange={e => setMysqlConfig({...mysqlConfig, host: e.target.value})} placeholder="主机IP" />
+              <Input className="h-8 text-xs" value={mysqlConfig.port} onChange={e => setMysqlConfig({...mysqlConfig, port: e.target.value})} placeholder="端口" />
+              <Input className="h-8 text-xs" value={mysqlConfig.user} onChange={e => setMysqlConfig({...mysqlConfig, user: e.target.value})} placeholder="账号" />
+              <Input className="h-8 text-xs" type="password" value={mysqlConfig.password} onChange={e => setMysqlConfig({...mysqlConfig, password: e.target.value})} placeholder="密码" />
+              <Input className="h-8 text-xs col-span-full" value={mysqlConfig.database} onChange={e => setMysqlConfig({...mysqlConfig, database: e.target.value})} placeholder="数据库/Schema 名称" />
             </div>
             <Button 
               type="button" 
@@ -192,8 +205,8 @@ export default function LoginPage() {
               onClick={handleTestConnection}
               disabled={isConnecting}
             >
-              {isConnecting ? <Loader2 className="size-3 animate-spin" /> : isConnected ? <CheckCircle2 className="size-3 text-green-600" /> : <Database className="size-3" />}
-              {isConnected ? "配置已应用" : "测试数据库连通性"}
+              {isConnecting ? <Loader2 className="size-3 animate-spin" /> : <Database className="size-3" />}
+              {isConnected ? "重新测试连通性" : "测试数据库连通性"}
             </Button>
           </div>
         </CardFooter>
