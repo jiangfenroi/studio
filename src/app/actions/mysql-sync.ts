@@ -1,6 +1,8 @@
 'use server';
 
 import mysql from 'mysql2/promise';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * 获取数据库连接
@@ -43,7 +45,60 @@ function serializeRow(row: any) {
   return serialized;
 }
 
-// ---------------- PDF 报告管理核心 ----------------
+// ---------------- PDF 报告物理归档管理 ----------------
+
+/**
+ * 核心：真实物理归档并记录元数据
+ * 将文件保存至 [根路径]\[档案号]\[报告类别] 目录下
+ */
+export async function uploadPdfFile(config: any, formData: FormData) {
+  const archiveNo = formData.get('archiveNo') as string;
+  const checkDate = formData.get('checkDate') as string;
+  const reportCategory = formData.get('reportCategory') as string;
+  const files = formData.getAll('files') as File[];
+
+  if (!files || files.length === 0) throw new Error('未选择有效文件');
+
+  // 获取根路径配置
+  const remoteConfig = await fetchConfigFromMysql(config);
+  const rootPath = remoteConfig?.pdfStoragePath || 'C:\\HealthReports\\';
+
+  let lastPdfId = "";
+
+  for (const file of files) {
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      
+      // 构建物理路径
+      const targetDir = path.join(rootPath, archiveNo, reportCategory);
+      
+      // 递归创建目录 (如果不存在)
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      const filePath = path.join(targetDir, file.name);
+      
+      // 执行物理磁盘写入
+      fs.writeFileSync(filePath, buffer);
+
+      // 记录元数据至 MySQL 并获取 10 位倒序 ID
+      const res = await savePdfMetadata(config, {
+        archiveNo,
+        checkDate,
+        reportCategory,
+        fullPath: filePath
+      });
+      
+      if (res.success) lastPdfId = res.pdfId;
+    } catch (e: any) {
+      console.error(`File save error: ${file.name}`, e);
+      throw new Error(`物理磁盘写入失败: ${e.message}`);
+    }
+  }
+
+  return { success: true, pdfId: lastPdfId };
+}
 
 /**
  * 保存 PDF 元数据并生成 10 位倒序 ID
@@ -69,11 +124,28 @@ export async function savePdfMetadata(config: any, data: any) {
   }
 }
 
+/**
+ * 删除 PDF 元数据及物理文件
+ */
 export async function deletePdfMetadata(config: any, id: string) {
   let connection;
   try {
     connection = await getConnection(config);
+    // 先查出路径以便物理删除
+    const [rows]: any = await connection.execute('SELECT fullPath FROM SP_PDF WHERE id = ?', [id]);
+    const filePath = rows[0]?.fullPath;
+
     await connection.execute('DELETE FROM SP_PDF WHERE id = ?', [id]);
+
+    // 如果文件存在则尝试物理删除
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {
+        console.warn(`Physical file delete failed: ${filePath}`);
+      }
+    }
+    
     return { success: true };
   } finally {
     if (connection) await connection.end();
@@ -132,7 +204,7 @@ export async function updateAnomalyResult(config: any, id: string, data: any) {
     await connection.execute(sql, [
       data.checkupNumber, data.checkupDate, data.anomalyCategory, data.anomalyDetails,
       data.notifier, data.notifiedPerson, data.notificationDate, data.notificationTime,
-      data.disposalSuggestions, data.notifiedPersonFeedback, 
+      data.disboxalSuggestions, data.notifiedPersonFeedback, 
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null,
       id
     ]);
