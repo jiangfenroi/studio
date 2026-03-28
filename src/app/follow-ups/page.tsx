@@ -76,7 +76,7 @@ export default function FollowUpsPage() {
           )}
         >
           <div className="p-4">
-            {/* Top Row: All Key Info in One Line with restored font sizes */}
+            {/* Top Row: Aggregated Key Info */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
                 <User className="size-4 text-muted-foreground" />
@@ -113,11 +113,6 @@ export default function FollowUpsPage() {
               </div>
 
               <div className="text-[11px]">
-                <span className="text-muted-foreground mr-1">通知日期:</span>
-                <span className="font-medium">{r.notificationDate}</span>
-              </div>
-
-              <div className="text-[11px]">
                 <span className="text-muted-foreground mr-1">最后随访:</span>
                 <span className="font-medium text-blue-600">{r.lastFollowUpDate || "-"}</span>
               </div>
@@ -126,7 +121,10 @@ export default function FollowUpsPage() {
             {/* Bottom Row: Details and Actions side by side */}
             <div className="flex gap-4 items-stretch">
               <div className="flex-1 bg-muted/20 rounded-lg p-3 border border-muted-foreground/5 relative min-h-[60px]">
-                <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                <p 
+                  className="text-sm leading-relaxed text-foreground/80 whitespace-nowrap overflow-hidden text-ellipsis"
+                  title={r.anomalyDetails}
+                >
                   {r.anomalyDetails}
                 </p>
               </div>

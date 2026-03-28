@@ -132,7 +132,6 @@ export default function RecordsPage() {
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string
-        // 改进换行符处理，兼容 Windows (\r\n) 和 Unix (\n)
         const lines = text.split(/\r?\n/).filter(l => l.trim())
         
         if (lines.length <= 1) {
@@ -142,7 +141,6 @@ export default function RecordsPage() {
         }
 
         const recordsToImport = lines.slice(1).map(line => {
-          // 清洗列数据，移除可能的引号和多余空格
           const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
           return {
             archiveNo: cols[0],
@@ -172,14 +170,12 @@ export default function RecordsPage() {
         setIsImporting(false)
       }
     }
-    // 强制按 UTF-8 读取
     reader.readAsText(file, 'utf-8')
   }
 
   const downloadTemplate = () => {
     const headers = "档案编号(必填),体检编号(必填),体检日期(必填),种类(必填:A/B),异常详情(必填),通知日期(必填),通知时间(必填),是否告知(必填:是/否),是否宣教(选填:是/否),通知人(必填),被通知人(必填),处置意见(必填),被通知人反馈(选填)"
     const example = "D0001,202501010001,2025-01-01,A,血压偏高,2025-01-02,09:30,是,是,张医生,患者本人,建议复查,知道了，近期去复诊"
-    // 添加 UTF-8 BOM \ufeff 确保 WPS/Excel 打开不乱码
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -222,7 +218,6 @@ export default function RecordsPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="w-[120px]">通知日期/时间</TableHead>
                 <TableHead>档案信息</TableHead>
                 <TableHead>体检编号/日期</TableHead>
                 <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
@@ -233,15 +228,11 @@ export default function RecordsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin mx-auto mb-2 text-primary" /> 正在处理临床数据...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="animate-spin mx-auto mb-2 text-primary" /> 正在处理临床数据...</TableCell></TableRow>
               ) : filteredRecords.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">暂无符合条件的异常记录</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">暂无符合条件的异常记录</TableCell></TableRow>
               ) : filteredRecords.map((r) => (
                 <TableRow key={r.id} className="hover:bg-muted/5 group">
-                  <TableCell>
-                    <div className="text-sm font-bold">{r.notificationDate}</div>
-                    <div className="text-[10px] text-muted-foreground">{r.notificationTime}</div>
-                  </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-bold text-foreground text-base">{r.patientName || "待补录"}</span>
@@ -269,7 +260,12 @@ export default function RecordsPage() {
                           {r.anomalyCategory}类
                         </Badge>
                       </div>
-                      <p className="text-xs leading-relaxed truncate" title={r.anomalyDetails}>{r.anomalyDetails}</p>
+                      <p 
+                        className="text-xs leading-relaxed truncate" 
+                        title={r.anomalyDetails}
+                      >
+                        {r.anomalyDetails}
+                      </p>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -305,6 +301,7 @@ export default function RecordsPage() {
         </div>
       </div>
 
+      {/* Import Dialog */}
       <Dialog open={isImporting} onOpenChange={setIsImporting}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -358,6 +355,7 @@ export default function RecordsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Detail Dialog */}
       <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 bg-primary text-primary-foreground">
@@ -376,10 +374,6 @@ export default function RecordsPage() {
                   <div className="space-y-1">
                     <p className="text-muted-foreground">姓名</p>
                     <p className="font-bold text-base">{selectedRecord?.patientName || "待补录"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">档案编号</p>
-                    <p className="font-mono font-bold">{selectedRecord?.archiveNo}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground">性别 / 年龄</p>
@@ -509,6 +503,7 @@ export default function RecordsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Dialog */}
       <Dialog open={!!editingRecord} onOpenChange={(o) => !o && setEditingRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -521,6 +516,7 @@ export default function RecordsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Dialog */}
       <AlertDialog open={!!recordToDelete} onOpenChange={(o) => !o && setRecordToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
