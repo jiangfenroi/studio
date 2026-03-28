@@ -33,6 +33,7 @@ import * as z from "zod"
 import { fetchPatients, syncPatientToMysql, calculateAllAges, bulkImportPatients } from "@/app/actions/mysql-sync"
 import Link from "next/link"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 const patientSchema = z.object({
   id: z.string().min(1, "档案编号不能为空"),
@@ -102,7 +103,6 @@ export default function PatientsPage() {
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string
-        // 改进换行符处理
         const lines = text.split(/\r?\n/).filter(l => l.trim())
         
         if (lines.length <= 1) {
@@ -137,14 +137,12 @@ export default function PatientsPage() {
         setIsImporting(false)
       }
     }
-    // 强制按 UTF-8 读取
     reader.readAsText(file, 'utf-8')
   }
 
   const downloadTemplate = () => {
     const headers = "档案编号(必填),姓名(必填),性别(选填),年龄(选填),身份证号(选填),电话(必填),单位(选填),地址(选填),状态(选填:正常/死亡/无法联系)"
     const example = "D0001,张三,男,45,110101198001011234,13800138000,某某公司,某某街道,正常"
-    // 添加 UTF-8 BOM \ufeff 确保 WPS/Excel 打开不乱码
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -161,7 +159,7 @@ export default function PatientsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">档案管理中心</h1>
-          <p className="text-muted-foreground">档案编号 ({'>'}) 身份证号 • 批量导入与同步引擎</p>
+          <p className="text-muted-foreground">内网核心驱动 • 档案库全量同步</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsImporting(true)} className="gap-2 bg-green-50 text-green-700 border-green-200">
@@ -181,9 +179,9 @@ export default function PatientsPage() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead>档案编号</TableHead>
               <TableHead>姓名</TableHead>
-              <TableHead>基本信息</TableHead>
+              <TableHead>档案信息</TableHead>
+              <TableHead>基本属性</TableHead>
               <TableHead>电话</TableHead>
               <TableHead>状态</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -196,9 +194,22 @@ export default function PatientsPage() {
               <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">暂无档案记录</TableCell></TableRow>
             ) : filteredPatients.map(p => (
               <TableRow key={p.archiveNo} className="group">
-                <TableCell className="font-bold text-primary">{p.archiveNo}</TableCell>
-                <TableCell className={!p.name ? "text-amber-500 italic" : "font-medium"}>{p.name || "待补录"}</TableCell>
-                <TableCell className="text-xs">{p.gender} / {p.age}岁 / {p.idNumber || "无ID"}</TableCell>
+                <TableCell>
+                  <span className={cn(
+                    "text-lg font-bold text-foreground",
+                    !p.name && "text-amber-500 italic"
+                  )}>
+                    {p.name || "待补录"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-[11px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
+                    {p.archiveNo}
+                  </span>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {p.gender} / {p.age}岁 / {p.idNumber || "无ID"}
+                </TableCell>
                 <TableCell className="text-sm font-mono">{p.phoneNumber}</TableCell>
                 <TableCell>
                   <Badge variant={p.status === '正常' ? 'default' : p.status === '死亡' ? 'destructive' : 'secondary'}>{p.status}</Badge>

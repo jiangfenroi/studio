@@ -81,7 +81,6 @@ export default function FollowUpsPage() {
       t.checkupNumber?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
-    // 历史/结案任务按通知日期降序排列
     const closedSorted = filter(tasks.closed).sort((a, b) => 
       (b.notificationDate || "").localeCompare(a.notificationDate || "")
     )
@@ -108,20 +107,21 @@ export default function FollowUpsPage() {
           )}
         >
           <div className="p-4">
-            {/* 顶栏：聚合所有关键信息，字体大小接近且协调 */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
-                <User className="size-4 text-muted-foreground" />
-                <span className="text-lg font-bold text-foreground">{r.patientName || "待补录"}</span>
+                <span className="text-xl font-bold text-foreground">{r.patientName || "待补录"}</span>
+                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  ID:{r.archiveNo}
+                </span>
               </div>
               
-              <div className="text-sm text-muted-foreground font-medium">
+              <div className="text-sm text-muted-foreground">
                 {r.patientGender} / {r.patientAge}岁
               </div>
 
-              <Badge className={cn(
-                "font-bold px-2 py-0.5 text-xs",
-                r.anomalyCategory === 'A' ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
+              <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
+                "font-bold text-[10px] h-5",
+                r.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
               )}>
                 {r.anomalyCategory}类异常
               </Badge>
@@ -147,7 +147,6 @@ export default function FollowUpsPage() {
               </div>
             </div>
 
-            {/* 底部：详情左，按钮右 */}
             <div className="flex gap-4 items-stretch">
               <div className="flex-1 bg-muted/20 rounded-lg p-3 border border-muted-foreground/5 relative min-h-[60px]">
                 <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
@@ -179,6 +178,7 @@ export default function FollowUpsPage() {
       <Table>
         <TableHeader className="bg-muted/30">
           <TableRow>
+            <TableHead>患者姓名</TableHead>
             <TableHead>档案信息</TableHead>
             <TableHead>体检编号/日期</TableHead>
             <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
@@ -189,21 +189,24 @@ export default function FollowUpsPage() {
         </TableHeader>
         <TableBody>
           {dataList.length === 0 ? (
-            <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">暂无结案记录</TableCell></TableRow>
+            <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">暂无结案记录</TableCell></TableRow>
           ) : dataList.map((r) => (
             <TableRow key={r.anomalyId} className="hover:bg-muted/5 group">
               <TableCell>
                 <div className="flex flex-col">
-                  <span className="font-bold text-foreground text-base">{r.patientName || "待补录"}</span>
-                  <div className="flex flex-col mt-0.5">
-                    <span className="text-[10px] text-muted-foreground">
-                      {r.patientGender} / {r.patientAge}岁
-                    </span>
-                    <span className="text-base font-bold text-foreground flex items-center gap-1.5 mt-1.5">
-                      <Phone className="size-3.5" />
-                      <span className="font-mono tracking-tighter text-base">{r.patientPhone}</span>
-                    </span>
-                  </div>
+                  <span className="font-bold text-foreground text-lg">{r.patientName || "待补录"}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {r.patientGender} / {r.patientAge}岁
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <span className="text-[11px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
+                  {r.archiveNo}
+                </span>
+                <div className="text-base font-bold text-foreground flex items-center gap-1.5 mt-1.5">
+                  <Phone className="size-3.5 text-muted-foreground" />
+                  <span className="font-mono tracking-tighter">{r.patientPhone}</span>
                 </div>
               </TableCell>
               <TableCell>
@@ -237,12 +240,9 @@ export default function FollowUpsPage() {
                   <Button variant="ghost" size="icon" title="预览数据" onClick={() => setSelectedTask(r)}>
                     <Eye className="size-4 text-primary" />
                   </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild><Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 mr-2" /> 查看完整病历轴</Link></DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button variant="ghost" size="icon" asChild>
+                    <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4" /></Link>
+                  </Button>
                 </div>
               </TableCell>
             </TableRow>
@@ -257,7 +257,7 @@ export default function FollowUpsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">随访任务管理中心</h1>
-          <p className="text-muted-foreground font-medium">MySQL 核心驱动 • 临床随访监控看板</p>
+          <p className="text-muted-foreground font-medium">100% MySQL 驱动 • 随访动态监控</p>
         </div>
         <Button onClick={loadData} variant="outline" className="gap-2 bg-white">
           <RefreshCcw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} /> 刷新任务池
@@ -267,7 +267,7 @@ export default function FollowUpsPage() {
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
         <Input 
-          placeholder="搜索姓名、体检号..." 
+          placeholder="搜索姓名、档案号、体检号..." 
           className="pl-12 h-12 bg-white shadow-sm text-lg border-primary/10 rounded-xl" 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -301,7 +301,6 @@ export default function FollowUpsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* 历史任务预览弹窗 */}
       <Dialog open={!!selectedTask} onOpenChange={(o) => !o && setSelectedTask(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 bg-primary text-primary-foreground">
@@ -317,19 +316,10 @@ export default function FollowUpsPage() {
                   <User className="size-5" /> 患者与检查信息
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div className="space-y-1"><p className="text-muted-foreground">姓名</p><p className="font-bold text-base">{selectedTask?.patientName}</p></div>
+                  <div className="space-y-1"><p className="text-muted-foreground">姓名</p><p className="font-bold text-xl text-primary">{selectedTask?.patientName}</p></div>
                   <div className="space-y-1"><p className="text-muted-foreground">特征</p><p>{selectedTask?.patientGender} / {selectedTask?.patientAge} 岁</p></div>
                   <div className="space-y-1"><p className="text-muted-foreground">联系电话</p><p className="font-mono font-bold text-lg">{selectedTask?.patientPhone}</p></div>
-                  <div className="space-y-1"><p className="text-muted-foreground">体检编号</p><p className="font-mono">{selectedTask?.checkupNumber}</p></div>
-                  <div className="space-y-1"><p className="text-muted-foreground">异常类别</p>
-                    <Badge variant={selectedTask?.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
-                      "font-bold",
-                      selectedTask?.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
-                    )}>
-                      {selectedTask?.anomalyCategory}类异常
-                    </Badge>
-                  </div>
-                  <div className="space-y-1"><p className="text-muted-foreground">末次随访</p><p className="text-green-600 font-bold">{selectedTask?.lastFollowUpDate || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-muted-foreground">档案编号</p><p className="text-xs font-mono bg-muted px-2 py-1 rounded inline-block">{selectedTask?.archiveNo}</p></div>
                 </div>
               </section>
               <Separator />

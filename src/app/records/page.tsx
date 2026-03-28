@@ -190,7 +190,7 @@ export default function RecordsPage() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">重要异常结果记录</h1>
-          <p className="text-muted-foreground">内网核心驱动 • 支持 CSV 批量同步及随访任务自动触发</p>
+          <p className="text-muted-foreground">内网核心驱动 • 支持 CSV 批量同步</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsImporting(true)} className="gap-2 bg-green-50 text-green-700 border-green-200">
@@ -208,7 +208,7 @@ export default function RecordsPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input 
-          placeholder="搜索姓名、档案号、体检号、身份证..." 
+          placeholder="搜索姓名、档案号、体检号..." 
           className="pl-10 h-11 bg-white" 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -220,6 +220,7 @@ export default function RecordsPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
+                <TableHead>患者姓名</TableHead>
                 <TableHead>档案信息</TableHead>
                 <TableHead>体检编号/日期</TableHead>
                 <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
@@ -230,25 +231,30 @@ export default function RecordsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="animate-spin mx-auto mb-2 text-primary" /> 正在处理临床数据...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin mx-auto mb-2 text-primary" /> 正在处理临床数据...</TableCell></TableRow>
               ) : filteredRecords.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">暂无符合条件的异常记录</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">暂无符合条件的异常记录</TableCell></TableRow>
               ) : filteredRecords.map((r) => (
                 <TableRow key={r.id} className="hover:bg-muted/5 group">
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-bold text-foreground text-base">{r.patientName || "待补录"}</span>
+                      <span className="font-bold text-foreground text-lg">{r.patientName || "待补录"}</span>
                       {r.patientName && (
                         <div className="flex flex-col mt-0.5">
                           <span className="text-[10px] text-muted-foreground">
                             {r.patientGender} / {r.patientAge}岁
                           </span>
-                          <span className="text-base font-bold text-foreground flex items-center gap-1.5 mt-1.5">
-                            <Phone className="size-3.5" />
-                            <span className="font-mono tracking-tighter text-base">{r.patientPhone}</span>
-                          </span>
                         </div>
                       )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-[11px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
+                      {r.archiveNo}
+                    </span>
+                    <div className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-1.5">
+                      <Phone className="size-3.5 text-muted-foreground" />
+                      <span className="font-mono tracking-tighter">{r.patientPhone}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -265,12 +271,7 @@ export default function RecordsPage() {
                           {r.anomalyCategory}类
                         </Badge>
                       </div>
-                      <p 
-                        className="text-xs leading-relaxed truncate" 
-                        title={r.anomalyDetails}
-                      >
-                        {r.anomalyDetails}
-                      </p>
+                      <p className="text-xs leading-relaxed truncate" title={r.anomalyDetails}>{r.anomalyDetails}</p>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -284,12 +285,8 @@ export default function RecordsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" title="查看详情" onClick={() => setSelectedRecord(r)}>
-                        <Eye className="size-4 text-primary" />
-                      </Button>
-                      <Button variant="ghost" size="icon" title="修改信息" onClick={() => setEditingRecord(r)}>
-                        <Edit className="size-4 text-primary" />
-                      </Button>
+                      <Button variant="ghost" size="icon" title="查看详情" onClick={() => setSelectedRecord(r)}><Eye className="size-4 text-primary" /></Button>
+                      <Button variant="ghost" size="icon" title="修改信息" onClick={() => setEditingRecord(r)}><Edit className="size-4 text-primary" /></Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -328,7 +325,6 @@ export default function RecordsPage() {
                   </div>
                   <div className="space-y-1.5">
                     <p><span className="font-bold text-destructive">必填项：</span>档案编号, 体检编号, 体检日期, 种类(A/B), 详情, 通知日期/时间, 告知/被告知人, 处置意见</p>
-                    <p><span className="font-bold text-muted-foreground">任务生成：</span>导入后系统将自动按“通知日期”生成 7 日后的随访任务。</p>
                   </div>
                 </div>
               </ScrollArea>
@@ -338,13 +334,7 @@ export default function RecordsPage() {
               <Button variant="outline" className="w-full gap-2 border-dashed h-12" onClick={downloadTemplate}>
                 <Download className="size-4" /> 下载标准导入模板 (.csv)
               </Button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleCsvImport} 
-                className="hidden" 
-                accept=".csv"
-              />
+              <input type="file" ref={fileInputRef} onChange={handleCsvImport} className="hidden" accept=".csv" />
               <Button className="w-full h-12 gap-2 bg-primary shadow-lg" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="size-4" /> 选择并上传填写好的文件
               </Button>
@@ -370,46 +360,27 @@ export default function RecordsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                   <div className="space-y-1">
                     <p className="text-muted-foreground">姓名</p>
-                    <p className="font-bold text-base">{selectedRecord?.patientName || "待补录"}</p>
+                    <p className="font-bold text-xl text-primary">{selectedRecord?.patientName || "待补录"}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-muted-foreground">性别 / 年龄</p>
-                    <p>{selectedRecord?.patientGender || "-"} / {selectedRecord?.patientAge || "-"} 岁</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">身份证号</p>
-                    <p className="font-mono">{selectedRecord?.patientIdNumber || "-"}</p>
+                    <p className="text-muted-foreground">档案信息</p>
+                    <p className="text-xs font-mono bg-muted px-2 py-1 rounded inline-block">{selectedRecord?.archiveNo}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground">联系电话</p>
-                    <p className="font-mono font-bold text-foreground text-lg tracking-tighter">{selectedRecord?.patientPhone || "-"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">档案状态</p>
-                    <Badge variant={selectedRecord?.patientStatus === '正常' ? 'default' : 'destructive'}>
-                      {selectedRecord?.patientStatus || "未知"}
-                    </Badge>
+                    <p className="font-mono font-bold text-lg tracking-tighter">{selectedRecord?.patientPhone || "-"}</p>
                   </div>
                 </div>
               </section>
-
               <Separator />
-
               <section className="space-y-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
                   <Activity className="size-5" /> 临床异常发现
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">体检编号</p>
-                    <p className="font-mono">{selectedRecord?.checkupNumber}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">体检日期</p>
-                    <p>{selectedRecord?.checkupDate}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">异常类别</p>
+                  <div className="space-y-1"><p className="text-muted-foreground">体检编号</p><p className="font-mono">{selectedRecord?.checkupNumber}</p></div>
+                  <div className="space-y-1"><p className="text-muted-foreground">体检日期</p><p>{selectedRecord?.checkupDate}</p></div>
+                  <div className="space-y-1"><p className="text-muted-foreground">异常类别</p>
                     <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
                       "font-bold",
                       selectedRecord?.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
@@ -425,28 +396,6 @@ export default function RecordsPage() {
                   </div>
                 </div>
               </section>
-
-              <Separator />
-
-              <section className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
-                  <MessageSquare className="size-5" /> 告知与反馈信息
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">通知人 (医生/护士)</p>
-                    <p className="font-medium">{selectedRecord?.notifier}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">被通知人 (患者/家属)</p>
-                    <p className="font-medium">{selectedRecord?.notifiedPerson}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">通知具体时间</p>
-                    <p>{selectedRecord?.notificationDate} {selectedRecord?.notificationTime}</p>
-                  </div>
-                </div>
-              </section>
             </div>
           </ScrollArea>
         </DialogContent>
@@ -454,13 +403,8 @@ export default function RecordsPage() {
 
       <Dialog open={!!editingRecord} onOpenChange={(o) => !o && setEditingRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>修改重要异常结果记录</DialogTitle>
-          </DialogHeader>
-          <AbnormalResultForm 
-            initialData={editingRecord} 
-            onSuccess={handleEditSuccess} 
-          />
+          <DialogHeader><DialogTitle>修改重要异常结果记录</DialogTitle></DialogHeader>
+          <AbnormalResultForm initialData={editingRecord} onSuccess={handleEditSuccess} />
         </DialogContent>
       </Dialog>
 
@@ -468,9 +412,7 @@ export default function RecordsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" /> 确认撤销登记？</AlertDialogTitle>
-            <AlertDialogDescription>
-              该操作将永久从中心 MySQL 数据库中移除此条异常记录及其关联的随访任务和随访历史。
-            </AlertDialogDescription>
+            <AlertDialogDescription>该操作将永久从中心 MySQL 数据库中移除此条记录及其关联任务。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
