@@ -29,7 +29,12 @@ export default function HomePage() {
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const mysqlConfig = JSON.parse(sessionStorage.getItem('mysql_config') || '{}');
+      const mysqlConfigString = sessionStorage.getItem('mysql_config');
+      if (!mysqlConfigString) {
+        setIsLoading(false);
+        return;
+      }
+      const mysqlConfig = JSON.parse(mysqlConfigString);
       if (!mysqlConfig.host) {
         setIsLoading(false);
         return;
@@ -61,8 +66,9 @@ export default function HomePage() {
     });
     return months.map(m => {
       const found = stats.trend.find((t: any) => t.month === m);
-      const total = found?.total || 0;
-      const followed = found?.followed || 0;
+      const total = Number(found?.total || 0);
+      const followed = Number(found?.followed || 0);
+      // 鲁棒性计算：确保分母大于0且结果为有限数值
       const rate = total > 0 ? Math.round((followed / total) * 100) : 0;
       return {
         month: m.split('-')[1] + '月',
@@ -75,8 +81,8 @@ export default function HomePage() {
 
   const annualRate = React.useMemo(() => {
     if (!chartData.length) return 0;
-    const total = chartData.reduce((acc, curr) => acc + curr.total, 0);
-    const followed = chartData.reduce((acc, curr) => acc + curr.followed, 0);
+    const total = chartData.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
+    const followed = chartData.reduce((acc, curr) => acc + (Number(curr.followed) || 0), 0);
     return total > 0 ? Math.round((followed / total) * 100) : 0;
   }, [chartData]);
 
@@ -141,7 +147,7 @@ export default function HomePage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-xl font-bold flex items-center gap-2">
               <TrendingUp className="size-5 text-primary" />
-              {selectedYear}年度 随访告知趋势 (月度统计)
+              {selectedYear}年度 随访告知趋势 (按通知月统计)
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[400px] pt-4">
@@ -154,12 +160,33 @@ export default function HomePage() {
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   formatter={(value: any, name: string) => {
                     if (name === 'rate') return [`${value}%`, '随访率'];
-                    if (name === 'total') return [value, '发现总数'];
-                    if (name === 'followed') return [value, '已随访数'];
+                    if (name === 'total') return [value, '重要异常结果例数'];
+                    if (name === 'followed') return [value, '已随访例数'];
                     return [value, name];
                   }}
                 />
                 <Legend verticalAlign="top" height={36}/>
+                {/* 增加隐藏的 Line 以便 Tooltip 能捕获 total 和 followed 数据 */}
+                <Line 
+                  name="total"
+                  type="monotone" 
+                  dataKey="total" 
+                  stroke="transparent" 
+                  strokeWidth={0}
+                  dot={false}
+                  activeDot={false}
+                  legendType="none"
+                />
+                <Line 
+                  name="followed"
+                  type="monotone" 
+                  dataKey="followed" 
+                  stroke="transparent" 
+                  strokeWidth={0}
+                  dot={false}
+                  activeDot={false}
+                  legendType="none"
+                />
                 <Line 
                   name="rate"
                   type="monotone" 
@@ -178,24 +205,22 @@ export default function HomePage() {
           <CardHeader><CardTitle>内网统计逻辑说明</CardTitle></CardHeader>
           <CardContent className="space-y-6 pt-4 flex-1">
             <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
-              <p className="text-xs font-bold uppercase tracking-wider opacity-70">数据中心化</p>
+              <p className="text-xs font-bold uppercase tracking-wider opacity-70">统计归口准则</p>
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
                 <p className="text-sm leading-relaxed">
-                  系统采用实时 SQL 聚合技术。即使随访发生在通知后的下月，统计引擎也会自动追溯并更新通知月份的随访率，确保临床质控数据的真实完整。
+                  系统严格按“通知日期”进行统计归口。例如 12 月的体检结果在次年 1 月通知，该数据将计入次年 1 月。
                 </p>
               </div>
             </div>
             
             <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
-              <p className="text-xs font-bold uppercase tracking-wider opacity-70">算龄规则</p>
-              <div className="flex items-center gap-2">
-                <Activity className="size-4" />
-                <span className="text-sm">规则 1：基于身份证自动解析</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Users className="size-4" />
-                <span className="text-sm">规则 2：无证档案基于周期自增</span>
+              <p className="text-xs font-bold uppercase tracking-wider opacity-70">数据追溯</p>
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
+                <p className="text-sm leading-relaxed">
+                  年度随访率基于全量通知任务实时聚合。任何月份补录的随访结果都将实时更新对应通知月份的随访成功率。
+                </p>
               </div>
             </div>
           </CardContent>
