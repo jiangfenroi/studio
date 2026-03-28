@@ -5,7 +5,7 @@
 
 ## 1. 数据库初始化 (MySQL 8.4)
 
-请在中心服务器执行以下 SQL 脚本以创建 7 张核心业务表。
+请在中心服务器执行以下 SQL 脚本以创建核心业务表。
 
 ```sql
 CREATE DATABASE IF NOT EXISTS meditrack_db CHARACTER SET utf8mb4;
@@ -91,7 +91,7 @@ CREATE TABLE SP_RW (
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
--- 注意：MySQL 8.4 中 TEXT 字段不能有默认值，此处已改为 VARCHAR(512)
+-- 注意：MySQL 8.4 中 TEXT 不能有默认值，此处已改为 VARCHAR(512)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY,
   appName VARCHAR(100) DEFAULT 'HealthInsight Registry',
@@ -105,11 +105,21 @@ CREATE TABLE SP_CONFIG (
 INSERT IGNORE INTO SP_CONFIG (configKey) VALUES ('default');
 ```
 
-## 2. 核心架构特性
+## 2. 远程连接权限授予 (重要)
 
-- **数据中心性**：100% 依赖 MySQL 8.4，物理隔离 Firebase 云端。
-- **离线能力**：全业务逻辑在内网服务器端执行，不依赖任何公网 API。
-- **自动算龄引擎**：支持 18 位身份证自动解析及体检周期自增。
+如果系统提示 `Access denied for user 'root'@'35.230.25.171'`，请在您的 MySQL 服务器上运行以下命令以授予开发环境访问权限：
+
+```sql
+-- 针对当前开发 IP 授权（请根据报错中的 IP 修改）
+CREATE USER IF NOT EXISTS 'root'@'35.230.25.171' IDENTIFIED BY '您的密码';
+GRANT ALL PRIVILEGES ON meditrack_db.* TO 'root'@'35.230.25.171';
+FLUSH PRIVILEGES;
+
+-- 或者（生产环境不推荐）允许所有 IP 访问
+-- CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '您的密码';
+-- GRANT ALL PRIVILEGES ON meditrack_db.* TO 'root'@'%';
+-- FLUSH PRIVILEGES;
+```
 
 ## 3. 部署指南
 
@@ -117,12 +127,6 @@ INSERT IGNORE INTO SP_CONFIG (configKey) VALUES ('default');
 1. 安装 Node.js 20+ 及 MySQL 8.4。
 2. 运行 `npm install`。
 3. 运行 `npm run build`。
-4. 使用 `npm start` 启动。
-
-### Windows
-1. 安装 Node.js 20+ 及 MySQL 8.4。
-2. 运行 `npm install`。
-3. 执行 `npm run build`。
 4. 使用 `npm start` 启动。
 
 ## 4. 维护说明

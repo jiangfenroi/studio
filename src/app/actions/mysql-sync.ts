@@ -5,21 +5,30 @@ import mysql from 'mysql2/promise';
 
 /**
  * 获取数据库连接
+ * 增强了错误日志，帮助在内网环境中识别权限及连接问题
  */
 async function getConnection(config: any) {
   if (!config || !config.host) {
     throw new Error('MySQL 核心链路未建立。请在“配置中心”或“登录页”检查中心库参数。');
   }
   try {
-    return await mysql.createConnection({
+    const connection = await mysql.createConnection({
       host: config.host,
       port: parseInt(config.port || '3306'),
       user: config.user,
-      password: config.password,
+      password: config.password || '', // 确保即使为空字符串也能正确传递
       database: config.database,
-      connectTimeout: 5000, // 缩短超时时间以提高反馈速度
+      connectTimeout: 5000,
     });
+    return connection;
   } catch (err: any) {
+    // 针对 Access Denied 错误进行语义化翻译
+    if (err.code === 'ER_ACCESS_DENIED_ERROR') {
+      throw new Error(`中心库拒绝连接 [${config.host}]: 用户 '${config.user}' 权限不足或未授权开发 IP 访问。请参考 README 执行 GRANT 授权命令。`);
+    }
+    if (err.code === 'ETIMEDOUT') {
+      throw new Error(`连接中心库超时 [${config.host}]: 请检查内网防火墙 3306 端口是否开放。`);
+    }
     throw new Error(`无法连接至中心库 [${config.host}]: ${err.message}`);
   }
 }
@@ -172,7 +181,6 @@ export async function syncPatientToMysql(config: any, patient: any) {
       patient.organization, patient.address, patient.phoneNumber, patient.status
     ]);
 
-    // 联动处理：如果状态为死亡，清空下次随访排程
     if (patient.status === '死亡') {
       await connection.execute('UPDATE SP_RW SET nextFollowUpDate = NULL WHERE archiveNo = ?', [patient.id]);
     }
@@ -194,7 +202,6 @@ export async function saveAnomalyResult(config: any, data: any) {
     await connection.beginTransaction();
 
     const anomalyId = `YCJG${Date.now()}`;
-    // 确保档案表存在此编号（原子性补录）
     await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
 
     const sqlYCJG = `INSERT INTO SP_YCJG 
@@ -208,7 +215,6 @@ export async function saveAnomalyResult(config: any, data: any) {
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0
     ]);
 
-    // 自动生成 7 日随访任务并排程
     const nextDate = new Date(data.notificationDate);
     nextDate.setDate(nextDate.getDate() + 7);
     const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)
@@ -280,11 +286,9 @@ export async function saveFollowUpRecord(config: any, data: any) {
       sfId, data.archiveNo, data.anomalyId, data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, data.isReExamined ? 1 : 0
     ]);
 
-    // 更新下次随访排程日期
     const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
     await connection.execute(sqlRW, [data.nextFollowUpDate, data.anomalyId]);
 
-    // 更新主异常表中的已随访状态（闭环标志）
     const sqlYCJG = `UPDATE SP_YCJG SET isFollowUpRequired = 1 WHERE id = ?`;
     await connection.execute(sqlYCJG, [data.anomalyId]);
 
@@ -306,7 +310,6 @@ export async function fetchDashboardStats(config: any, selectedYear: number) {
     const [pendingCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_RW WHERE nextFollowUpDate <= CURRENT_DATE');
     const [totalPatients]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
     
-    // 按通知日期统计月度告知率（支持跨月随访追溯）
     const [trend]: any = await connection.execute(`
       SELECT 
         DATE_FORMAT(notificationDate, '%Y-%m') as month, 
@@ -329,9 +332,6 @@ export async function fetchDashboardStats(config: any, selectedYear: number) {
   }
 }
 
-/**
- * 核心功能：全量档案算龄引擎
- */
 export async function calculateAllAges(config: any) {
   let connection;
   try {
@@ -342,12 +342,10 @@ export async function calculateAllAges(config: any) {
 
     for (const row of rows) {
       let newAge = row.age;
-      // 规则 1：基于身份证解析
       if (row.idNumber && row.idNumber.length === 18) {
         const birthYear = parseInt(row.idNumber.substring(6, 10));
         newAge = currentYear - birthYear;
       } 
-      // 规则 2：无证档案基于体检日期偏移
       else {
         const [lastCheck]: any = await connection.execute(
           'SELECT checkupDate FROM SP_YCJG WHERE archiveNo = ? ORDER BY checkupDate DESC LIMIT 1',
@@ -404,7 +402,6 @@ export async function savePdfMetadata(config: any, data: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    // 生成 10 位倒序 ID (越新越小)
     const pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
     const sql = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
     await connection.execute(sql, [pdfId, data.archiveNo, data.checkDate, data.reportCategory, data.fullPath]);

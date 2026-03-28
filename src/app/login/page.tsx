@@ -36,14 +36,20 @@ export default function LoginPage() {
 
   const handleTestConnection = async () => {
     setIsConnecting(true);
+    setIsConnected(false);
     try {
-      await checkConnection(mysqlConfig);
-      setIsConnected(true);
-      sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
-      toast({ title: "数据库连接成功", description: "配置已同步至本地会话。" });
+      const res = await checkConnection(mysqlConfig);
+      if (res.success) {
+        setIsConnected(true);
+        sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
+        toast({ title: "数据库连接成功", description: "配置已同步至本地会话。" });
+      }
     } catch (err: any) {
-      setIsConnected(false);
-      toast({ variant: "destructive", title: "连接失败", description: err.message });
+      toast({ 
+        variant: "destructive", 
+        title: "连接失败", 
+        description: err.message || "请检查 MySQL 远程访问权限及防火墙设置。" 
+      });
     } finally {
       setIsConnecting(false);
     }
@@ -78,7 +84,6 @@ export default function LoginPage() {
       toast({ variant: "destructive", title: "请先测试数据库连接", description: "必须成功连接中心库后方可操作。" });
       return;
     }
-    // 隐藏校验密钥
     if (authCode !== 'HEALTH-INSIGHT-2025') {
       toast({ variant: "destructive", title: "授权密钥错误", description: "请输入有效的注册密钥。" });
       return;
