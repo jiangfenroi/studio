@@ -56,7 +56,8 @@ export async function uploadPdfFile(config: any, formData: FormData) {
 
   if (!files || files.length === 0) throw new Error('未选择有效文件');
 
-  const remoteConfig = await fetchConfigFromMysql(config);
+  const remoteConfigRes = await fetchConfigFromMysql(config);
+  const remoteConfig = remoteConfigRes.success ? remoteConfigRes.data : null;
   const rootPath = remoteConfig?.pdfStoragePath || 'C:\\HealthReports\\';
 
   let lastPdfId = "";
@@ -149,7 +150,6 @@ export async function fetchFollowUpDetail(config: any, sfId: string) {
 
 /**
  * 批量导入重要异常记录
- * 纯本地代码逻辑，无需联网
  */
 export async function bulkImportAnomalyRecords(config: any, records: any[]) {
   let connection;
@@ -159,34 +159,19 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
     
     for (const data of records) {
       const anomalyId = `YCJG${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-      
-      // 1. 档案占位逻辑：确保外键关联成功
       await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
-      
-      // 2. 写入异常记录 (纯本地默认值降级保护，不依赖互联网)
       const sqlYCJG = `INSERT INTO SP_YCJG 
         (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
-      
       await connection.execute(sqlYCJG, [
-        anomalyId, 
-        data.archiveNo, 
-        data.checkupNumber || "无体检号", 
-        data.checkupDate || new Date().toISOString().split('T')[0], 
-        data.anomalyCategory || 'A', 
-        data.anomalyDetails || '批量导入临床发现', 
-        data.notifier || '系统批量导入', 
-        data.notifiedPerson || '见体检报告', 
-        data.notificationDate || new Date().toISOString().split('T')[0], 
-        data.notificationTime || '08:30', 
-        data.disposalSuggestions || '建议临床复查', 
-        data.notifiedPersonFeedback || '',
-        data.isHealthEducationProvided ? 1 : 0, 
-        data.isNotified ? 1 : 0, 
-        data.pdfId || null
+        anomalyId, data.archiveNo, data.checkupNumber || "无体检号", 
+        data.checkupDate || new Date().toISOString().split('T')[0], data.anomalyCategory || 'A', 
+        data.anomalyDetails || '批量导入临床发现', data.notifier || '系统批量导入', 
+        data.notifiedPerson || '见体检报告', data.notificationDate || new Date().toISOString().split('T')[0], 
+        data.notificationTime || '08:30', data.disposalSuggestions || '建议临床复查', 
+        data.notifiedPersonFeedback || '', data.isHealthEducationProvided ? 1 : 0, 
+        data.isNotified ? 1 : 0, data.pdfId || null
       ]);
-
-      // 3. 自动同步创建待随访任务 (本地日期计算)
       const baseDateStr = data.notificationDate || new Date().toISOString().split('T')[0];
       const nextDate = new Date(baseDateStr);
       nextDate.setDate(nextDate.getDate() + 7);
@@ -286,8 +271,6 @@ export async function updateFollowUpRecord(config: any, id: string, data: any) {
   try {
     connection = await getConnection(config);
     await connection.beginTransaction();
-    
-    // 1. 更新随访记录主表
     const sqlSF = `UPDATE SP_SF SET 
       followUpResult=?, followUpPerson=?, followUpDate=?, followUpTime=?, isReExamined=?, pdfId=?
       WHERE id=?`;
@@ -295,11 +278,8 @@ export async function updateFollowUpRecord(config: any, id: string, data: any) {
       data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, 
       data.isReExamined ? 1 : 0, data.pdfId || null, id
     ]);
-
-    // 2. 更新关联的任务池下次随访时间
     const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
     await connection.execute(sqlRW, [data.nextFollowUpDate, data.anomalyId]);
-
     await connection.commit();
     return { success: true };
   } catch (e) {
@@ -315,6 +295,8 @@ export async function checkConnection(config: any) {
   try {
     connection = await getConnection(config);
     return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   } finally {
     if (connection) await connection.end();
   }
@@ -379,7 +361,9 @@ export async function fetchConfigFromMysql(config: any) {
   try {
     connection = await getConnection(config);
     const [rows]: any = await connection.execute('SELECT * FROM SP_CONFIG LIMIT 1');
-    return rows[0] ? serializeRow(rows[0]) : null;
+    return { success: true, data: rows[0] ? serializeRow(rows[0]) : null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   } finally {
     if (connection) await connection.end();
   }
@@ -393,6 +377,9 @@ export async function syncConfigToMysql(config: any, sys: any) {
                  ON DUPLICATE KEY UPDATE appName=VALUES(appName), pacsUrlBase=VALUES(pacsUrlBase), pdfStoragePath=VALUES(pdfStoragePath)`;
     await connection.execute(sql, [sys.appName, sys.pacsUrlBase, sys.pdfStoragePath]);
     return { success: true };
+  } catch (err: any) {
+    console.error('syncConfigToMysql error:', err);
+    return { success: false, error: err.message };
   } finally {
     if (connection) await connection.end();
   }
@@ -423,10 +410,6 @@ export async function syncPatientToMysql(config: any, patient: any) {
   }
 }
 
-/**
- * 批量导入个人档案
- * 纯本地代码逻辑，无需联网
- */
 export async function bulkImportPatients(config: any, patients: any[]) {
   let connection;
   try {
@@ -437,15 +420,8 @@ export async function bulkImportPatients(config: any, patients: any[]) {
                  ON DUPLICATE KEY UPDATE name=VALUES(name), gender=VALUES(gender), age=VALUES(age), idNumber=VALUES(idNumber), organization=VALUES(organization), address=VALUES(address), phoneNumber=VALUES(phoneNumber), status=VALUES(status)`;
     for (const p of patients) {
       await connection.execute(sql, [
-        p.archiveNo, 
-        p.name || '待补录', 
-        p.gender || '男', 
-        p.age || 0, 
-        p.idNumber || '', 
-        p.phoneNumber || '', 
-        p.organization || '', 
-        p.address || '', 
-        p.status || '正常'
+        p.archiveNo, p.name || '待补录', p.gender || '男', p.age || 0, p.idNumber || '', 
+        p.phoneNumber || '', p.organization || '', p.address || '', p.status || '正常'
       ]);
     }
     await connection.commit();
@@ -588,7 +564,6 @@ export async function clearAllClinicalData(config: any) {
   try {
     connection = await getConnection(config);
     await connection.execute('SET FOREIGN_KEY_CHECKS = 0');
-    // 使用 DELETE FROM 替代 TRUNCATE 以确保更好的兼容性和权限适应性
     await connection.execute('DELETE FROM SP_SF');
     await connection.execute('DELETE FROM SP_RW');
     await connection.execute('DELETE FROM SP_PDF');
@@ -597,7 +572,6 @@ export async function clearAllClinicalData(config: any) {
     await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
     return { success: true };
   } catch (err: any) {
-    console.error('Clear clinical data error:', err);
     throw new Error(`重置临床数据失败: ${err.message}`);
   } finally {
     if (connection) await connection.end();
@@ -611,7 +585,6 @@ export async function clearAllStaffData(config: any) {
     await connection.execute('DELETE FROM SP_STAFF');
     return { success: true };
   } catch (err: any) {
-    console.error('Clear staff data error:', err);
     throw new Error(`重置账户数据失败: ${err.message}`);
   } finally {
     if (connection) await connection.end();

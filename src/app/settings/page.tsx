@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react"
@@ -56,8 +57,9 @@ export default function SettingsPage() {
       const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
       if (!config.host) return;
 
-      const remoteConfig = await fetchConfigFromMysql(config)
-      if (remoteConfig) {
+      const res = await fetchConfigFromMysql(config)
+      if (res.success && res.data) {
+        const remoteConfig = res.data;
         setFormData(prev => ({
           ...prev,
           appName: remoteConfig.appName || prev.appName,
@@ -85,11 +87,15 @@ export default function SettingsPage() {
     const mysqlConfig = { host: formData.mysqlHost, port: formData.mysqlPort, user: formData.mysqlUser, password: formData.mysqlPassword, database: formData.mysqlDatabase };
     setIsSyncing(true)
     try {
-      await syncConfigToMysql(mysqlConfig, { appName: formData.appName, pacsUrlBase: formData.pacsUrlBase, pdfStoragePath: formData.pdfStoragePath });
-      sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
-      toast({ title: "全局配置同步成功", description: "中心 MySQL 库已更新。" })
+      const res = await syncConfigToMysql(mysqlConfig, { appName: formData.appName, pacsUrlBase: formData.pacsUrlBase, pdfStoragePath: formData.pdfStoragePath });
+      if (res.success) {
+        sessionStorage.setItem('mysql_config', JSON.stringify(mysqlConfig));
+        toast({ title: "全局配置同步成功", description: "中心 MySQL 库已更新。" })
+      } else {
+        toast({ variant: "destructive", title: "同步失败", description: res.error || "中心库连接或配置写入异常。" })
+      }
     } catch (err: any) {
-      toast({ variant: "destructive", title: "同步失败", description: err.message })
+      toast({ variant: "destructive", title: "操作异常", description: err.message })
     } finally {
       setIsSyncing(false)
     }
