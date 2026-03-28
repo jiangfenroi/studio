@@ -90,7 +90,6 @@ CREATE TABLE SP_RW (
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
--- MySQL 8.4 中 TEXT 字段不能有 DEFAULT 值，路径字段已改为 VARCHAR(512)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY,
   appName VARCHAR(100),
@@ -107,18 +106,27 @@ VALUES ('default', 'HealthInsight Registry', 'http://172.16.201.61:7242/?ChtId='
 
 ## 2. 部署与环境
 
-### 远程连接授权 (仅开发预览阶段需要)
-如果您在 **AI 预览环境** 看到 `Access denied for user 'root'@'35.230.25.171'`，请在您的 MySQL 服务器执行以下命令：
-```sql
--- 允许 AI 环境 IP 访问 (请谨慎使用，内网正式部署后应撤销)
-CREATE USER 'root'@'35.230.25.171' IDENTIFIED BY '您的密码';
-GRANT ALL PRIVILEGES ON meditrack_db.* TO 'root'@'35.230.25.171';
-FLUSH PRIVILEGES;
-```
-**注意：** 当您将程序最终部署到 **内网服务器** 后，此 IP 报错将自动消失，无需再进行上述授权。
+### 默认连接参数
+系统出厂预设连接至以下节点：
+- **IP**: `172.17.126.18`
+- **端口**: `10699`
+- **账号**: `abc`
+- **数据库**: `meditrack_db`
+
+### 批量导入规范 (防止乱码)
+若使用 **WPS** 或 **Excel** 编辑导入模板，请务必执行以下操作：
+1. 编辑完成后，点击“文件” -> “另存为”。
+2. 文件类型选择：**CSV UTF-8 (逗号分隔) (*.csv)**。
+3. 系统已内置 UTF-8 BOM 识别，确保中文临床描述在内网终端正确显示。
 
 ### 运行
 1. 安装 Node.js 20+。
 2. 运行 `npm install`。
 3. 运行 `npm run build`。
 4. 运行 `npm start`。
+
+## 3. 核心功能
+- **双维度统计首页**：月随访率曲线图 + 月异常例数堆叠柱状图（A/B类）。
+- **临床闭环管理**：重要异常结果登记后自动生成 7 日随访任务，支持被通知人反馈记录。
+- **物理报告归档**：支持将 PDF 报告物理复制到服务器磁盘并建立索引。
+- **全生命周期病历轴**：以档案号为核心，自动串联所有异常发现、随访及报告记录。
