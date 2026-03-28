@@ -68,7 +68,7 @@ export default function HomePage() {
       const found = stats.trend.find((t: any) => t.month === m);
       const total = Number(found?.total || 0);
       const followed = Number(found?.followed || 0);
-      // 鲁棒性计算：确保分母大于0且结果为有限数值，解决 100000000000% 异常
+      // 鲁棒性计算：确保分母大于0且结果为有限数值
       const rate = total > 0 ? Math.round((followed / total) * 100) : 0;
       return {
         month: m.split('-')[1] + '月',
