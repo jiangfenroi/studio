@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
-import { ShieldAlert, LogIn, Database, UserPlus, Loader2, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, LogIn, Database, UserPlus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { authenticateUser, registerUser, checkConnection } from '@/app/actions/mysql-sync';
@@ -33,7 +33,6 @@ export default function LoginPage() {
     database: 'meditrack_db'
   });
 
-  // 仅在客户端加载时恢复配置，避免 SSR 渲染错误
   React.useEffect(() => {
     const saved = sessionStorage.getItem('mysql_config');
     if (saved) {
@@ -192,11 +191,11 @@ export default function LoginPage() {
               {isConnected && <Badge variant="secondary" className="bg-green-100 text-green-700 text-[8px] h-4">已联通</Badge>}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Input className="h-8 text-xs" value={mysqlConfig.host} onChange={e => setMysqlConfig({...mysqlConfig, host: e.target.value})} placeholder="主机IP" />
-              <Input className="h-8 text-xs" value={mysqlConfig.port} onChange={e => setMysqlConfig({...mysqlConfig, port: e.target.value})} placeholder="端口" />
-              <Input className="h-8 text-xs" value={mysqlConfig.user} onChange={e => setMysqlConfig({...mysqlConfig, user: e.target.value})} placeholder="账号" />
-              <Input className="h-8 text-xs" type="password" value={mysqlConfig.password} onChange={e => setMysqlConfig({...mysqlConfig, password: e.target.value})} placeholder="密码" />
-              <Input className="h-8 text-xs col-span-full" value={mysqlConfig.database} onChange={e => setMysqlConfig({...mysqlConfig, database: e.target.value})} placeholder="数据库/Schema 名称" />
+              <Input className="h-8 text-xs bg-white" value={mysqlConfig.host} onChange={e => setMysqlConfig({...mysqlConfig, host: e.target.value})} placeholder="主机IP" />
+              <Input className="h-8 text-xs bg-white" value={mysqlConfig.port} onChange={e => setMysqlConfig({...mysqlConfig, port: e.target.value})} placeholder="端口" />
+              <Input className="h-8 text-xs bg-white" value={mysqlConfig.user} onChange={e => setMysqlConfig({...mysqlConfig, user: e.target.value})} placeholder="账号" />
+              <Input className="h-8 text-xs bg-white" type="password" value={mysqlConfig.password} onChange={e => setMysqlConfig({...mysqlConfig, password: e.target.value})} placeholder="密码" />
+              <Input className="h-8 text-xs bg-white col-span-full" value={mysqlConfig.database} onChange={e => setMysqlConfig({...mysqlConfig, database: e.target.value})} placeholder="数据库名" />
             </div>
             <Button 
               type="button" 

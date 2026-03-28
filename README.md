@@ -106,8 +106,15 @@ INSERT IGNORE INTO SP_CONFIG (configKey) VALUES ('default');
 
 ## 2. 部署与环境
 
-### 内网权限说明
-如果您在 **AI 预览环境** 看到 `Access denied for user 'root'@'35.230.25.171'`，请忽略。这是因为您的 MySQL 服务器未对开发环境 IP 开放权限。在您最终的 **内网服务器** 部署后，此问题将自动消失。
+### 远程连接授权 (仅开发预览阶段需要)
+如果您在 **AI 预览环境** 看到 `Access denied for user 'root'@'35.230.25.171'`，请在您的 MySQL 服务器执行以下命令：
+```sql
+-- 允许 AI 环境 IP 访问 (请谨慎使用，内网正式部署后应撤销)
+CREATE USER 'root'@'35.230.25.171' IDENTIFIED BY '您的密码';
+GRANT ALL PRIVILEGES ON meditrack_db.* TO 'root'@'35.230.25.171';
+FLUSH PRIVILEGES;
+```
+**注意：** 当您将程序最终部署到 **内网服务器** 后，此 IP 报错将自动消失，无需再进行上述授权。
 
 ### 运行
 1. 安装 Node.js 20+。
