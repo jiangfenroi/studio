@@ -18,9 +18,7 @@ import {
   MapPin,
   Phone,
   Loader2,
-  Download,
   Upload,
-  Edit,
   Eye,
   Link as LinkIcon
 } from "lucide-react"
@@ -134,7 +132,7 @@ export default function PatientProfilePage() {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="size-5" /></Button>
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary flex items-center gap-3">
+            <h1 className="text-xl font-bold text-primary flex items-center gap-3 leading-none">
               {patient?.name || "未补录"}
               <Badge variant="secondary" className="bg-primary/10 text-primary h-5 text-[10px] font-mono">ID: {id}</Badge>
             </h1>
@@ -248,21 +246,17 @@ export default function PatientProfilePage() {
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {event.type === 'abnormal' ? (
-                                <>
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/records/${event.id}`} className="flex items-center">
-                                      <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
-                                    </Link>
-                                  </DropdownMenuItem>
-                                </>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/records/${event.id}`} className="flex items-center">
+                                    <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
+                                  </Link>
+                                </DropdownMenuItem>
                               ) : (
-                                <>
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/follow-ups/detail/${event.id}`} className="flex items-center">
-                                      <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
-                                    </Link>
-                                  </DropdownMenuItem>
-                                </>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/follow-ups/detail/${event.id}`} className="flex items-center">
+                                    <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
+                                  </Link>
+                                </DropdownMenuItem>
                               )}
                               <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(event)}>
                                 <Trash2 className="size-4 mr-2" /> 撤销记录
@@ -308,7 +302,7 @@ export default function PatientProfilePage() {
                     </div>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => toast({ title: "内网访问路径", description: pdf.fullPath })} title="查看路径"><LinkIcon className="size-4" /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPdfToDelete(pdf)}><Trash2 className="size-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPdfToDelete(pdf)} title="删除索引"><Trash2 className="size-4" /></Button>
                     </div>
                   </CardContent>
                 </Card>

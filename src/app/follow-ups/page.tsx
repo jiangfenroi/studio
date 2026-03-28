@@ -4,15 +4,15 @@
 import * as React from "react"
 import { 
   Search, 
-  Clock, 
   Loader2, 
   RefreshCcw,
   ChevronRight,
-  History,
-  FileText,
   Activity,
+  FileText,
   Eye,
-  CalendarDays
+  CalendarDays,
+  MoreVertical,
+  Trash2
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -26,8 +26,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import Link from "next/link"
-import { fetchFollowUpTasks } from "@/app/actions/mysql-sync"
+import { fetchFollowUpTasks, deleteFollowUpRecord } from "@/app/actions/mysql-sync"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -37,6 +53,7 @@ export default function FollowUpsPage() {
   const [activeTab, setActiveTab] = React.useState("pending")
   const [tasks, setTasks] = React.useState<any>({ pending: [], closed: [] })
   const [isLoading, setIsLoading] = React.useState(true)
+  const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true)
@@ -55,6 +72,20 @@ export default function FollowUpsPage() {
   React.useEffect(() => {
     loadData()
   }, [loadData])
+
+  const handleDelete = async () => {
+    if (!recordToDelete) return
+    try {
+      const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
+      await deleteFollowUpRecord(config, recordToDelete.id)
+      toast({ title: "随访记录已撤销" })
+      loadData()
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "撤销失败", description: err.message })
+    } finally {
+      setRecordToDelete(null)
+    }
+  }
 
   const filteredTasks = React.useMemo(() => {
     const filter = (list: any[]) => list.filter(t => 
@@ -91,7 +122,7 @@ export default function FollowUpsPage() {
           <div className="p-4">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold text-foreground">{r.patientName || "待补录"}</span>
+                <span className="text-xl font-bold text-foreground leading-none">{r.patientName || "待补录"}</span>
                 <span className="text-xs text-muted-foreground">
                   {r.patientGender} / {r.patientAge}岁
                 </span>
@@ -109,17 +140,17 @@ export default function FollowUpsPage() {
               </div>
 
               <div className="text-sm font-bold text-foreground">
-                <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                {r.patientPhone}
               </div>
 
-              <div className="text-sm">
-                <span className="text-muted-foreground mr-1 font-normal text-[10px]">体检号:</span>
-                <span className="font-mono text-foreground text-[10px]">{r.checkupNumber}</span>
+              <div className="flex flex-col">
+                <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
+                <div className="text-[10px] text-muted-foreground font-mono uppercase opacity-70">NO: {r.checkupNumber}</div>
               </div>
 
-              <div className="text-sm">
-                <span className="text-muted-foreground mr-1 font-normal text-[10px]">通知:</span>
-                <span className="text-sm font-bold text-foreground">{r.notificationDate}</span>
+              <div className="flex flex-col">
+                <div className="text-sm font-bold text-foreground">{r.notificationDate}</div>
+                <div className="text-[10px] text-muted-foreground">告知: {r.notifier} / 被告知: {r.notifiedPerson}</div>
               </div>
 
               <div className="text-sm">
@@ -147,7 +178,7 @@ export default function FollowUpsPage() {
                 </Button>
                 <Button variant="outline" size="sm" asChild className="text-muted-foreground h-9 w-full border-dashed">
                   <Link href={`/patients/${r.archiveNo}`} className="flex items-center justify-center gap-2">
-                    <History className="size-3.5" /> 查看病历档案
+                    <Activity className="size-3.5" /> 查看病历档案
                   </Link>
                 </Button>
               </div>
@@ -188,7 +219,7 @@ export default function FollowUpsPage() {
               <TableCell>
                 <div className="flex flex-col">
                   <div className="text-sm font-bold text-foreground">
-                    <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                    {r.patientPhone}
                   </div>
                   <span className="text-[10px] font-mono text-muted-foreground mt-1">
                     {r.archiveNo}
@@ -227,12 +258,18 @@ export default function FollowUpsPage() {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" asChild title="查看详情">
+                  <Button variant="ghost" size="icon" asChild title="查看及修改详情">
                     <Link href={`/follow-ups/detail/${r.anomalyId}`}><Eye className="size-4 text-primary" /></Link>
                   </Button>
-                  <Button variant="ghost" size="icon" asChild title="查看病历轴">
-                    <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4" /></Link>
+                  <Button variant="ghost" size="icon" asChild title="查看完整病历轴">
+                    <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 text-primary" /></Link>
                   </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(r)}><Trash2 className="size-4 mr-2" /> 撤销记录</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>
@@ -290,6 +327,13 @@ export default function FollowUpsPage() {
           ) : renderHistoryTable(filteredTasks.closed)}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!recordToDelete} onOpenChange={() => setRecordToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>确认撤销随访记录？</AlertDialogTitle><AlertDialogDescription>此操作将永久移除该条随访结果，不可撤销。</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-destructive">确认撤销</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

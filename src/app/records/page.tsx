@@ -11,7 +11,6 @@ import {
   Loader2,
   RefreshCcw,
   Trash2,
-  Edit,
   Upload,
   FileSpreadsheet,
   Download,
@@ -208,7 +207,7 @@ export default function RecordsPage() {
                 <TableHead>档案信息</TableHead>
                 <TableHead>体检信息</TableHead>
                 <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
-                <TableHead>告知人/被通知人</TableHead>
+                <TableHead>通知日期/告知情况</TableHead>
                 <TableHead>随访状态</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -233,7 +232,7 @@ export default function RecordsPage() {
                   <TableCell>
                     <div className="flex flex-col">
                       <div className="text-sm font-bold text-foreground">
-                        <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                        {r.patientPhone}
                       </div>
                       <span className="text-[10px] font-mono text-muted-foreground mt-1">
                         {r.archiveNo}
@@ -270,16 +269,15 @@ export default function RecordsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" asChild title="查看详情">
+                      <Button variant="ghost" size="icon" asChild title="查看及修改详情">
                         <Link href={`/records/${r.id}`}><Eye className="size-4 text-primary" /></Link>
                       </Button>
-                      <Button variant="ghost" size="icon" asChild title="修改信息">
-                        <Link href={`/records/${r.id}`}><Edit className="size-4 text-primary" /></Link>
+                      <Button variant="ghost" size="icon" asChild title="查看完整病历轴">
+                        <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 text-primary" /></Link>
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild><Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 mr-2" /> 查看完整病历轴</Link></DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(r)}><Trash2 className="size-4 mr-2" /> 撤销登记</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

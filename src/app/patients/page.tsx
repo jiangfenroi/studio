@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -5,25 +6,22 @@ import {
   Search, 
   Eye,
   Edit,
-  MoreVertical,
   RefreshCcw,
   Loader2,
   Plus,
-  Trash2,
   Calculator,
-  Download,
   Upload,
   FileSpreadsheet,
+  Download,
   FileText,
   AlertCircle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -154,7 +152,7 @@ export default function PatientsPage() {
   )
 
   return (
-    <div className="p-8 space-y-6 animate-in fade-in duration-500">
+    <div className="p-8 space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">档案管理中心</h1>
@@ -165,7 +163,7 @@ export default function PatientsPage() {
             <Upload className="size-4" /> 批量导入
           </Button>
           <Button variant="outline" onClick={handleUpdateAges} className="gap-2"><Calculator className="size-4" /> 自动算龄</Button>
-          <Button onClick={() => setIsAddingNew(true)} className="gap-2"><Plus className="size-4" /> 新增档案</Button>
+          <Button onClick={() => setIsAddingNew(true)} className="gap-2 shadow-md"><Plus className="size-4" /> 新增档案</Button>
         </div>
       </header>
 
@@ -174,7 +172,7 @@ export default function PatientsPage() {
         <Input placeholder="搜索姓名、档案号、电话..." className="pl-10 h-11 bg-white" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <div className="bg-white rounded-xl shadow-lg border overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
@@ -194,7 +192,7 @@ export default function PatientsPage() {
               <TableRow key={p.archiveNo} className="group">
                 <TableCell>
                   <span className={cn(
-                    "text-xl font-bold text-foreground",
+                    "text-xl font-bold text-foreground leading-tight",
                     !p.name && "text-amber-500 italic"
                   )}>
                     {p.name || "待补录"}
@@ -218,8 +216,12 @@ export default function PatientsPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" asChild title="查看详情"><Link href={`/patients/${p.archiveNo}`}><Eye className="size-4 text-primary" /></Link></Button>
-                    <Button variant="ghost" size="icon" title="编辑资料" onClick={() => { setEditingPatient(p); form.reset({ ...p, id: p.archiveNo }); }}><Edit className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" asChild title="查看详情">
+                      <Link href={`/patients/${p.archiveNo}`}><Eye className="size-4 text-primary" /></Link>
+                    </Button>
+                    <Button variant="ghost" size="icon" title="编辑基本资料" onClick={() => { setEditingPatient(p); form.reset({ ...p, id: p.archiveNo }); }}>
+                      <Edit className="size-4 text-primary" />
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -260,13 +262,7 @@ export default function PatientsPage() {
               <Button variant="outline" className="w-full gap-2 border-dashed h-12" onClick={downloadTemplate}>
                 <Download className="size-4" /> 下载标准导入模板 (.csv)
               </Button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleCsvImport} 
-                className="hidden" 
-                accept=".csv"
-              />
+              <input type="file" ref={fileInputRef} onChange={handleCsvImport} className="hidden" accept=".csv" />
               <Button className="w-full h-12 gap-2 bg-primary shadow-lg" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="size-4" /> 选择并上传填写好的文件
               </Button>
@@ -277,7 +273,7 @@ export default function PatientsPage() {
 
       <Dialog open={isAddingNew || !!editingPatient} onOpenChange={(o) => { if(!o) {setIsAddingNew(false); setEditingPatient(null); }}}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>{isAddingNew ? "手动录入档案" : "编辑档案资料"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{isAddingNew ? "手动录入档案" : "编辑基本资料"}</DialogTitle></DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
