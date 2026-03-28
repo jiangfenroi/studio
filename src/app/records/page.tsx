@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -168,6 +169,7 @@ export default function RecordsPage() {
       } finally {
         setIsLoading(false)
         setIsImporting(false)
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     }
     reader.readAsText(file, 'utf-8')
@@ -175,7 +177,7 @@ export default function RecordsPage() {
 
   const downloadTemplate = () => {
     const headers = "档案编号(必填),体检编号(必填),体检日期(必填),种类(必填:A/B),异常详情(必填),通知日期(必填),通知时间(必填),是否告知(必填:是/否),是否宣教(选填:是/否),通知人(必填),被通知人(必填),处置意见(必填),被通知人反馈(选填)"
-    const example = "D0001,202501010001,2025-01-01,A,血压偏高,2025-01-02,09:30,是,是,张医生,患者本人,建议复查,知道了，近期去复诊"
+    const example = "D0001,202501010001,2025-01-01,A,肺结节(10mm),2025-01-02,09:30,是,是,张医生,患者本人,建议临床复查,已知晓"
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -187,7 +189,7 @@ export default function RecordsPage() {
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-primary">重要异常结果记录展示</h1>
+          <h1 className="text-3xl font-bold text-primary">重要异常结果记录</h1>
           <p className="text-muted-foreground">内网核心驱动 • 支持 CSV 批量同步及随访任务自动触发</p>
         </div>
         <div className="flex gap-2">
@@ -258,7 +260,7 @@ export default function RecordsPage() {
                       <div className="flex gap-1">
                         <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
                           "h-4 text-[8px] px-1",
-                          r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
+                          r.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
                         )}>
                           {r.anomalyCategory}类
                         </Badge>
@@ -303,6 +305,53 @@ export default function RecordsPage() {
           </Table>
         </div>
       </div>
+
+      <Dialog open={isImporting} onOpenChange={setIsImporting}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="size-5 text-primary" /> 批量导入异常结果</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-3">
+              <p className="font-bold text-primary flex items-center gap-2">
+                <FileText className="size-3" /> 字段填写指引：
+              </p>
+              <ScrollArea className="h-40 pr-3">
+                <div className="space-y-3 pl-2 border-l-2 border-primary/20">
+                  <div className="p-2 bg-red-100/50 rounded border border-red-200">
+                    <p className="font-bold text-destructive mb-1 flex items-center gap-1">
+                      <AlertCircle className="size-3" /> 乱码解决提示：
+                    </p>
+                    <p className="text-[10px] leading-relaxed text-destructive/80">
+                      如果您使用 WPS 或 Excel 编辑后出现乱码，请在保存时选择文件类型为：<span className="font-black">“CSV UTF-8 (逗号分隔) (*.csv)”</span>。
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p><span className="font-bold text-destructive">必填项：</span>档案编号, 体检编号, 体检日期, 种类(A/B), 详情, 通知日期/时间, 告知/被告知人, 处置意见</p>
+                    <p><span className="font-bold text-muted-foreground">任务生成：</span>导入后系统将自动按“通知日期”生成 7 日后的随访任务。</p>
+                  </div>
+                </div>
+              </ScrollArea>
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              <Button variant="outline" className="w-full gap-2 border-dashed h-12" onClick={downloadTemplate}>
+                <Download className="size-4" /> 下载标准导入模板 (.csv)
+              </Button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleCsvImport} 
+                className="hidden" 
+                accept=".csv"
+              />
+              <Button className="w-full h-12 gap-2 bg-primary shadow-lg" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="size-4" /> 选择并上传填写好的文件
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
@@ -363,7 +412,7 @@ export default function RecordsPage() {
                     <p className="text-muted-foreground">异常类别</p>
                     <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
                       "font-bold",
-                      selectedRecord?.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
+                      selectedRecord?.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
                     )}>
                       {selectedRecord?.anomalyCategory}类异常
                     </Badge>
