@@ -91,14 +91,18 @@ CREATE TABLE SP_RW (
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
+-- 修复: MySQL 中 TEXT 字段不能有默认值，改为 VARCHAR(512)
 CREATE TABLE SP_CONFIG (
-  configKey VARCHAR(20) PRIMARY KEY DEFAULT 'default',
+  configKey VARCHAR(20) PRIMARY KEY,
   appName VARCHAR(100) DEFAULT 'HealthInsight Registry',
-  logoPath TEXT,
-  pacsUrlBase TEXT DEFAULT 'http://172.16.201.61:7242/?ChtId=',
-  pdfStoragePath TEXT DEFAULT 'C:\\HealthReports\\',
+  logoPath VARCHAR(512),
+  pacsUrlBase VARCHAR(512) DEFAULT 'http://172.16.201.61:7242/?ChtId=',
+  pdfStoragePath VARCHAR(512) DEFAULT 'C:\\HealthReports\\',
   authKey VARCHAR(50) DEFAULT 'HEALTH-INSIGHT-2025'
 );
+
+-- 插入默认配置
+INSERT IGNORE INTO SP_CONFIG (configKey) VALUES ('default');
 ```
 
 ## 2. 核心架构特性
