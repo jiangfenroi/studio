@@ -13,7 +13,12 @@ import {
   AlertTriangle,
   RefreshCcw,
   Trash2,
-  Edit
+  Edit,
+  ClipboardCheck,
+  MessageSquare,
+  ShieldCheck,
+  FileText,
+  Link as LinkIcon
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -49,6 +54,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import { AbnormalResultForm } from "@/components/forms/AbnormalResultForm"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -211,7 +217,7 @@ export default function RecordsPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  </TableCell>
+                  </TableRow>
                 </TableRow>
               ))}
             </TableBody>
@@ -219,38 +225,157 @@ export default function RecordsPage() {
         </div>
       </div>
 
-      {/* 详细预览 Dialog */}
+      {/* 全量详细预览 Dialog */}
       <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-6 bg-primary text-white">
-            <DialogTitle>详细临床档案预览</DialogTitle>
+          <DialogHeader className="p-6 bg-primary text-primary-foreground">
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="size-5" />
+              重要异常结果 - 详细临床档案预览
+            </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h3 className="font-bold flex items-center gap-2 border-b pb-2"><User className="size-4" /> 患者基础档案</h3>
-                <div className="grid grid-cols-2 gap-y-3 text-sm">
-                  <span className="text-muted-foreground">姓名</span><span className="font-bold">{selectedRecord?.patientName || "未补录"}</span>
-                  <span className="text-muted-foreground">档案编号</span><span className="font-mono">{selectedRecord?.archiveNo}</span>
-                  <span className="text-muted-foreground">性别/年龄</span><span>{selectedRecord?.patientGender || "-"} / {selectedRecord?.patientAge || "-"}岁</span>
-                  <span className="text-muted-foreground">身份证号</span><span className="font-mono">{selectedRecord?.patientIdNumber || "-"}</span>
-                  <span className="text-muted-foreground">联系电话</span><span>{selectedRecord?.patientPhone || "-"}</span>
-                  <span className="text-muted-foreground">档案状态</span><Badge>{selectedRecord?.patientStatus || "未知"}</Badge>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <h3 className="font-bold flex items-center gap-2 border-b pb-2 text-destructive"><Activity className="size-4" /> 临床异常发现</h3>
-                <div className="grid grid-cols-2 gap-y-3 text-sm">
-                  <span className="text-muted-foreground">体检编号</span><span className="font-mono">{selectedRecord?.checkupNumber}</span>
-                  <span className="text-muted-foreground">异常类别</span><Badge variant="destructive">{selectedRecord?.anomalyCategory}类</Badge>
-                  <span className="text-muted-foreground">体检日期</span><span>{selectedRecord?.checkupDate}</span>
-                  <span className="text-muted-foreground">告知日期</span><span>{selectedRecord?.notificationDate} {selectedRecord?.notificationTime}</span>
-                  <div className="col-span-2 mt-2">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">医学异常描述</p>
-                    <p className="p-3 bg-muted/30 rounded text-xs leading-relaxed whitespace-pre-wrap">{selectedRecord?.anomalyDetails}</p>
+          <ScrollArea className="flex-1 p-0">
+            <div className="p-8 space-y-8">
+              {/* 第一部分：患者基础信息 */}
+              <section className="space-y-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
+                  <User className="size-5" /> 患者基础档案
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">姓名</p>
+                    <p className="font-bold text-base">{selectedRecord?.patientName || "待补录"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">档案编号</p>
+                    <p className="font-mono font-bold">{selectedRecord?.archiveNo}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">性别 / 年龄</p>
+                    <p>{selectedRecord?.patientGender || "-"} / {selectedRecord?.patientAge || "-"} 岁</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">身份证号</p>
+                    <p className="font-mono">{selectedRecord?.patientIdNumber || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">联系电话</p>
+                    <p className="font-mono">{selectedRecord?.patientPhone || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">档案状态</p>
+                    <Badge variant={selectedRecord?.patientStatus === '正常' ? 'default' : 'destructive'}>
+                      {selectedRecord?.patientStatus || "未知"}
+                    </Badge>
                   </div>
                 </div>
-              </div>
+              </section>
+
+              <Separator />
+
+              {/* 第二部分：医学异常详情 */}
+              <section className="space-y-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-destructive border-b pb-2">
+                  <Activity className="size-5" /> 临床异常发现
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">体检编号</p>
+                    <p className="font-mono">{selectedRecord?.checkupNumber}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">体检日期</p>
+                    <p>{selectedRecord?.checkupDate}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">异常类别</p>
+                    <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="font-bold">
+                      {selectedRecord?.anomalyCategory}类异常
+                    </Badge>
+                  </div>
+                  <div className="col-span-full space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">医学异常详情描述</p>
+                    <div className="p-4 bg-red-50/50 border border-red-100 rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
+                      {selectedRecord?.anomalyDetails}
+                    </div>
+                  </div>
+                  <div className="col-span-full space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">临床处置意见</p>
+                    <div className="p-4 bg-muted/30 border rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
+                      {selectedRecord?.disposalSuggestions || "暂无记录"}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <Separator />
+
+              {/* 第三部分：告知与宣教反馈 */}
+              <section className="space-y-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-amber-600 border-b pb-2">
+                  <MessageSquare className="size-5" /> 告知与反馈信息
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">通知人 (医生/护士)</p>
+                    <p className="font-medium">{selectedRecord?.notifier}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">被通知人 (患者/家属)</p>
+                    <p className="font-medium">{selectedRecord?.notifiedPerson}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">通知具体时间</p>
+                    <p>{selectedRecord?.notificationDate} {selectedRecord?.notificationTime}</p>
+                  </div>
+                  <div className="col-span-full space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">被通知人反馈内容</p>
+                    <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-lg text-sm leading-relaxed whitespace-pre-wrap italic">
+                      {selectedRecord?.notifiedPersonFeedback || "未记录反馈"}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <Separator />
+
+              {/* 第四部分：归档状态与关联 */}
+              <section className="space-y-4 pb-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-green-600 border-b pb-2">
+                  <ShieldCheck className="size-5" /> 系统合规与归档
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                  <div className="flex items-center gap-6 p-4 bg-muted/20 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <div className={`size-3 rounded-full ${selectedRecord?.isNotified ? 'bg-green-500' : 'bg-muted'}`} />
+                      <span className="font-medium">通知状态: {selectedRecord?.isNotified ? '已告知' : '未告知'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`size-3 rounded-full ${selectedRecord?.isHealthEducationProvided ? 'bg-green-500' : 'bg-muted'}`} />
+                      <span className="font-medium">健康宣教: {selectedRecord?.isHealthEducationProvided ? '已提供' : '未提供'}</span>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-blue-50/30 border border-blue-100 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-5 text-blue-600" />
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">原始 PDF 报告关联</p>
+                        <p className="font-mono text-xs text-blue-700">
+                          {selectedRecord?.pdfId ? `#${selectedRecord.pdfId}` : "尚未归档原始报告"}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedRecord?.pdfId && (
+                      <Button variant="ghost" size="sm" className="h-8 gap-1 text-blue-600" onClick={() => {
+                        toast({ title: "关联报告 ID", description: `报告物理编号: ${selectedRecord.pdfId}` });
+                      }}>
+                        <LinkIcon className="size-3" />
+                        详情
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </section>
             </div>
           </ScrollArea>
         </DialogContent>
