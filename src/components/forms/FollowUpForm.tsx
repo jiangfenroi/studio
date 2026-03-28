@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -13,7 +14,7 @@ import {
   Upload,
   FileText
 } from "lucide-react"
-import { saveFollowUpRecord } from "@/app/actions/mysql-sync"
+import { saveFollowUpRecord, updateFollowUpRecord } from "@/app/actions/mysql-sync"
 import { Button } from "@/components/ui/button"
 import {
   Form,
@@ -51,9 +52,10 @@ interface FollowUpFormProps {
   patientName: string;
   anomalyRecordId: string;
   onSuccess: () => void;
+  initialData?: any; // 用于编辑模式
 }
 
-export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSuccess }: FollowUpFormProps) {
+export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSuccess, initialData }: FollowUpFormProps) {
   const { toast } = useToast()
   const [isSyncing, setIsSyncing] = React.useState(false)
   const [isPdfDialogOpen, setIsPdfDialogOpen] = React.useState(false)
@@ -64,24 +66,42 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
     if (user.name) setCurrentUserName(user.name)
   }, [])
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
+  const defaultValues = React.useMemo(() => {
+    if (initialData) {
+      return {
+        archiveNo: initialData.archiveNo || archiveNo,
+        anomalyId: initialData.associatedAnomalyId || anomalyRecordId,
+        followUpResult: initialData.followUpResult || "",
+        followUpPerson: initialData.followUpPerson || currentUserName,
+        followUpDate: initialData.followUpDate || format(new Date(), "yyyy-MM-dd"),
+        followUpTime: initialData.followUpTime || format(new Date(), "HH:mm"),
+        isReExamined: initialData.isReExamined === 1 || initialData.isReExamined === true,
+        nextFollowUpInterval: "1year", // 默认显示 1 年，编辑时无法精准还原周期，通常重新设定
+        pdfId: initialData.pdfId || "",
+      }
+    }
+    return {
       archiveNo: archiveNo,
       anomalyId: anomalyRecordId,
       followUpResult: "",
-      followUpPerson: "",
+      followUpPerson: currentUserName,
       followUpDate: format(new Date(), "yyyy-MM-dd"),
       followUpTime: format(new Date(), "HH:mm"),
       isReExamined: false,
       nextFollowUpInterval: "1year",
       pdfId: "",
-    },
+    }
+  }, [initialData, archiveNo, anomalyRecordId, currentUserName])
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues,
   })
 
+  // 确保 initialData 变化时重置表单
   React.useEffect(() => {
-    if (currentUserName) form.setValue("followUpPerson", currentUserName)
-  }, [currentUserName, form])
+    form.reset(defaultValues)
+  }, [defaultValues, form])
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
@@ -98,8 +118,13 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
     setIsSyncing(true)
     try {
       const payload = { ...values, nextFollowUpDate: format(nextDate, "yyyy-MM-dd") }
-      await saveFollowUpRecord(config, payload)
-      toast({ title: "随访成功", description: "记录已保存并同步中心 MySQL。" })
+      if (initialData?.id) {
+        await updateFollowUpRecord(config, initialData.id, payload)
+        toast({ title: "随访记录已更新" })
+      } else {
+        await saveFollowUpRecord(config, payload)
+        toast({ title: "随访记录已保存", description: "记录已同步中心 MySQL。" })
+      }
       onSuccess()
     } catch (err: any) {
       toast({ variant: "destructive", title: "同步失败", description: err.message })
@@ -113,7 +138,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Alert className="bg-primary/5 border-primary/20">
           <Info className="size-4 text-primary" />
-          <AlertTitle className="text-primary font-bold">临床随访任务登记</AlertTitle>
+          <AlertTitle className="text-primary font-bold">{initialData ? '修改随访任务记录' : '临床随访任务登记'}</AlertTitle>
           <AlertDescription className="text-xs">
             患者: <span className="font-bold">[{archiveNo}] {patientName}</span>
           </AlertDescription>
@@ -192,9 +217,9 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
         </div>
 
         <div className="flex justify-end gap-4 pb-6">
-          <Button type="submit" size="lg" className="px-12 shadow-xl" disabled={isSyncing}>
+          <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white" disabled={isSyncing}>
             {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-5 mr-2" />}
-            完成记录并同步 MySQL
+            {initialData ? '确认修改并同步' : '完成记录并同步 MySQL'}
           </Button>
         </div>
       </form>

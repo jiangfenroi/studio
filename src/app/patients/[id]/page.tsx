@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -62,6 +63,7 @@ export default function PatientProfilePage() {
   const [isFollowUpOpen, setIsFollowUpOpen] = React.useState(false)
   const [isUploadOpen, setIsUploadOpen] = React.useState(false)
   const [editingAnomaly, setEditingAnomaly] = React.useState<any>(null)
+  const [editingFollowUp, setEditingFollowUp] = React.useState<any>(null)
   
   const [recordToDelete, setRecordToDelete] = React.useState<any>(null)
   const [pdfToDelete, setPdfToDelete] = React.useState<any>(null)
@@ -215,7 +217,7 @@ export default function PatientProfilePage() {
                   <div key={idx} className="relative group">
                     <div className={cn(
                       "absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow flex items-center justify-center",
-                      event.type === 'abnormal' ? (event.anomalyCategory === 'A' ? 'bg-destructive' : 'bg-primary') : 'bg-primary'
+                      event.type === 'abnormal' ? (event.anomalyCategory === 'A' ? 'bg-destructive' : 'bg-primary') : 'bg-green-600'
                     )}>
                       {event.type === 'abnormal' ? <AlertCircle className="size-4 text-white" /> : <Activity className="size-4 text-white" />}
                     </div>
@@ -237,9 +239,13 @@ export default function PatientProfilePage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {event.type === 'abnormal' && (
+                              {event.type === 'abnormal' ? (
                                 <DropdownMenuItem onSelect={() => setEditingAnomaly(event)}>
                                   <Edit className="size-4 mr-2" /> 修改结果信息
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onSelect={() => setEditingFollowUp(event)}>
+                                  <Edit className="size-4 mr-2" /> 修改随访信息
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(event)}>
@@ -287,6 +293,19 @@ export default function PatientProfilePage() {
           <AbnormalResultForm 
             initialData={editingAnomaly} 
             onSuccess={() => { setEditingAnomaly(null); loadData(); }} 
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingFollowUp} onOpenChange={(o) => !o && setEditingFollowUp(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>修改随访结果记录</DialogTitle></DialogHeader>
+          <FollowUpForm 
+            archiveNo={id}
+            patientName={patient?.name}
+            anomalyRecordId={editingFollowUp?.associatedAnomalyId || ""}
+            initialData={editingFollowUp}
+            onSuccess={() => { setEditingFollowUp(null); loadData(); }} 
           />
         </DialogContent>
       </Dialog>

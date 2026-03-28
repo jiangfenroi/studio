@@ -266,6 +266,35 @@ export async function saveFollowUpRecord(config: any, data: any) {
   }
 }
 
+export async function updateFollowUpRecord(config: any, id: string, data: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.beginTransaction();
+    
+    // 1. 更新随访记录主表
+    const sqlSF = `UPDATE SP_SF SET 
+      followUpResult=?, followUpPerson=?, followUpDate=?, followUpTime=?, isReExamined=?, pdfId=?
+      WHERE id=?`;
+    await connection.execute(sqlSF, [
+      data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, 
+      data.isReExamined ? 1 : 0, data.pdfId || null, id
+    ]);
+
+    // 2. 更新关联的任务池下次随访时间
+    const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
+    await connection.execute(sqlRW, [data.nextFollowUpDate, data.anomalyId]);
+
+    await connection.commit();
+    return { success: true };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function checkConnection(config: any) {
   let connection;
   try {
