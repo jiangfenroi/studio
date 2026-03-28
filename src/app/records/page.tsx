@@ -72,8 +72,9 @@ export default function RecordsPage() {
   const loadRecords = React.useCallback(async () => {
     setIsLoading(true)
     try {
-      const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
-      if (!config.host) throw new Error('数据库配置缺失')
+      const configString = sessionStorage.getItem('mysql_config')
+      if (!configString) throw new Error('数据库配置缺失')
+      const config = JSON.parse(configString)
       const data = await fetchAllRecords(config)
       setRecords(data)
     } catch (err: any) {
@@ -217,7 +218,7 @@ export default function RecordsPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  </TableRow>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -225,7 +226,6 @@ export default function RecordsPage() {
         </div>
       </div>
 
-      {/* 全量详细预览 Dialog */}
       <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 bg-primary text-primary-foreground">
@@ -236,7 +236,6 @@ export default function RecordsPage() {
           </DialogHeader>
           <ScrollArea className="flex-1 p-0">
             <div className="p-8 space-y-8">
-              {/* 第一部分：患者基础信息 */}
               <section className="space-y-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
                   <User className="size-5" /> 患者基础档案
@@ -273,7 +272,6 @@ export default function RecordsPage() {
 
               <Separator />
 
-              {/* 第二部分：医学异常详情 */}
               <section className="space-y-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-destructive border-b pb-2">
                   <Activity className="size-5" /> 临床异常发现
@@ -310,7 +308,6 @@ export default function RecordsPage() {
 
               <Separator />
 
-              {/* 第三部分：告知与宣教反馈 */}
               <section className="space-y-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-amber-600 border-b pb-2">
                   <MessageSquare className="size-5" /> 告知与反馈信息
@@ -339,7 +336,6 @@ export default function RecordsPage() {
 
               <Separator />
 
-              {/* 第四部分：归档状态与关联 */}
               <section className="space-y-4 pb-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-green-600 border-b pb-2">
                   <ShieldCheck className="size-5" /> 系统合规与归档
@@ -381,7 +377,6 @@ export default function RecordsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 修改编辑 Dialog */}
       <Dialog open={!!editingRecord} onOpenChange={(o) => !o && setEditingRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
