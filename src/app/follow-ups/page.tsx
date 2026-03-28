@@ -76,7 +76,7 @@ export default function FollowUpsPage() {
           )}
         >
           <div className="p-4">
-            {/* Top Row: All Key Info in One Line */}
+            {/* Top Row: All Key Info in One Line with restored font sizes */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
                 <User className="size-4 text-muted-foreground" />
