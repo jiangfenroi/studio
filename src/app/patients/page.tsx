@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -31,6 +32,7 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { fetchPatients, syncPatientToMysql, calculateAllAges, bulkImportPatients } from "@/app/actions/mysql-sync"
 import Link from "next/link"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 const patientSchema = z.object({
   id: z.string().min(1, "档案编号不能为空"),
@@ -98,47 +100,51 @@ export default function PatientsPage() {
     setIsLoading(true)
     const reader = new FileReader()
     reader.onload = async (event) => {
-      const text = event.target?.result as string
-      const lines = text.split('\n').filter(l => l.trim())
-      if (lines.length <= 1) {
-        toast({ variant: "destructive", title: "文件无效", description: "CSV 文件中没有数据行。" });
-        setIsLoading(false);
-        return;
-      }
-
-      const patientsToImport = lines.slice(1).map(line => {
-        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-        return {
-          archiveNo: cols[0],
-          name: cols[1],
-          gender: cols[2] || "男",
-          age: parseInt(cols[3]) || 0,
-          idNumber: cols[4] || "",
-          phoneNumber: cols[5] || "",
-          organization: cols[6] || "",
-          address: cols[7] || "",
-          status: cols[8] || '正常'
-        }
-      }).filter(p => p.archiveNo)
-
-      const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
       try {
+        const text = event.target?.result as string
+        // 改进换行符处理
+        const lines = text.split(/\r?\n/).filter(l => l.trim())
+        
+        if (lines.length <= 1) {
+          toast({ variant: "destructive", title: "文件无效", description: "CSV 文件中没有数据行或编码错误。" });
+          setIsLoading(false);
+          return;
+        }
+
+        const patientsToImport = lines.slice(1).map(line => {
+          const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+          return {
+            archiveNo: cols[0],
+            name: cols[1],
+            gender: cols[2] || "男",
+            age: parseInt(cols[3]) || 0,
+            idNumber: cols[4] || "",
+            phoneNumber: cols[5] || "",
+            organization: cols[6] || "",
+            address: cols[7] || "",
+            status: cols[8] || '正常'
+          }
+        }).filter(p => p.archiveNo)
+
+        const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
         const res = await bulkImportPatients(config, patientsToImport)
         toast({ title: "导入成功", description: `已成功导入/更新 ${res.count} 名患者档案。` })
         loadPatients()
       } catch (err: any) {
-        toast({ variant: "destructive", title: "导入失败", description: err.message })
+        toast({ variant: "destructive", title: "导入失败", description: "请确保文件保存为 'CSV UTF-8' 格式。" })
       } finally {
         setIsLoading(false)
         setIsImporting(false)
       }
     }
-    reader.readAsText(file)
+    // 强制按 UTF-8 读取
+    reader.readAsText(file, 'utf-8')
   }
 
   const downloadTemplate = () => {
     const headers = "档案编号(必填),姓名(必填),性别(选填),年龄(选填),身份证号(选填),电话(必填),单位(选填),地址(选填),状态(选填:正常/死亡/无法联系)"
     const example = "D0001,张三,男,45,110101198001011234,13800138000,某某公司,某某街道,正常"
+    // 添加 UTF-8 BOM \ufeff 确保 WPS/Excel 打开不乱码
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -219,13 +225,25 @@ export default function PatientsPage() {
               <p className="font-bold text-primary flex items-center gap-2">
                 <FileText className="size-3" /> 字段填写指引：
               </p>
-              <div className="space-y-1.5 pl-2 border-l-2 border-primary/20">
-                <p><span className="font-bold text-destructive">必填项：</span>1.档案编号 2.姓名 6.电话</p>
-                <p><span className="font-bold text-muted-foreground">选填项：</span>3.性别 4.年龄 5.身份证号 7.单位 8.地址 9.状态</p>
-              </div>
+              <ScrollArea className="h-40 pr-3">
+                <div className="space-y-3 pl-2 border-l-2 border-primary/20">
+                  <div className="p-2 bg-red-100/50 rounded border border-red-200">
+                    <p className="font-bold text-destructive mb-1 flex items-center gap-1">
+                      <AlertCircle className="size-3" /> 乱码解决提示：
+                    </p>
+                    <p className="text-[10px] leading-relaxed text-destructive/80">
+                      如果您使用 WPS 或 Excel 编辑后出现乱码，请在保存时选择文件类型为：<span className="font-black">“CSV UTF-8 (逗号分隔) (*.csv)”</span>。
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p><span className="font-bold text-destructive">必填项：</span>1.档案编号 2.姓名 6.电话</p>
+                    <p><span className="font-bold text-muted-foreground">选填项：</span>3.性别 4.年龄 5.身份证号 7.单位 8.地址 9.状态</p>
+                  </div>
+                </div>
+              </ScrollArea>
               <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
                 <AlertCircle className="size-3 inline mr-1" />
-                注：若档案编号重复将自动更新。选填列若无数据请保持单元格为空。支持空列兼容。
+                注：若档案编号重复将自动更新。
               </p>
             </div>
             

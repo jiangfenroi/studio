@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -129,51 +130,56 @@ export default function RecordsPage() {
     setIsLoading(true)
     const reader = new FileReader()
     reader.onload = async (event) => {
-      const text = event.target?.result as string
-      const lines = text.split('\n').filter(l => l.trim())
-      if (lines.length <= 1) {
-        toast({ variant: "destructive", title: "文件无效", description: "CSV 文件中没有数据行。" });
-        setIsLoading(false);
-        return;
-      }
-
-      const recordsToImport = lines.slice(1).map(line => {
-        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-        return {
-          archiveNo: cols[0],
-          checkupNumber: cols[1],
-          checkupDate: cols[2],
-          anomalyCategory: (cols[3] || 'A') as 'A' | 'B',
-          anomalyDetails: cols[4],
-          notificationDate: cols[5],
-          notificationTime: cols[6],
-          isNotified: cols[7] === '是' || cols[7] === '1',
-          isHealthEducationProvided: cols[8] === '是' || cols[8] === '1' || cols[8] === '',
-          notifier: cols[9],
-          notifiedPerson: cols[10],
-          disposalSuggestions: cols[11],
-          notifiedPersonFeedback: cols[12] || ""
-        }
-      }).filter(r => r.archiveNo)
-
-      const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
       try {
+        const text = event.target?.result as string
+        // 改进换行符处理，兼容 Windows (\r\n) 和 Unix (\n)
+        const lines = text.split(/\r?\n/).filter(l => l.trim())
+        
+        if (lines.length <= 1) {
+          toast({ variant: "destructive", title: "文件无效", description: "CSV 文件中没有数据行或编码错误。" });
+          setIsLoading(false);
+          return;
+        }
+
+        const recordsToImport = lines.slice(1).map(line => {
+          // 清洗列数据，移除可能的引号和多余空格
+          const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+          return {
+            archiveNo: cols[0],
+            checkupNumber: cols[1],
+            checkupDate: cols[2],
+            anomalyCategory: (cols[3] || 'A') as 'A' | 'B',
+            anomalyDetails: cols[4],
+            notificationDate: cols[5],
+            notificationTime: cols[6],
+            isNotified: cols[7] === '是' || cols[7] === '1' || cols[7] === 'true',
+            isHealthEducationProvided: cols[8] === '是' || cols[8] === '1' || cols[8] === '' || cols[8] === 'true',
+            notifier: cols[9],
+            notifiedPerson: cols[10],
+            disposalSuggestions: cols[11],
+            notifiedPersonFeedback: cols[12] || ""
+          }
+        }).filter(r => r.archiveNo)
+
+        const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
         const res = await bulkImportAnomalyRecords(config, recordsToImport)
         toast({ title: "批量导入成功", description: `已成功导入 ${res.count} 条记录。` })
         loadRecords()
       } catch (err: any) {
-        toast({ variant: "destructive", title: "导入失败", description: err.message })
+        toast({ variant: "destructive", title: "导入解析失败", description: "请确保文件保存为 'CSV UTF-8' 格式。" })
       } finally {
         setIsLoading(false)
         setIsImporting(false)
       }
     }
-    reader.readAsText(file)
+    // 强制按 UTF-8 读取
+    reader.readAsText(file, 'utf-8')
   }
 
   const downloadTemplate = () => {
     const headers = "档案编号(必填),体检编号(必填),体检日期(必填),种类(必填:A/B),异常详情(必填),通知日期(必填),通知时间(必填),是否告知(必填:是/否),是否宣教(选填:是/否),通知人(必填),被通知人(必填),处置意见(必填),被通知人反馈(选填)"
     const example = "D0001,202501010001,2025-01-01,A,血压偏高,2025-01-02,09:30,是,是,张医生,患者本人,建议复查,知道了，近期去复诊"
+    // 添加 UTF-8 BOM \ufeff 确保 WPS/Excel 打开不乱码
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -311,23 +317,25 @@ export default function RecordsPage() {
               </p>
               <ScrollArea className="h-48 pr-3">
                 <div className="space-y-3 pl-2 border-l-2 border-primary/20">
-                  <div>
-                    <p className="font-bold text-destructive mb-1">必填项：</p>
-                    <p className="opacity-80 leading-relaxed text-[11px]">
-                      1.档案编号 2.体检编号 3.体检日期 4.种类(A/B) 5.异常详情 6.通知日期 7.通知时间 8.是否告知 10.通知人 11.被通知人 12.处置意见
+                  <div className="p-2 bg-red-100/50 rounded border border-red-200">
+                    <p className="font-bold text-destructive mb-1 flex items-center gap-1">
+                      <AlertCircle className="size-3" /> 乱码解决提示：
+                    </p>
+                    <p className="text-[10px] leading-relaxed text-destructive/80">
+                      如果您使用 WPS 或 Excel 编辑后出现乱码，请在保存时选择文件类型为：<span className="font-black">“CSV UTF-8 (逗号分隔) (*.csv)”</span>。
                     </p>
                   </div>
                   <div>
-                    <p className="font-bold text-muted-foreground mb-1">选填项：</p>
+                    <p className="font-bold text-muted-foreground mb-1">必填项：</p>
                     <p className="opacity-80 leading-relaxed text-[11px]">
-                      9.是否宣教(留空默认是)、13.被通知人反馈(录入沟通记录)
+                      1.档案编号 2.体检编号 3.体检日期 4.种类(A/B) 5.异常详情 6.通知日期 7.通知时间 8.是否告知 10.通知人 11.被通知人 12.处置意见
                     </p>
                   </div>
                 </div>
               </ScrollArea>
               <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
                 <AlertCircle className="size-3 inline mr-1" />
-                提示：导入后系统会自动为每一条异常发现创建 7 日随访任务。若档案不存在将自动创建占位。支持空列兼容导入。
+                提示：导入后系统会自动为每一条异常发现创建 7 日随访任务。
               </p>
             </div>
             
