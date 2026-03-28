@@ -19,13 +19,13 @@ import {
   Phone,
   Loader2,
   Download,
-  Upload
+  Upload,
+  Edit
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { FollowUpForm } from "@/components/forms/FollowUpForm"
 import { PdfUploadForm } from "@/components/forms/PdfUploadForm"
+import { AbnormalResultForm } from "@/components/forms/AbnormalResultForm"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,7 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { fetchPatientFullTimeline, deleteAnomalyRecord, deletePdfMetadata } from "@/app/actions/mysql-sync"
+import { fetchPatientFullTimeline, deleteAnomalyRecord, deletePdfMetadata, deleteFollowUpRecord } from "@/app/actions/mysql-sync"
 
 export default function PatientProfilePage() {
   const params = useParams()
@@ -59,6 +60,8 @@ export default function PatientProfilePage() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isFollowUpOpen, setIsFollowUpOpen] = React.useState(false)
   const [isUploadOpen, setIsUploadOpen] = React.useState(false)
+  const [editingAnomaly, setEditingAnomaly] = React.useState<any>(null)
+  
   const [recordToDelete, setRecordToDelete] = React.useState<any>(null)
   const [pdfToDelete, setPdfToDelete] = React.useState<any>(null)
 
@@ -86,12 +89,31 @@ export default function PatientProfilePage() {
     toast({ title: "调用 PACS", description: `检索档案号: ${id}` })
   }
 
+  const handleDeleteRecord = async () => {
+    if (!recordToDelete) return
+    try {
+      const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
+      if (recordToDelete.type === 'abnormal') {
+        await deleteAnomalyRecord(config, recordToDelete.id)
+        toast({ title: "异常结果已删除", description: "关联的随访记录和任务已同步移除。" })
+      } else {
+        await deleteFollowUpRecord(config, recordToDelete.id)
+        toast({ title: "随访记录已删除" })
+      }
+      loadData()
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "删除失败", description: err.message })
+    } finally {
+      setRecordToDelete(null)
+    }
+  }
+
   const handleDeletePdf = async () => {
     if (!pdfToDelete) return
     try {
       const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
       await deletePdfMetadata(config, pdfToDelete.id)
-      toast({ title: "报告已移除", variant: "destructive" })
+      toast({ title: "报告索引已移除", variant: "destructive" })
       loadData()
     } finally {
       setPdfToDelete(null)
@@ -204,18 +226,24 @@ export default function PatientProfilePage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(event)}><Trash2 className="size-4 mr-2" /> 删除记录</DropdownMenuItem>
+                              {event.type === 'abnormal' && (
+                                <DropdownMenuItem onSelect={() => setEditingAnomaly(event)}>
+                                  <Edit className="size-4 mr-2" /> 修改结果信息
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(event)}>
+                                <Trash2 className="size-4 mr-2" /> 删除记录
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                       </div>
                       <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap">{event.anomalyDetails || event.followUpResult}</p>
                       
-                      {/* 如果有关联 PDF */}
                       {event.pdfId && (
                         <div className="mt-4 flex items-center gap-2 text-xs text-primary font-bold">
                           <FileText className="size-3" /> 关联报告: #{event.pdfId} 
-                          <Button variant="link" className="h-auto p-0 text-xs" onClick={() => toast({ title: "打开报告", description: "已尝试在内网浏览器打开指定本地路径。" })}>查看报告</Button>
+                          <Button variant="link" className="h-auto p-0 text-xs" onClick={() => toast({ title: "查看报告", description: `已尝试在本地路径打开索引为 ${event.pdfId} 的文件。` })}>查看详情</Button>
                         </div>
                       )}
                     </div>
@@ -248,6 +276,33 @@ export default function PatientProfilePage() {
           </Tabs>
         </div>
       </div>
+
+      <Dialog open={!!editingAnomaly} onOpenChange={(o) => !o && setEditingAnomaly(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>修改记录信息</DialogTitle></DialogHeader>
+          <AbnormalResultForm 
+            initialData={editingAnomaly} 
+            onSuccess={() => { setEditingAnomaly(null); loadData(); }} 
+          />
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!recordToDelete} onOpenChange={(o) => !o && setRecordToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除此条临床记录？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {recordToDelete?.type === 'abnormal' 
+                ? "此操作将永久移除异常结果及其关联的所有随访任务和历史，不可撤销。" 
+                : "此操作将永久移除单条随访结果。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRecord} className="bg-destructive">确认删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!pdfToDelete} onOpenChange={() => setPdfToDelete(null)}>
         <AlertDialogContent>

@@ -25,7 +25,6 @@ async function getConnection(config: any) {
     return connection;
   } catch (err: any) {
     if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      // 捕获权限错误并翻译为易懂的内网指引
       if (err.message.includes('35.230.25.171')) {
         throw new Error(`[AI 环境受限] 中心库拒绝了当前的开发 IP。请在本地内网服务器部署后再进行测试。`);
       }
@@ -41,9 +40,6 @@ async function getConnection(config: any) {
   }
 }
 
-/**
- * 序列化行数据，安全处理日期及大数字
- */
 function serializeRow(row: any) {
   const serialized = { ...row };
   for (const key in serialized) {
@@ -235,6 +231,29 @@ export async function saveAnomalyResult(config: any, data: any) {
   }
 }
 
+export async function updateAnomalyResult(config: any, id: string, data: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `UPDATE SP_YCJG SET 
+      checkupNumber=?, checkupDate=?, anomalyCategory=?, anomalyDetails=?, 
+      notifier=?, notifiedPerson=?, notificationDate=?, notificationTime=?, 
+      disposalSuggestions=?, notifiedPersonFeedback=?, isHealthEducationProvided=?, isNotified=?
+      WHERE id=?`;
+    
+    await connection.execute(sql, [
+      data.checkupNumber, data.checkupDate, data.anomalyCategory, data.anomalyDetails,
+      data.notifier, data.notifiedPerson, data.notificationDate, data.notificationTime,
+      data.disposalSuggestions, data.notifiedPersonFeedback, 
+      data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0,
+      id
+    ]);
+    return { success: true };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function fetchAllRecords(config: any) {
   let connection;
   try {
@@ -301,6 +320,17 @@ export async function saveFollowUpRecord(config: any, data: any) {
   } catch (e) {
     if (connection) await connection.rollback();
     throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deleteFollowUpRecord(config: any, id: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.execute('DELETE FROM SP_SF WHERE id = ?', [id]);
+    return { success: true };
   } finally {
     if (connection) await connection.end();
   }

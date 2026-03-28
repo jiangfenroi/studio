@@ -8,7 +8,7 @@ import * as z from "zod"
 import { format, addDays } from "date-fns"
 import { FileText, CheckCircle2, Loader2, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { saveAnomalyResult } from "@/app/actions/mysql-sync"
+import { saveAnomalyResult, updateAnomalyResult } from "@/app/actions/mysql-sync"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,7 +25,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 
 const formSchema = z.object({
   archiveNo: z.string().min(1, "档案编号不能为空"),
@@ -44,10 +43,11 @@ const formSchema = z.object({
 })
 
 interface AbnormalResultFormProps {
-  onSuccess: (archiveNo: string) => void
+  onSuccess: (archiveNo: string) => void;
+  initialData?: any;
 }
 
-export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
+export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFormProps) {
   const { toast } = useToast()
   const [isSyncing, setIsSyncing] = React.useState(false)
 
@@ -59,7 +59,21 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: initialData ? {
+      archiveNo: initialData.archiveNo || "",
+      checkupNumber: initialData.checkupNumber || "",
+      checkupDate: initialData.checkupDate || "",
+      notifiedPerson: initialData.notifiedPerson || "",
+      anomalyCategory: initialData.anomalyCategory || "A",
+      anomalyDetails: initialData.anomalyDetails || "",
+      disposalSuggestions: initialData.disposalSuggestions || "",
+      isNotified: initialData.isNotified === 1 || initialData.isNotified === true,
+      isHealthEducationProvided: initialData.isHealthEducationProvided === 1 || initialData.isHealthEducationProvided === true,
+      notifier: initialData.notifier || "",
+      notifiedPersonFeedback: initialData.notifiedPersonFeedback || "",
+      notificationDate: initialData.notificationDate || format(new Date(), "yyyy-MM-dd"),
+      notificationTime: initialData.notificationTime || format(new Date(), "HH:mm"),
+    } : {
       archiveNo: "",
       checkupNumber: "",
       checkupDate: "",
@@ -77,12 +91,12 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
   })
 
   React.useEffect(() => {
-    if (currentUserName) form.setValue("notifier", currentUserName)
-  }, [currentUserName, form])
+    if (!initialData && currentUserName) form.setValue("notifier", currentUserName)
+  }, [currentUserName, form, initialData])
 
   const watchCheckupNo = form.watch("checkupNumber")
   React.useEffect(() => {
-    if (watchCheckupNo && watchCheckupNo.length >= 8) {
+    if (!initialData && watchCheckupNo && watchCheckupNo.length >= 8) {
       const year = watchCheckupNo.substring(0, 4)
       const month = watchCheckupNo.substring(4, 6)
       const day = watchCheckupNo.substring(6, 8)
@@ -91,7 +105,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
         form.setValue("checkupDate", dateStr)
       }
     }
-  }, [watchCheckupNo, form])
+  }, [watchCheckupNo, form, initialData])
 
   const watchNotifyDate = form.watch("notificationDate")
   const nextFollowUpDate = React.useMemo(() => {
@@ -108,11 +122,16 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
     setIsSyncing(true)
     try {
-      await saveAnomalyResult(config, values)
-      toast({ title: "登记成功", description: "记录已同步至 MySQL，已生成 7 日随访任务。" })
+      if (initialData?.id) {
+        await updateAnomalyResult(config, initialData.id, values)
+        toast({ title: "修改成功", description: "记录已同步更新至 MySQL。" })
+      } else {
+        await saveAnomalyResult(config, values)
+        toast({ title: "登记成功", description: "记录已同步至 MySQL，已生成 7 日随访任务。" })
+      }
       onSuccess(values.archiveNo)
     } catch (err: any) {
-      toast({ variant: "destructive", title: "登记失败", description: err.message })
+      toast({ variant: "destructive", title: "操作失败", description: err.message })
     } finally {
       setIsSyncing(false)
     }
@@ -123,18 +142,18 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Card className="shadow-lg border-primary/10 overflow-hidden">
           <CardHeader className="bg-primary/5">
-            <CardTitle className="flex items-center gap-2"><FileText className="size-5 text-primary" /> 重要异常结果登记 (功能一)</CardTitle>
-            <CardDescription>按照业务逻辑，保存后将自动进入个人信息补录页面。</CardDescription>
+            <CardTitle className="flex items-center gap-2"><FileText className="size-5 text-primary" /> {initialData ? '编辑异常结果' : '重要异常结果登记'}</CardTitle>
+            {!initialData && <CardDescription>按照业务逻辑，保存后将自动进入个人信息补录页面。</CardDescription>}
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
             <FormField control={form.control} name="archiveNo" render={({ field }) => (
-              <FormItem><FormLabel>档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} /></FormControl><FormMessage /></FormItem>
+              <FormItem><FormLabel>档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} disabled={!!initialData} /></FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="checkupNumber" render={({ field }) => (
               <FormItem>
                 <FormLabel>体检编号 (12位)</FormLabel>
                 <FormControl><Input maxLength={12} placeholder="YYYYMMDDxxxx" {...field} /></FormControl>
-                <FormDescription className="text-[10px]">前8位自动识别为体检日期</FormDescription>
+                {!initialData && <FormDescription className="text-[10px]">前8位自动识别为体检日期</FormDescription>}
                 <FormMessage />
               </FormItem>
             )} />
@@ -186,11 +205,13 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
                 </div>
               </div>
               <div className="space-y-4">
-                <h4 className="font-bold text-sm flex items-center gap-2"><AlertCircle className="size-4 text-amber-600" /> 随访任务预设</h4>
-                <div className="p-4 bg-white rounded-lg border border-amber-100 space-y-2">
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">下次随访日期 (通知+7日)</p>
-                  <p className="text-2xl font-black text-amber-600">{nextFollowUpDate || "等待日期录入"}</p>
-                </div>
+                <h4 className="font-bold text-sm flex items-center gap-2"><AlertCircle className="size-4 text-amber-600" /> 任务管理</h4>
+                {!initialData && (
+                  <div className="p-4 bg-white rounded-lg border border-amber-100 space-y-2">
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">下次随访日期 (通知+7日)</p>
+                    <p className="text-2xl font-black text-amber-600">{nextFollowUpDate || "等待日期录入"}</p>
+                  </div>
+                )}
                 <div className="flex gap-4">
                   <FormField control={form.control} name="isNotified" render={({ field }) => (
                     <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-xs">已通知</FormLabel></FormItem>
@@ -211,7 +232,7 @@ export function AbnormalResultForm({ onSuccess }: AbnormalResultFormProps) {
         <div className="flex justify-end pb-10">
           <Button type="submit" size="lg" className="px-12 gap-2 shadow-xl" disabled={isSyncing}>
             {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-5" />}
-            保存记录并前往补录个人档案
+            {initialData ? '保存修改' : '保存记录并前往补录个人档案'}
           </Button>
         </div>
       </form>
