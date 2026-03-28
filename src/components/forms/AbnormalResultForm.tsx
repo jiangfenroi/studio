@@ -211,13 +211,6 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                     <FormItem><FormLabel>被通知人</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                   )} />
                 </div>
-                {/* 新增被通知人反馈字段 */}
-                <FormField control={form.control} name="notifiedPersonFeedback" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1"><MessageSquareText className="size-3 text-muted-foreground" /> 被通知人反馈内容</FormLabel>
-                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="h-20 bg-white" {...field} /></FormControl>
-                  </FormItem>
-                )} />
               </div>
 
               <div className="space-y-4">
@@ -252,6 +245,16 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                     </Badge>
                   )}
                 </div>
+              </div>
+
+              {/* 被通知人反馈内容 - 调整为全宽展示 */}
+              <div className="col-span-full">
+                <FormField control={form.control} name="notifiedPersonFeedback" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1"><MessageSquareText className="size-3 text-muted-foreground" /> 被通知人反馈内容</FormLabel>
+                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="h-24 bg-white" {...field} /></FormControl>
+                  </FormItem>
+                )} />
               </div>
             </div>
 
