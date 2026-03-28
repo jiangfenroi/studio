@@ -20,7 +20,8 @@ import {
   Loader2,
   Download,
   Upload,
-  Edit
+  Edit,
+  Link as LinkIcon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -146,7 +147,7 @@ export default function PatientProfilePage() {
               <Button variant="outline" className="gap-2"><Upload className="size-4" /> 报告归档</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
-              <DialogHeader><DialogTitle>上传 PDF 报告 - {patient?.name}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>上传并归档 PDF 报告 - {patient?.name}</DialogTitle></DialogHeader>
               <PdfUploadForm archiveNo={id} onSuccess={() => { setIsUploadOpen(false); loadData(); }} />
             </DialogContent>
           </Dialog>
@@ -222,7 +223,7 @@ export default function PatientProfilePage() {
                           <span className="text-[10px] text-muted-foreground font-mono">{event.checkupDate || event.followUpDate} {event.notificationTime || event.followUpTime}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {event.anomalyCategory && <Badge variant="destructive">{event.anomalyCategory}类</Badge>}
+                          {event.anomalyCategory && <Badge variant="destructive" className="font-bold">{event.anomalyCategory}类异常</Badge>}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -238,12 +239,35 @@ export default function PatientProfilePage() {
                           </DropdownMenu>
                         </div>
                       </div>
-                      <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap">{event.anomalyDetails || event.followUpResult}</p>
+                      <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap leading-relaxed">{event.anomalyDetails || event.followUpResult}</p>
                       
                       {event.pdfId && (
-                        <div className="mt-4 flex items-center gap-2 text-xs text-primary font-bold">
-                          <FileText className="size-3" /> 关联报告: #{event.pdfId} 
-                          <Button variant="link" className="h-auto p-0 text-xs" onClick={() => toast({ title: "查看报告", description: `已尝试在本地路径打开索引为 ${event.pdfId} 的文件。` })}>查看详情</Button>
+                        <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10 flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs text-primary font-bold">
+                            <LinkIcon className="size-3.5" /> 
+                            关联原始报告: <span className="font-mono">#{event.pdfId}</span>
+                          </div>
+                          <Button 
+                            variant="link" 
+                            className="h-auto p-0 text-xs gap-1" 
+                            onClick={() => {
+                              const foundPdf = pdfs.find((p: any) => p.id === event.pdfId);
+                              if (foundPdf) {
+                                toast({ 
+                                  title: "报告详细路径", 
+                                  description: `路径: ${foundPdf.fullPath}`,
+                                });
+                              } else {
+                                toast({ 
+                                  variant: "destructive",
+                                  title: "未找到文件", 
+                                  description: `关联的报告 ID #${event.pdfId} 在索引库中不存在。`,
+                                });
+                              }
+                            }}
+                          >
+                            查看详情 <ExternalLink className="size-3" />
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -254,24 +278,24 @@ export default function PatientProfilePage() {
 
             <TabsContent value="pdfs" className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
               {pdfs.map((pdf: any) => (
-                <Card key={pdf.id} className="hover:shadow-md transition-shadow">
+                <Card key={pdf.id} className="hover:shadow-md transition-all group">
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className="size-10 bg-primary/10 rounded flex items-center justify-center shrink-0">
-                      <FileText className="size-6 text-primary" />
+                    <div className="size-12 bg-primary/10 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                      <FileText className="size-6" />
                     </div>
                     <div className="flex-1 overflow-hidden">
                       <p className="text-sm font-bold truncate">{pdf.reportCategory}</p>
                       <p className="text-[10px] text-muted-foreground font-mono">{pdf.checkDate} • ID: {pdf.id}</p>
-                      <p className="text-[8px] text-muted-foreground truncate opacity-50">{pdf.fullPath}</p>
+                      <p className="text-[9px] text-muted-foreground truncate opacity-50 mt-1" title={pdf.fullPath}>{pdf.fullPath}</p>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => window.open(pdf.fullPath, '_blank')} title="下载/打开"><Download className="size-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => toast({ title: "内网访问路径", description: pdf.fullPath })} title="查看路径"><LinkIcon className="size-4" /></Button>
                       <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPdfToDelete(pdf)}><Trash2 className="size-4" /></Button>
                     </div>
                   </CardContent>
                 </Card>
               ))}
-              {pdfs.length === 0 && <div className="col-span-full py-20 text-center text-muted-foreground border-2 border-dashed rounded-xl">暂无已归档的 PDF 报告</div>}
+              {pdfs.length === 0 && <div className="col-span-full py-24 text-center text-muted-foreground border-2 border-dashed rounded-xl flex flex-col items-center gap-3"><FileText className="size-10 opacity-20" /> 暂无归档 PDF 报告</div>}
             </TabsContent>
           </Tabs>
         </div>
@@ -279,7 +303,7 @@ export default function PatientProfilePage() {
 
       <Dialog open={!!editingAnomaly} onOpenChange={(o) => !o && setEditingAnomaly(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>修改记录信息</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>修改临床异常记录</DialogTitle></DialogHeader>
           <AbnormalResultForm 
             initialData={editingAnomaly} 
             onSuccess={() => { setEditingAnomaly(null); loadData(); }} 
@@ -306,7 +330,7 @@ export default function PatientProfilePage() {
 
       <AlertDialog open={!!pdfToDelete} onOpenChange={() => setPdfToDelete(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>确认删除 PDF 索引？</AlertDialogTitle><AlertDialogDescription>此操作仅移除数据库关联，请手动清理物理存储中的文件。</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>确认删除报告索引？</AlertDialogTitle><AlertDialogDescription>此操作将从数据库中移除文件索引。请确保您已手动清理内网物理存储中的文件。</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={handleDeletePdf} className="bg-destructive">确认删除</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

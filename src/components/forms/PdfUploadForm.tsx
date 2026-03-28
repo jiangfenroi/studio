@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +12,9 @@ import {
   Loader2, 
   CheckCircle2, 
   FolderSearch,
-  AlertCircle
+  AlertCircle,
+  FileUp,
+  Files
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,6 +46,7 @@ export function PdfUploadForm({ archiveNo, onSuccess }: PdfUploadFormProps) {
   const { toast } = useToast()
   const [isSyncing, setIsSyncing] = React.useState(false)
   const [pdfRoot, setPdfRoot] = React.useState("C:\\HealthReports\\")
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
@@ -59,6 +63,18 @@ export function PdfUploadForm({ archiveNo, onSuccess }: PdfUploadFormProps) {
       localFileNames: ""
     }
   })
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      const names = Array.from(files).map(f => f.name).join(", ")
+      form.setValue("localFileNames", names)
+      toast({
+        title: "已选择文件",
+        description: `共选中 ${files.length} 个文档，准备生成内网索引。`
+      })
+    }
+  }
 
   const watchCategory = form.watch("reportCategory")
   const watchFileNames = form.watch("localFileNames")
@@ -124,29 +140,55 @@ export function PdfUploadForm({ archiveNo, onSuccess }: PdfUploadFormProps) {
           )} />
         </div>
 
-        <FormField control={form.control} name="localFileNames" render={({ field }) => (
-          <FormItem>
-            <FormLabel>本地 PDF 文件名 (支持逗号分隔多个)</FormLabel>
-            <div className="flex gap-2">
-              <FormControl><Input placeholder="report1.pdf, report2.pdf" {...field} /></FormControl>
-              <Button type="button" variant="outline" size="icon" onClick={() => toast({ title: "仿真动作", description: "已调用本地资源管理器。" })}>
-                <FolderSearch className="size-4" />
-              </Button>
-            </div>
-            <FormDescription className="text-[10px] text-amber-600 flex items-center gap-1 mt-1">
-              <AlertCircle className="size-3" /> 系统将按“档案/类别/文件”逻辑自动构建共享路径。
-            </FormDescription>
-          </FormItem>
-        )} />
+        <div className="space-y-4">
+          <FormField control={form.control} name="localFileNames" render={({ field }) => (
+            <FormItem>
+              <FormLabel>选择本地 PDF 文件</FormLabel>
+              <div className="flex gap-2">
+                <FormControl>
+                  <Input 
+                    placeholder="请选择文件或手动输入文件名..." 
+                    {...field} 
+                  />
+                </FormControl>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  multiple 
+                  accept=".pdf"
+                />
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  className="gap-2 shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <FolderSearch className="size-4" /> 选择文件
+                </Button>
+              </div>
+              <FormDescription className="text-[10px] text-amber-600 flex items-center gap-1 mt-1">
+                <AlertCircle className="size-3" /> 系统将按“档案/类别/文件”逻辑自动构建共享路径。
+              </FormDescription>
+            </FormItem>
+          )} />
 
-        <div className="bg-white rounded border p-3 space-y-1">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase border-b pb-1">预设归档物理全路径预览</p>
-          {simulatedPaths.map((p, i) => (
-            <div key={i} className="text-[10px] font-mono break-all text-primary py-0.5">• {p}</div>
-          ))}
+          <div className="bg-white rounded-lg border p-4 shadow-inner space-y-2">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase border-b pb-1 flex items-center gap-2">
+              <Files className="size-3" /> 预设归档物理全路径预览
+            </p>
+            <div className="max-h-[120px] overflow-y-auto">
+              {simulatedPaths.map((p, i) => (
+                <div key={i} className="text-[10px] font-mono break-all text-primary py-1 border-b last:border-0 border-muted/50">
+                  <span className="opacity-50 mr-2">{i+1}.</span>{p}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <Button type="submit" className="w-full h-11 shadow-lg" disabled={isSyncing}>
+        <Button type="submit" className="w-full h-11 shadow-lg bg-primary hover:bg-primary/90" disabled={isSyncing}>
           {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-4 mr-2" />}
           立即同步至中心 PDF 库
         </Button>

@@ -1,11 +1,12 @@
+
 "use client"
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { format, addDays } from "date-fns"
-import { FileText, CheckCircle2, Loader2, AlertCircle, Upload } from "lucide-react"
+import { format } from "date-fns"
+import { FileText, CheckCircle2, Loader2, AlertCircle, Upload, Link as LinkIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { saveAnomalyResult, updateAnomalyResult } from "@/app/actions/mysql-sync"
 import { PdfUploadForm } from "./PdfUploadForm"
@@ -167,7 +168,7 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
               <FormItem className="col-span-full"><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>
             )} />
 
-            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/20 p-6 rounded-xl border border-dashed">
+            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/20 p-6 rounded-xl border border-dashed border-primary/20">
               <div className="space-y-4">
                 <h4 className="font-bold text-sm flex items-center gap-2"><CheckCircle2 className="size-4 text-primary" /> 告知与反馈</h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -181,24 +182,36 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
               </div>
 
               <div className="space-y-4">
-                <h4 className="font-bold text-sm flex items-center gap-2"><Upload className="size-4 text-primary" /> 报告附件</h4>
-                <div className="flex items-center gap-3">
-                  <FormField control={form.control} name="pdfId" render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormControl><Input placeholder="PDF编号" {...field} readOnly className="bg-muted" /></FormControl>
-                    </FormItem>
-                  )} />
-                  <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" disabled={!watchArchiveNo}>
-                        <Upload className="size-4" /> 关联 PDF
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader><DialogTitle>归档异常结果报告</DialogTitle></DialogHeader>
-                      <PdfUploadForm archiveNo={watchArchiveNo} onSuccess={(id) => { form.setValue("pdfId", id); setIsPdfDialogOpen(false); }} />
-                    </DialogContent>
-                  </Dialog>
+                <h4 className="font-bold text-sm flex items-center gap-2"><Upload className="size-4 text-primary" /> 原始报告关联 (PDF)</h4>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <FormField control={form.control} name="pdfId" render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormControl>
+                          <div className="relative">
+                            <LinkIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                            <Input placeholder="尚未关联报告编号" {...field} readOnly className="pl-9 bg-white" />
+                          </div>
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                    <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" className="gap-2 shadow-sm" disabled={!watchArchiveNo}>
+                          <Upload className="size-4" /> 上传并关联
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader><DialogTitle>归档当前异常结果的原始 PDF 报告</DialogTitle></DialogHeader>
+                        <PdfUploadForm archiveNo={watchArchiveNo} onSuccess={(id) => { form.setValue("pdfId", id); setIsPdfDialogOpen(false); }} />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  {form.watch("pdfId") && (
+                    <Badge variant="secondary" className="w-fit gap-1.5 py-1 px-3 bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle2 className="size-3.5" /> 已成功关联报告 ID: {form.watch("pdfId")}
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
@@ -223,9 +236,9 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
         </Card>
 
         <div className="flex justify-end gap-4 pb-6">
-          <Button type="submit" size="lg" className="px-12 shadow-xl" disabled={isSyncing}>
-            {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-5 mr-2" />}
-            {initialData ? '保存修改' : '保存记录并前往档案补录'}
+          <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white h-12" disabled={isSyncing}>
+            {isSyncing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="size-5 mr-2" />}
+            {initialData ? '确认修改信息' : '完成登记并前往档案补录'}
           </Button>
         </div>
       </form>
