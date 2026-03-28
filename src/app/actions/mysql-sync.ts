@@ -23,7 +23,6 @@ async function getConnection(config: any) {
     });
     return connection;
   } catch (err: any) {
-    // 捕获权限错误并翻译为易懂的内网指引
     if (err.message.includes('35.230.25.171')) {
       throw new Error(`[AI 环境受限] 中心库拒绝了当前的开发 IP (${err.message})。请在本地内网服务器部署后再进行测试。`);
     }
@@ -132,36 +131,10 @@ export async function fetchAnomalyDetails(config: any, anomalyId: string) {
   }
 }
 
-export async function saveAnomalyResult(config: any, data: any) {
-  let connection;
-  try {
-    connection = await getConnection(config);
-    await connection.beginTransaction();
-    const anomalyId = `YCJG${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-    await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
-    const sqlYCJG = `INSERT INTO SP_YCJG 
-      (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
-    await connection.execute(sqlYCJG, [
-      anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory, 
-      data.anomalyDetails, data.notifier, data.notifiedPerson, data.notificationDate, 
-      data.notificationTime, data.disposalSuggestions, data.notifiedPersonFeedback || "",
-      data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
-    ]);
-    const nextDate = new Date(data.notificationDate);
-    nextDate.setDate(nextDate.getDate() + 7);
-    const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)`;
-    await connection.execute(sqlRW, [data.archiveNo, anomalyId, nextDate.toISOString().split('T')[0]]);
-    await connection.commit();
-    return { success: true, anomalyId };
-  } catch (e) {
-    if (connection) await connection.rollback();
-    throw e;
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
+/**
+ * 批量导入重要异常记录
+ * 纯本地代码逻辑，无需联网
+ */
 export async function bulkImportAnomalyRecords(config: any, records: any[]) {
   let connection;
   try {
@@ -169,13 +142,12 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
     await connection.beginTransaction();
     
     for (const data of records) {
-      // 自动生成唯一异常结果编号：YCJG + 时间戳 + 随机数
       const anomalyId = `YCJG${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
       
-      // 1. 档案占位逻辑
+      // 1. 档案占位逻辑：确保外键关联成功
       await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
       
-      // 2. 写入异常记录 (带空值降级保护)
+      // 2. 写入异常记录 (纯本地默认值降级保护，不依赖互联网)
       const sqlYCJG = `INSERT INTO SP_YCJG 
         (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
@@ -198,7 +170,7 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
         data.pdfId || null
       ]);
 
-      // 3. 自动同步创建待随访任务 (7日随访)
+      // 3. 自动同步创建待随访任务 (本地日期计算)
       const baseDateStr = data.notificationDate || new Date().toISOString().split('T')[0];
       const nextDate = new Date(baseDateStr);
       nextDate.setDate(nextDate.getDate() + 7);
@@ -208,6 +180,36 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
     
     await connection.commit();
     return { success: true, count: records.length };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function saveAnomalyResult(config: any, data: any) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.beginTransaction();
+    const anomalyId = `YCJG${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+    await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
+    const sqlYCJG = `INSERT INTO SP_YCJG 
+      (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
+    await connection.execute(sqlYCJG, [
+      anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory, 
+      data.anomalyDetails, data.notifier, data.notifiedPerson, data.notificationDate, 
+      data.notificationTime, data.disposalSuggestions, data.notifiedPersonFeedback || "",
+      data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
+    ]);
+    const nextDate = new Date(data.notificationDate);
+    nextDate.setDate(nextDate.getDate() + 7);
+    const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)`;
+    await connection.execute(sqlRW, [data.archiveNo, anomalyId, nextDate.toISOString().split('T')[0]]);
+    await connection.commit();
+    return { success: true, anomalyId };
   } catch (e) {
     if (connection) await connection.rollback();
     throw e;
@@ -368,6 +370,10 @@ export async function syncPatientToMysql(config: any, patient: any) {
   }
 }
 
+/**
+ * 批量导入个人档案
+ * 纯本地代码逻辑，无需联网
+ */
 export async function bulkImportPatients(config: any, patients: any[]) {
   let connection;
   try {
