@@ -312,8 +312,16 @@ export async function fetchDashboardStats(config: any, selectedYear: number) {
     const [pendingCount]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_RW WHERE nextFollowUpDate <= CURRENT_DATE');
     const [totalPatients]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_PERSON');
     const [trend]: any = await connection.execute(`
-      SELECT DATE_FORMAT(notificationDate, '%Y-%m') as month, COUNT(*) as total, SUM(CASE WHEN isFollowUpRequired = 1 THEN 1 ELSE 0 END) as followed
-      FROM SP_YCJG WHERE YEAR(notificationDate) = ? GROUP BY month ORDER BY month ASC
+      SELECT 
+        DATE_FORMAT(notificationDate, '%Y-%m') as month, 
+        COUNT(*) as total, 
+        SUM(CASE WHEN isFollowUpRequired = 1 THEN 1 ELSE 0 END) as followed,
+        SUM(CASE WHEN anomalyCategory = 'A' THEN 1 ELSE 0 END) as totalA,
+        SUM(CASE WHEN anomalyCategory = 'B' THEN 1 ELSE 0 END) as totalB
+      FROM SP_YCJG 
+      WHERE YEAR(notificationDate) = ? 
+      GROUP BY month 
+      ORDER BY month ASC
     `, [selectedYear]);
     return { todayNew: todayCount[0].count, pendingTasks: pendingCount[0].count, totalPatients: totalPatients[0].count, trend: trend.map(serializeRow) };
   } finally {

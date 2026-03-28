@@ -11,10 +11,21 @@ import {
   CheckCircle2,
   Activity,
   Calendar,
-  BarChart
+  BarChart as BarChartIcon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Line, LineChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { 
+  Line, 
+  LineChart, 
+  Bar,
+  BarChart,
+  CartesianGrid, 
+  XAxis, 
+  YAxis, 
+  ResponsiveContainer, 
+  Tooltip, 
+  Legend 
+} from 'recharts';
 import { fetchDashboardStats, fetchConfigFromMysql } from '@/app/actions/mysql-sync';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,12 +79,16 @@ export default function HomePage() {
       const found = stats.trend.find((t: any) => t.month === m);
       const total = Number(found?.total || 0);
       const followed = Number(found?.followed || 0);
+      const totalA = Number(found?.totalA || 0);
+      const totalB = Number(found?.totalB || 0);
       const rate = total > 0 ? Math.round((followed / total) * 100) : 0;
       return {
         month: m.split('-')[1] + '月',
         rate: rate,
         total: total,
-        followed: followed
+        followed: followed,
+        totalA: totalA,
+        totalB: totalB
       };
     });
   }, [stats, selectedYear]);
@@ -183,49 +198,46 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          {/* 异常结果例数趋势图 */}
+          {/* 异常结果例数趋势图 - 改为堆叠柱状图 */}
           <Card className="border-none shadow-lg bg-white">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xl font-bold flex items-center gap-2">
-                <BarChart className="size-5 text-accent" />
+                <BarChartIcon className="size-5 text-accent" />
                 {selectedYear}年度 月重要异常结果例数(按通知月统计)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[350px] pt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     formatter={(value: any, name: string) => {
-                      if (name === 'total') return [value, '重要异常结果例数'];
-                      if (name === 'followed') return [value, '已随访例数'];
+                      if (name === 'totalB') return [value, 'B类异常例数'];
+                      if (name === 'totalA') return [value, 'A类异常例数'];
                       if (name === 'rate') return [`${value}%`, '随访率'];
                       return [value, name];
                     }}
+                    cursor={{ fill: 'transparent' }}
                   />
                   <Legend verticalAlign="top" height={36}/>
-                  <Line 
-                    name="total"
-                    type="monotone" 
-                    dataKey="total" 
-                    stroke="hsl(var(--accent))" 
-                    strokeWidth={4} 
-                    dot={{ r: 6, fill: "white", stroke: "hsl(var(--accent))", strokeWidth: 2 }}
-                    activeDot={{ r: 8 }}
+                  <Bar 
+                    name="totalB"
+                    dataKey="totalB" 
+                    stackId="a" 
+                    fill="hsl(var(--accent))" 
+                    radius={[0, 0, 0, 0]} 
                   />
-                  <Line 
-                    name="followed"
-                    type="monotone" 
-                    dataKey="followed" 
-                    stroke="hsl(var(--chart-3))" 
-                    strokeWidth={2} 
-                    strokeDasharray="5 5"
-                    dot={{ r: 4, fill: "white", stroke: "hsl(var(--chart-3))", strokeWidth: 1 }}
+                  <Bar 
+                    name="totalA"
+                    dataKey="totalA" 
+                    stackId="a" 
+                    fill="hsl(var(--destructive))" 
+                    radius={[4, 4, 0, 0]} 
                   />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
