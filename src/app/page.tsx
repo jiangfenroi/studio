@@ -211,8 +211,16 @@ export default function HomePage() {
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     cursor={{ fill: 'transparent' }}
+                    itemSorter={(item) => (item.name === 'A类' ? -1 : 1)}
                   />
-                  <Legend verticalAlign="top" height={36}/>
+                  <Legend 
+                    verticalAlign="top" 
+                    height={36}
+                    payload={[
+                      { value: 'A类', type: 'rect', color: 'hsl(var(--destructive))' },
+                      { value: 'B类', type: 'rect', color: 'hsl(var(--primary))' },
+                    ]}
+                  />
                   <Bar 
                     name="B类"
                     dataKey="B类" 
