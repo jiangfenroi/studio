@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,7 +11,8 @@ import {
   Eye,
   CalendarDays,
   MoreVertical,
-  Trash2
+  Trash2,
+  Edit
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -258,8 +258,11 @@ export default function FollowUpsPage() {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" asChild title="查看及修改详情">
+                  <Button variant="ghost" size="icon" asChild title="查看详情 (只读)">
                     <Link href={`/follow-ups/detail/${r.anomalyId}`}><Eye className="size-4 text-primary" /></Link>
+                  </Button>
+                  <Button variant="ghost" size="icon" asChild title="修改随访">
+                    <Link href={`/follow-ups/detail/${r.anomalyId}/edit`}><Edit className="size-4 text-primary" /></Link>
                   </Button>
                   <Button variant="ghost" size="icon" asChild title="查看完整病历轴">
                     <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 text-primary" /></Link>

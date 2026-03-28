@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -52,10 +51,11 @@ interface FollowUpFormProps {
   patientName: string;
   anomalyRecordId: string;
   onSuccess: () => void;
-  initialData?: any; // 用于编辑模式
+  initialData?: any;
+  readOnly?: boolean;
 }
 
-export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSuccess, initialData }: FollowUpFormProps) {
+export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSuccess, initialData, readOnly = false }: FollowUpFormProps) {
   const { toast } = useToast()
   const [isSyncing, setIsSyncing] = React.useState(false)
   const [isPdfDialogOpen, setIsPdfDialogOpen] = React.useState(false)
@@ -76,7 +76,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
         followUpDate: initialData.followUpDate || format(new Date(), "yyyy-MM-dd"),
         followUpTime: initialData.followUpTime || format(new Date(), "HH:mm"),
         isReExamined: initialData.isReExamined === 1 || initialData.isReExamined === true,
-        nextFollowUpInterval: "1year", // 默认显示 1 年，编辑时无法精准还原周期，通常重新设定
+        nextFollowUpInterval: "1year",
         pdfId: initialData.pdfId || "",
       }
     }
@@ -98,12 +98,12 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
     defaultValues,
   })
 
-  // 确保 initialData 变化时重置表单
   React.useEffect(() => {
     form.reset(defaultValues)
   }, [defaultValues, form])
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (readOnly) return
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
     const baseDate = new Date(values.followUpDate);
     let nextDate: Date;
@@ -138,7 +138,9 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Alert className="bg-primary/5 border-primary/20">
           <Info className="size-4 text-primary" />
-          <AlertTitle className="text-primary font-bold">{initialData ? '修改随访任务记录' : '临床随访任务登记'}</AlertTitle>
+          <AlertTitle className="text-primary font-bold">
+            {readOnly ? '随访记录详情' : initialData ? '修改随访任务记录' : '临床随访任务登记'}
+          </AlertTitle>
           <AlertDescription className="text-xs">
             患者: <span className="font-bold">[{archiveNo}] {patientName}</span>
           </AlertDescription>
@@ -150,22 +152,22 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
             <CardContent className="pt-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="followUpPerson" render={({ field }) => (
-                  <FormItem><FormLabel>回访人</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                  <FormItem><FormLabel>回访人</FormLabel><FormControl><Input {...field} disabled={readOnly} /></FormControl></FormItem>
                 )} />
                 <FormField control={form.control} name="followUpDate" render={({ field }) => (
-                  <FormItem><FormLabel>回访日期</FormLabel><FormControl><Input type="date" {...field} /></FormControl></FormItem>
+                  <FormItem><FormLabel>回访日期</FormLabel><FormControl><Input type="date" {...field} disabled={readOnly} /></FormControl></FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="followUpTime" render={({ field }) => (
-                <FormItem><FormLabel>回访时间</FormLabel><FormControl><Input type="time" {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>回访时间</FormLabel><FormControl><Input type="time" {...field} disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="followUpResult" render={({ field }) => (
-                <FormItem><FormLabel>医学记录/回访结果</FormLabel><FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>医学记录/回访结果</FormLabel><FormControl><Textarea className="min-h-[100px]" {...field} disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="isReExamined" render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-4 shadow-sm">
                   <FormLabel className="m-0">是否复查/进一步检查</FormLabel>
-                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} /></FormControl>
                 </FormItem>
               )} />
             </CardContent>
@@ -178,7 +180,7 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
                 <FormField control={form.control} name="nextFollowUpInterval" render={({ field }) => (
                   <FormItem>
                     <FormLabel>随访周期选择</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={readOnly}>
                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="1month">1 个月后</SelectItem>
@@ -201,27 +203,31 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
                       <FormControl><Input placeholder="PDF文件编号" {...field} readOnly className="bg-muted" /></FormControl>
                     </FormItem>
                   )} />
-                  <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button type="button" variant="outline" size="sm" className="gap-2"><Upload className="size-4" /> 归档报告</Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader><DialogTitle>归档随访复查报告</DialogTitle></DialogHeader>
-                      <PdfUploadForm archiveNo={archiveNo} onSuccess={(id) => { form.setValue("pdfId", id); setIsPdfDialogOpen(false); }} />
-                    </DialogContent>
-                  </Dialog>
+                  {!readOnly && (
+                    <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="gap-2"><Upload className="size-4" /> 归档报告</Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader><DialogTitle>归档随访复查报告</DialogTitle></DialogHeader>
+                        <PdfUploadForm archiveNo={archiveNo} onSuccess={(id) => { form.setValue("pdfId", id); setIsPdfDialogOpen(false); }} />
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
 
-        <div className="flex justify-end gap-4 pb-6">
-          <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white" disabled={isSyncing}>
-            {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-5 mr-2" />}
-            {initialData ? '确认修改并同步' : '完成记录并同步 MySQL'}
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex justify-end gap-4 pb-6">
+            <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white" disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-5 mr-2" />}
+              {initialData ? '确认修改并同步' : '完成记录并同步 MySQL'}
+            </Button>
+          </div>
+        )}
       </form>
     </Form>
   )

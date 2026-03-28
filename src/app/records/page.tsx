@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -15,7 +14,8 @@ import {
   FileSpreadsheet,
   Download,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  Edit
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -269,8 +269,11 @@ export default function RecordsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" asChild title="查看及修改详情">
+                      <Button variant="ghost" size="icon" asChild title="查看详情 (只读)">
                         <Link href={`/records/${r.id}`}><Eye className="size-4 text-primary" /></Link>
+                      </Button>
+                      <Button variant="ghost" size="icon" asChild title="修改记录">
+                        <Link href={`/records/${r.id}/edit`}><Edit className="size-4 text-primary" /></Link>
                       </Button>
                       <Button variant="ghost" size="icon" asChild title="查看完整病历轴">
                         <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 text-primary" /></Link>

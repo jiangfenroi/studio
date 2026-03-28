@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,7 +19,8 @@ import {
   Loader2,
   Upload,
   Eye,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Edit
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -245,19 +245,16 @@ export default function PatientProfilePage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {event.type === 'abnormal' ? (
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/records/${event.id}`} className="flex items-center">
-                                    <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
-                                  </Link>
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/follow-ups/detail/${event.id}`} className="flex items-center">
-                                    <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
-                                  </Link>
-                                </DropdownMenuItem>
-                              )}
+                              <DropdownMenuItem asChild>
+                                <Link href={event.type === 'abnormal' ? `/records/${event.id}` : `/follow-ups/detail/${event.id}`} className="flex items-center">
+                                  <Eye className="size-4 mr-2 text-primary" /> 查看详情 (只读)
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href={event.type === 'abnormal' ? `/records/${event.id}/edit` : `/follow-ups/detail/${event.id}/edit`} className="flex items-center">
+                                  <Edit className="size-4 mr-2 text-primary" /> 修改记录信息
+                                </Link>
+                              </DropdownMenuItem>
                               <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(event)}>
                                 <Trash2 className="size-4 mr-2" /> 撤销记录
                               </DropdownMenuItem>

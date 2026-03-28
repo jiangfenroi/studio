@@ -48,9 +48,10 @@ const formSchema = z.object({
 interface AbnormalResultFormProps {
   onSuccess: (archiveNo: string) => void;
   initialData?: any;
+  readOnly?: boolean;
 }
 
-export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFormProps) {
+export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }: AbnormalResultFormProps) {
   const { toast } = useToast()
   const [isSyncing, setIsSyncing] = React.useState(false)
   const [isPdfDialogOpen, setIsPdfDialogOpen] = React.useState(false)
@@ -136,6 +137,7 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
   }, [watchNotificationDate])
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (readOnly) return
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
     setIsSyncing(true)
     try {
@@ -161,25 +163,25 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
           <CardHeader className="bg-primary/5">
             <CardTitle className="flex items-center gap-2">
               <FileText className="size-5 text-primary" /> 
-              {initialData ? '修改记录信息' : '重要异常结果登记'}
+              {readOnly ? '记录详情预览' : initialData ? '修改记录信息' : '重要异常结果登记'}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
             <FormField control={form.control} name="archiveNo" render={({ field }) => (
-              <FormItem><FormLabel>档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} disabled={!!initialData} /></FormControl></FormItem>
+              <FormItem><FormLabel>档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} disabled={!!initialData || readOnly} /></FormControl></FormItem>
             )} />
             <FormField control={form.control} name="checkupNumber" render={({ field }) => (
-              <FormItem><FormLabel>体检编号 (12位)</FormLabel><FormControl><Input maxLength={12} {...field} /></FormControl></FormItem>
+              <FormItem><FormLabel>体检编号 (12位)</FormLabel><FormControl><Input maxLength={12} {...field} disabled={readOnly} /></FormControl></FormItem>
             )} />
             <FormField control={form.control} name="checkupDate" render={({ field }) => (
-              <FormItem><FormLabel>体检日期</FormLabel><FormControl><Input type="date" {...field} /></FormControl></FormItem>
+              <FormItem><FormLabel>体检日期</FormLabel><FormControl><Input type="date" {...field} disabled={readOnly} /></FormControl></FormItem>
             )} />
             
             <FormField control={form.control} name="anomalyCategory" render={({ field }) => (
               <FormItem className="col-span-full">
                 <FormLabel>异常结果种类</FormLabel>
                 <FormControl>
-                  <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4">
+                  <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4" disabled={readOnly}>
                     <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50">
                       <FormControl><RadioGroupItem value="A" /></FormControl>
                       <FormLabel className="font-bold text-destructive">A类 (危急干预)</FormLabel>
@@ -194,10 +196,10 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
             )} />
 
             <FormField control={form.control} name="anomalyDetails" render={({ field }) => (
-              <FormItem className="col-span-full"><FormLabel>异常结果详情</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>
+              <FormItem className="col-span-full"><FormLabel>异常结果详情</FormLabel><FormControl><Textarea {...field} disabled={readOnly} /></FormControl></FormItem>
             )} />
             <FormField control={form.control} name="disposalSuggestions" render={({ field }) => (
-              <FormItem className="col-span-full"><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>
+              <FormItem className="col-span-full"><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} disabled={readOnly} /></FormControl></FormItem>
             )} />
 
             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/20 p-6 rounded-xl border border-dashed border-primary/20">
@@ -205,10 +207,10 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                 <h4 className="font-bold text-sm flex items-center gap-2"><CheckCircle2 className="size-4 text-primary" /> 告知与反馈</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="notifier" render={({ field }) => (
-                    <FormItem><FormLabel>通知人</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                    <FormItem><FormLabel>通知人</FormLabel><FormControl><Input {...field} disabled={readOnly} /></FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="notifiedPerson" render={({ field }) => (
-                    <FormItem><FormLabel>被通知人</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                    <FormItem><FormLabel>被通知人</FormLabel><FormControl><Input {...field} disabled={readOnly} /></FormControl></FormItem>
                   )} />
                 </div>
               </div>
@@ -227,17 +229,19 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                         </FormControl>
                       </FormItem>
                     )} />
-                    <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button type="button" variant="outline" className="gap-2 shadow-sm" disabled={!watchArchiveNo}>
-                          <Upload className="size-4" /> 上传并关联
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader><DialogTitle>归档当前异常结果的原始 PDF 报告</DialogTitle></DialogHeader>
-                        <PdfUploadForm archiveNo={watchArchiveNo} onSuccess={(id) => { form.setValue("pdfId", id); setIsPdfDialogOpen(false); }} />
-                      </DialogContent>
-                    </Dialog>
+                    {!readOnly && (
+                      <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button type="button" variant="outline" className="gap-2 shadow-sm" disabled={!watchArchiveNo}>
+                            <Upload className="size-4" /> 上传并关联
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader><DialogTitle>归档当前异常结果的原始 PDF 报告</DialogTitle></DialogHeader>
+                          <PdfUploadForm archiveNo={watchArchiveNo} onSuccess={(id) => { form.setValue("pdfId", id); setIsPdfDialogOpen(false); }} />
+                        </DialogContent>
+                      </Dialog>
+                    )}
                   </div>
                   {form.watch("pdfId") && (
                     <Badge variant="secondary" className="w-fit gap-1.5 py-1 px-3 bg-green-50 text-green-700 border-green-200">
@@ -251,7 +255,7 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                 <FormField control={form.control} name="notifiedPersonFeedback" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-1"><MessageSquareText className="size-3 text-muted-foreground" /> 被通知人反馈内容</FormLabel>
-                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="h-24 bg-white" {...field} /></FormControl>
+                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="h-24 bg-white" {...field} disabled={readOnly} /></FormControl>
                   </FormItem>
                 )} />
               </div>
@@ -259,10 +263,10 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
 
             <div className="col-span-full grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               <FormField control={form.control} name="notificationDate" render={({ field }) => (
-                <FormItem><FormLabel>通知日期</FormLabel><FormControl><Input type="date" {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>通知日期</FormLabel><FormControl><Input type="date" {...field} disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="notificationTime" render={({ field }) => (
-                <FormItem><FormLabel>通知时间</FormLabel><FormControl><Input type="time" {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>通知时间</FormLabel><FormControl><Input type="time" {...field} disabled={readOnly} /></FormControl></FormItem>
               )} />
               
               <div className="space-y-2">
@@ -277,22 +281,24 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
 
               <div className="flex items-center gap-4 pb-1 h-10">
                 <FormField control={form.control} name="isNotified" render={({ field }) => (
-                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-xs">已通知</FormLabel></FormItem>
+                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} /></FormControl><FormLabel className="text-xs">已通知</FormLabel></FormItem>
                 )} />
                 <FormField control={form.control} name="isHealthEducationProvided" render={({ field }) => (
-                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-xs">已宣教</FormLabel></FormItem>
+                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} /></FormControl><FormLabel className="text-xs">已宣教</FormLabel></FormItem>
                 )} />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-4 pb-6">
-          <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white h-12" disabled={isSyncing}>
-            {isSyncing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="size-5 mr-2" />}
-            {initialData ? '确认修改信息' : '完成登记并前往档案补录'}
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex justify-end gap-4 pb-6">
+            <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white h-12" disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="size-5 mr-2" />}
+              {initialData ? '确认修改信息' : '完成登记并前往档案补录'}
+            </Button>
+          </div>
+        )}
       </form>
     </Form>
   )

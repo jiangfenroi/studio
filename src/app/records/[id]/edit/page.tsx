@@ -5,10 +5,10 @@ import { useParams, useRouter } from "next/navigation"
 import { AbnormalResultForm } from "@/components/forms/AbnormalResultForm"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2, Eye } from "lucide-react"
+import { ArrowLeft, Loader2, ClipboardCheck } from "lucide-react"
 import { fetchAnomalyDetails } from "@/app/actions/mysql-sync"
 
-export default function AnomalyRecordReadOnlyPage() {
+export default function AnomalyRecordEditPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
@@ -39,6 +39,14 @@ export default function AnomalyRecordReadOnlyPage() {
     loadData()
   }, [loadData])
 
+  const handleSuccess = () => {
+    toast({
+      title: "记录已更新",
+      description: "修改已成功同步至内网中心库。",
+    })
+    router.push("/records")
+  }
+
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center gap-2">
@@ -53,10 +61,10 @@ export default function AnomalyRecordReadOnlyPage() {
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
-            <Eye className="size-6 text-primary" />
+            <ClipboardCheck className="size-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-primary">重要异常结果详情 (只读)</h1>
+            <h1 className="text-3xl font-bold text-primary">修改重要异常结果</h1>
             <p className="text-muted-foreground font-medium">中心 MySQL 驱动：确保临床闭环管理严谨性</p>
           </div>
         </div>
@@ -68,8 +76,8 @@ export default function AnomalyRecordReadOnlyPage() {
 
       <AbnormalResultForm 
         initialData={recordData}
-        readOnly={true}
-        onSuccess={() => {}} 
+        readOnly={false}
+        onSuccess={handleSuccess} 
       />
     </div>
   )
