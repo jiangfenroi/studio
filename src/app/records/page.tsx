@@ -18,7 +18,9 @@ import {
   MessageSquare,
   ShieldCheck,
   FileText,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Upload,
+  FileSpreadsheet
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -58,16 +60,18 @@ import { Separator } from "@/components/ui/separator"
 import { AbnormalResultForm } from "@/components/forms/AbnormalResultForm"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { fetchAllRecords, deleteAnomalyRecord } from "@/app/actions/mysql-sync"
+import { fetchAllRecords, deleteAnomalyRecord, bulkImportAnomalyRecords } from "@/app/actions/mysql-sync"
 
 export default function RecordsPage() {
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [records, setRecords] = React.useState<any[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
+  const [isImporting, setIsImporting] = React.useState(false)
   const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null)
   const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
   const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const loadRecords = React.useCallback(async () => {
     setIsLoading(true)
@@ -116,14 +120,59 @@ export default function RecordsPage() {
     loadRecords()
   }
 
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsLoading(true)
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const text = event.target?.result as string
+      const rows = text.split('\n').slice(1).filter(r => r.trim())
+      const recordsToImport = rows.map(row => {
+        const cols = row.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+        return {
+          archiveNo: cols[0],
+          checkupNumber: cols[1],
+          checkupDate: cols[2],
+          anomalyCategory: cols[3] as 'A' | 'B',
+          anomalyDetails: cols[4],
+          notificationDate: cols[5],
+          notificationTime: cols[6],
+          isNotified: cols[7] === '是' || cols[7] === '1',
+          isHealthEducationProvided: cols[8] === '是' || cols[8] === '1',
+          notifier: cols[9],
+          notifiedPerson: cols[10],
+          disposalSuggestions: cols[11]
+        }
+      }).filter(r => r.archiveNo && r.checkupNumber)
+
+      const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
+      try {
+        const res = await bulkImportAnomalyRecords(config, recordsToImport)
+        toast({ title: "批量导入成功", description: `已成功导入 ${res.count} 条异常记录，并同步创建了随访任务。` })
+        loadRecords()
+      } catch (err: any) {
+        toast({ variant: "destructive", title: "导入失败", description: err.message })
+      } finally {
+        setIsLoading(false)
+        setIsImporting(false)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">重要异常结果记录展示</h1>
-          <p className="text-muted-foreground">按照通知日期倒序展示 (Latest First) • 支持补录个人档案信息</p>
+          <p className="text-muted-foreground">内网核心驱动 • 支持 CSV 批量同步及随访任务自动触发</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImporting(true)} className="gap-2 bg-green-50 text-green-700 border-green-200">
+            <Upload className="size-4" /> 批量导入
+          </Button>
           <Button variant="outline" onClick={loadRecords} disabled={isLoading} className="gap-2">
             <RefreshCcw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} /> 同步刷新
           </Button>
@@ -159,7 +208,7 @@ export default function RecordsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin mx-auto mb-2 text-primary" /> 检索数据库中...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin mx-auto mb-2 text-primary" /> 正在处理临床数据...</TableCell></TableRow>
               ) : filteredRecords.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">暂无符合条件的异常记录</TableCell></TableRow>
               ) : filteredRecords.map((r) => (
@@ -225,6 +274,31 @@ export default function RecordsPage() {
           </Table>
         </div>
       </div>
+
+      <Dialog open={isImporting} onOpenChange={setIsImporting}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>批量导入异常结果记录</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-muted/50 rounded-lg text-[10px] space-y-2">
+              <p className="font-bold text-primary">CSV 模板列顺序提示：</p>
+              <p className="font-mono break-all text-xs">档案编号, 体检编号(12位), 体检日期, 种类(A/B), 异常详情, 通知日期, 通知时间, 是否告知(是/否), 是否宣教(是/否), 通知人, 被通知人, 处置意见</p>
+              <p className="text-muted-foreground italic">注：系统会自动为导入的记录创建 7 日随访任务。</p>
+            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleCsvImport} 
+              className="hidden" 
+              accept=".csv"
+            />
+            <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
+              <FileSpreadsheet className="size-4" /> 选择 CSV 文件并启动批量同步
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">

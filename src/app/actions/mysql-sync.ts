@@ -50,7 +50,6 @@ function serializeRow(row: any) {
 
 /**
  * 核心：真实物理归档并记录元数据
- * 将文件保存至 [根路径]\[档案号]\[报告类别] 目录下
  */
 export async function uploadPdfFile(config: any, formData: FormData) {
   const archiveNo = formData.get('archiveNo') as string;
@@ -151,6 +150,45 @@ export async function saveAnomalyResult(config: any, data: any) {
   }
 }
 
+export async function bulkImportAnomalyRecords(config: any, records: any[]) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.beginTransaction();
+    
+    for (const data of records) {
+      const anomalyId = `YCJG${Math.floor(Math.random() * 10000)}${Date.now()}`;
+      // 1. 确保患者存在
+      await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
+      
+      // 2. 插入异常记录
+      const sqlYCJG = `INSERT INTO SP_YCJG 
+        (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
+      await connection.execute(sqlYCJG, [
+        anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory, 
+        data.anomalyDetails, data.notifier || '批量导入', data.notifiedPerson || '未知', data.notificationDate, 
+        data.notificationTime || '08:00', data.disposalSuggestions || '批量导入意见', data.notifiedPersonFeedback || '',
+        data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
+      ]);
+      
+      // 3. 创建待随访任务
+      const nextDate = new Date(data.notificationDate);
+      nextDate.setDate(nextDate.getDate() + 7);
+      const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)`;
+      await connection.execute(sqlRW, [data.archiveNo, anomalyId, nextDate.toISOString().split('T')[0]]);
+    }
+    
+    await connection.commit();
+    return { success: true, count: records.length };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function updateAnomalyResult(config: any, id: string, data: any) {
   let connection;
   try {
@@ -197,8 +235,6 @@ export async function saveFollowUpRecord(config: any, data: any) {
     if (connection) await connection.end();
   }
 }
-
-// ---------------- 其他基础 Action ----------------
 
 export async function checkConnection(config: any) {
   let connection;
@@ -305,6 +341,27 @@ export async function syncPatientToMysql(config: any, patient: any) {
   }
 }
 
+export async function bulkImportPatients(config: any, patients: any[]) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.beginTransaction();
+    const sql = `INSERT INTO SP_PERSON (archiveNo, name, gender, age, idNumber, organization, address, phoneNumber, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE name=VALUES(name), gender=VALUES(gender), age=VALUES(age), idNumber=VALUES(idNumber), organization=VALUES(organization), address=VALUES(address), phoneNumber=VALUES(phoneNumber), status=VALUES(status)`;
+    for (const p of patients) {
+      await connection.execute(sql, [p.archiveNo, p.name, p.gender || '男', p.age || 0, p.idNumber || '', p.organization || '', p.address || '', p.phoneNumber || '', p.status || '正常']);
+    }
+    await connection.commit();
+    return { success: true, count: patients.length };
+  } catch (e) {
+    if (connection) await connection.rollback();
+    throw e;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function fetchAllRecords(config: any) {
   let connection;
   try {
@@ -360,35 +417,22 @@ export async function deleteAnomalyRecord(config: any, id: string) {
   }
 }
 
-/**
- * 随访记录删除逻辑增强：
- * 如果删除后 SP_SF 中不再存在该异常的记录，则将 SP_YCJG 的 isFollowUpRequired 置为 0 (否)。
- */
 export async function deleteFollowUpRecord(config: any, id: string) {
   let connection;
   try {
     connection = await getConnection(config);
     await connection.beginTransaction();
-
-    // 1. 获取关联的异常记录ID
     const [rows]: any = await connection.execute('SELECT associatedAnomalyId FROM SP_SF WHERE id = ?', [id]);
     if (rows.length === 0) {
       await connection.rollback();
       return { success: true };
     }
     const anomalyId = rows[0].associatedAnomalyId;
-
-    // 2. 执行物理删除
     await connection.execute('DELETE FROM SP_SF WHERE id = ?', [id]);
-
-    // 3. 统计该异常剩余的随访记录数量
     const [countResult]: any = await connection.execute('SELECT COUNT(*) as count FROM SP_SF WHERE associatedAnomalyId = ?', [anomalyId]);
-    
-    // 4. 若无剩余随访记录，更新主表状态
     if (countResult[0].count === 0) {
       await connection.execute('UPDATE SP_YCJG SET isFollowUpRequired = 0 WHERE id = ?', [anomalyId]);
     }
-
     await connection.commit();
     return { success: true };
   } catch (e) {
@@ -470,9 +514,6 @@ export async function clearAllStaffData(config: any) {
   }
 }
 
-/**
- * 全量业务导出数据检索 (三表实时关联)
- */
 export async function fetchDataForStats(config: any) {
   let connection;
   try {

@@ -13,7 +13,8 @@ import {
   Trash2,
   Calculator,
   Download,
-  Upload
+  Upload,
+  FileSpreadsheet
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,7 @@ import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { fetchPatients, syncPatientToMysql, calculateAllAges } from "@/app/actions/mysql-sync"
+import { fetchPatients, syncPatientToMysql, calculateAllAges, bulkImportPatients } from "@/app/actions/mysql-sync"
 
 const patientSchema = z.object({
   id: z.string().min(1, "档案编号不能为空"),
@@ -49,7 +50,9 @@ export default function PatientsPage() {
   const [patients, setPatients] = React.useState<any[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isAddingNew, setIsAddingNew] = React.useState(false)
+  const [isImporting, setIsImporting] = React.useState(false)
   const [editingPatient, setEditingPatient] = React.useState<any>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const loadPatients = React.useCallback(async () => {
     setIsLoading(true)
@@ -88,6 +91,45 @@ export default function PatientsPage() {
     }
   }
 
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsLoading(true)
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const text = event.target?.result as string
+      const rows = text.split('\n').slice(1).filter(r => r.trim())
+      const patientsToImport = rows.map(row => {
+        const cols = row.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+        return {
+          archiveNo: cols[0],
+          name: cols[1],
+          gender: cols[2],
+          age: parseInt(cols[3]) || 0,
+          idNumber: cols[4],
+          phoneNumber: cols[5],
+          organization: cols[6],
+          address: cols[7],
+          status: cols[8] || '正常'
+        }
+      }).filter(p => p.archiveNo)
+
+      const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
+      try {
+        const res = await bulkImportPatients(config, patientsToImport)
+        toast({ title: "导入成功", description: `已成功导入/更新 ${res.count} 名患者档案。` })
+        loadPatients()
+      } catch (err: any) {
+        toast({ variant: "destructive", title: "导入失败", description: err.message })
+      } finally {
+        setIsLoading(false)
+        setIsImporting(false)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const filteredPatients = patients.filter(p => 
     p.name?.includes(searchTerm) || p.archiveNo?.includes(searchTerm) || p.phoneNumber?.includes(searchTerm)
   )
@@ -97,18 +139,20 @@ export default function PatientsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">档案管理中心</h1>
-          <p className="text-muted-foreground">档案编号 ({'>'}) 身份证号 • 业务联动引擎</p>
+          <p className="text-muted-foreground">档案编号 ({'>'}) 身份证号 • 批量导入与同步引擎</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImporting(true)} className="gap-2 bg-green-50 text-green-700 border-green-200">
+            <Upload className="size-4" /> 批量导入
+          </Button>
           <Button variant="outline" onClick={handleUpdateAges} className="gap-2"><Calculator className="size-4" /> 自动算龄</Button>
-          <Button variant="outline" className="gap-2"><Download className="size-4" /> 模板下载</Button>
           <Button onClick={() => setIsAddingNew(true)} className="gap-2"><Plus className="size-4" /> 新增档案</Button>
         </div>
       </header>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input placeholder="搜索姓名、档案号、电话..." className="pl-10 h-11" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        <Input placeholder="搜索姓名、档案号、电话..." className="pl-10 h-11 bg-white" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -125,7 +169,9 @@ export default function PatientsPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-10"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /> 处理中...</TableCell></TableRow>
+            ) : filteredPatients.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">暂无档案记录</TableCell></TableRow>
             ) : filteredPatients.map(p => (
               <TableRow key={p.archiveNo} className="group">
                 <TableCell className="font-bold text-primary">{p.archiveNo}</TableCell>
@@ -137,8 +183,8 @@ export default function PatientsPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" asChild><Link href={`/patients/${p.archiveNo}`}><Eye className="size-4 text-primary" /></Link></Button>
-                    <Button variant="ghost" size="icon" onClick={() => { setEditingPatient(p); form.reset({ ...p, id: p.archiveNo }); }}><Edit className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" asChild title="查看详情"><Link href={`/patients/${p.archiveNo}`}><Eye className="size-4 text-primary" /></Link></Button>
+                    <Button variant="ghost" size="icon" title="编辑资料" onClick={() => { setEditingPatient(p); form.reset({ ...p, id: p.archiveNo }); }}><Edit className="size-4" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -146,6 +192,31 @@ export default function PatientsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={isImporting} onOpenChange={setIsImporting}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>批量导入患者档案</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-2">
+              <p className="font-bold text-primary">CSV 模板列顺序提示：</p>
+              <p className="font-mono">档案编号, 姓名, 性别, 年龄, 身份证号, 电话, 单位, 地址, 状态</p>
+              <p className="text-muted-foreground italic">注：第一行为表头，系统会自动跳过。档案编号重复时将执行覆盖更新。</p>
+            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleCsvImport} 
+              className="hidden" 
+              accept=".csv"
+            />
+            <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
+              <FileSpreadsheet className="size-4" /> 选择 CSV 文件并开始同步
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isAddingNew || !!editingPatient} onOpenChange={(o) => { if(!o) {setIsAddingNew(false); setEditingPatient(null); }}}>
         <DialogContent className="max-w-2xl">
