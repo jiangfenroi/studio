@@ -1,11 +1,10 @@
-
 # HealthInsight Registry - 重要异常结果管理系统 (MySQL 8.4 隔离版)
 
 本系统专为医疗内网（物理隔离环境）设计，所有临床数据存储、身份验证及业务计算完全由中心 **MySQL 8.4** 数据库承载。
 
 ## 1. 数据库初始化 (MySQL 8.4)
 
-请在中心服务器执行以下 SQL 脚本以创建核心业务表。注意：MySQL 8.4 中 `TEXT` 字段不能有 `DEFAULT` 值，路径字段已改为 `VARCHAR(512)`。
+请在中心服务器执行以下 SQL 脚本以创建核心业务表。
 
 ```sql
 CREATE DATABASE IF NOT EXISTS meditrack_db CHARACTER SET utf8mb4;
@@ -77,7 +76,7 @@ CREATE TABLE SP_PDF (
   archiveNo VARCHAR(50),
   checkDate DATE,
   reportCategory ENUM('体检报告', '影像检查报告', '内镜检查报告', '病理检查报告', '电生理检查报告'),
-  fullPath TEXT,
+  fullPath VARCHAR(512),
   FOREIGN KEY (archiveNo) REFERENCES SP_PERSON(archiveNo)
 );
 
@@ -91,17 +90,19 @@ CREATE TABLE SP_RW (
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
+-- MySQL 8.4 中 TEXT 字段不能有 DEFAULT 值，路径字段已改为 VARCHAR(512)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY,
-  appName VARCHAR(100) DEFAULT 'HealthInsight Registry',
+  appName VARCHAR(100),
   logoPath VARCHAR(512),
-  pacsUrlBase VARCHAR(512) DEFAULT 'http://172.16.201.61:7242/?ChtId=',
-  pdfStoragePath VARCHAR(512) DEFAULT 'C:\\HealthReports\\',
-  authKey VARCHAR(50) DEFAULT 'HEALTH-INSIGHT-2025'
+  pacsUrlBase VARCHAR(512),
+  pdfStoragePath VARCHAR(512),
+  authKey VARCHAR(50)
 );
 
--- 插入默认配置
-INSERT IGNORE INTO SP_CONFIG (configKey) VALUES ('default');
+-- 插入默认初始配置
+INSERT IGNORE INTO SP_CONFIG (configKey, appName, pacsUrlBase, pdfStoragePath, authKey) 
+VALUES ('default', 'HealthInsight Registry', 'http://172.16.201.61:7242/?ChtId=', 'C:\\HealthReports\\', 'HEALTH-INSIGHT-2025');
 ```
 
 ## 2. 部署与环境

@@ -23,13 +23,11 @@ async function getConnection(config: any) {
     });
     return connection;
   } catch (err: any) {
-    if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      if (err.message.includes('35.230.25.171')) {
-        throw new Error(`[AI 环境受限] 中心库拒绝了当前的开发 IP。请在本地内网服务器部署后再进行测试。`);
-      }
-      throw new Error(`中心库权限不足: 用户 '${config.user}' 未被授权访问数据库。`);
+    // 捕获权限错误并翻译为易懂的内网指引
+    if (err.message.includes('35.230.25.171')) {
+      throw new Error(`[AI 环境受限] 中心库拒绝了当前的开发 IP。请在本地内网服务器部署后再进行测试。`);
     }
-    throw new Error(`数据库连接异常: ${err.message}`);
+    throw new Error(`中心库连接失败: ${err.message}`);
   }
 }
 
@@ -157,10 +155,7 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
     
     for (const data of records) {
       const anomalyId = `YCJG${Math.floor(Math.random() * 10000)}${Date.now()}`;
-      // 1. 确保患者存在
       await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
-      
-      // 2. 插入异常记录
       const sqlYCJG = `INSERT INTO SP_YCJG 
         (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
@@ -170,8 +165,6 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
         data.notificationTime || '08:00', data.disposalSuggestions || '批量导入意见', data.notifiedPersonFeedback || '',
         data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
       ]);
-      
-      // 3. 创建待随访任务
       const baseDateStr = data.notificationDate || new Date().toISOString().split('T')[0];
       const nextDate = new Date(baseDateStr);
       nextDate.setDate(nextDate.getDate() + 7);
