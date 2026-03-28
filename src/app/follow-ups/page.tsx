@@ -84,7 +84,7 @@ export default function FollowUpsPage() {
               <TableHead className="w-[120px]">通知日期/时间</TableHead>
               <TableHead>档案信息</TableHead>
               <TableHead>体检编号/日期</TableHead>
-              <TableHead className="max-w-[200px]">结果详情/分类</TableHead>
+              <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
               <TableHead>告知人/被通知人</TableHead>
               <TableHead>随访状态</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -119,14 +119,14 @@ export default function FollowUpsPage() {
                   <div className="text-xs font-mono">{r.checkupNumber}</div>
                   <div className="text-[10px] text-muted-foreground">体检: {r.checkupDate}</div>
                 </TableCell>
-                <TableCell className="max-w-[200px]">
+                <TableCell className="max-w-[400px] whitespace-normal break-words">
                   <div className="flex flex-col gap-1">
                     <div className="flex gap-1">
                       <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="h-4 text-[8px] px-1">
                         {r.anomalyCategory}类
                       </Badge>
                     </div>
-                    <p className="text-xs line-clamp-2" title={r.anomalyDetails}>{r.anomalyDetails}</p>
+                    <p className="text-xs leading-relaxed" title={r.anomalyDetails}>{r.anomalyDetails}</p>
                   </div>
                 </TableCell>
                 <TableCell>
