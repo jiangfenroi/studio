@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -169,7 +170,7 @@ export default function RecordsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6 animate-in fade-in duration-500">
+    <div className="p-8 space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">重要异常结果记录</h1>
@@ -257,8 +258,10 @@ export default function RecordsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="text-xs">告知: {r.notifier}</div>
-                    <div className="text-xs text-muted-foreground">被告知: {r.notifiedPerson}</div>
+                    <div className="flex flex-col gap-1">
+                      <div className="text-sm font-bold text-foreground">{r.notificationDate}</div>
+                      <div className="text-[10px] text-muted-foreground">告知: {r.notifier} / 被告知: {r.notifiedPerson}</div>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={r.isFollowUpRequired ? 'default' : 'outline'} className={r.isFollowUpRequired ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''}>

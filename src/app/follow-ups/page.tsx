@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -10,7 +11,8 @@ import {
   History,
   FileText,
   Activity,
-  Eye
+  Eye,
+  CalendarDays
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -116,6 +118,11 @@ export default function FollowUpsPage() {
               </div>
 
               <div className="text-sm">
+                <span className="text-muted-foreground mr-1 font-normal text-[10px]">通知:</span>
+                <span className="text-sm font-bold text-foreground">{r.notificationDate}</span>
+              </div>
+
+              <div className="text-sm">
                 <span className="text-muted-foreground mr-1 font-normal text-[10px]">末次随访:</span>
                 <span className="font-bold text-green-600 text-[10px]">{r.lastFollowUpDate || "-"}</span>
               </div>
@@ -208,8 +215,10 @@ export default function FollowUpsPage() {
                 </div>
               </TableCell>
               <TableCell>
-                <div className="text-xs">告知: {r.notifier}</div>
-                <div className="text-xs text-muted-foreground">被告知: {r.notifiedPerson}</div>
+                <div className="flex flex-col gap-1">
+                  <div className="text-sm font-bold text-foreground">{r.notificationDate}</div>
+                  <div className="text-[10px] text-muted-foreground">告知: {r.notifier} / 被告知: {r.notifiedPerson}</div>
+                </div>
               </TableCell>
               <TableCell>
                 <span className="font-bold text-green-600 text-sm">

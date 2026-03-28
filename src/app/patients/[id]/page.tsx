@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -133,10 +134,13 @@ export default function PatientProfilePage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="size-5" /></Button>
-          <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
-            患者全生命周期病历
-            <Badge variant="secondary" className="bg-primary/10 text-primary">档案号: {id}</Badge>
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-primary flex items-center gap-3">
+              {patient?.name || "未补录"}
+              <Badge variant="secondary" className="bg-primary/10 text-primary h-5 text-[10px]">档案号: {id}</Badge>
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1">全生命周期病历档案驱动</p>
+          </div>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="gap-2 text-blue-700 border-blue-200" onClick={handleOpenPACS}>
@@ -181,23 +185,24 @@ export default function PatientProfilePage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1 space-y-6">
           <Card className="shadow-md border-none overflow-hidden">
-            <CardHeader className="bg-primary/5 pb-8">
+            <CardHeader className="bg-primary/5 pb-8 text-center">
               <div className="flex flex-col items-center">
-                <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center mb-4 ring-2 ring-white shadow">
-                  <User className="size-10 text-primary" />
+                <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 ring-2 ring-white shadow">
+                  <User className="size-8 text-primary" />
                 </div>
-                <h2 className="text-2xl font-bold">{patient?.name || "未补录"}</h2>
+                <h2 className="text-xl font-bold">{patient?.name || "未补录"}</h2>
                 <div className="flex gap-2 mt-2">
-                  <Badge variant="outline">{patient?.gender} / {patient?.age}岁</Badge>
-                  <Badge className={patient?.status === '正常' ? 'bg-green-500' : 'bg-red-500'}>{patient?.status}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{patient?.gender} / {patient?.age}岁</Badge>
+                  <Badge className={cn("text-[10px]", patient?.status === '正常' ? 'bg-green-500' : 'bg-red-500')}>{patient?.status}</Badge>
                 </div>
+                <div className="text-[10px] font-mono text-muted-foreground mt-2 uppercase">ID: {id}</div>
               </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-5 text-sm">
               <div className="space-y-4">
-                <div className="flex items-start gap-3"><MapPin className="size-4 text-muted-foreground mt-1" /><p>{patient?.address || "地址未登记"}</p></div>
-                <div className="flex items-start gap-3"><Building className="size-4 text-muted-foreground mt-1" /><p>{patient?.organization || "单位未登记"}</p></div>
-                <div className="flex items-start gap-3"><Phone className="size-4 text-muted-foreground mt-1" /><p className="font-mono">{patient?.phoneNumber || "电话未登记"}</p></div>
+                <div className="flex items-start gap-3"><MapPin className="size-4 text-muted-foreground mt-1" /><p className="text-xs leading-relaxed">{patient?.address || "地址未登记"}</p></div>
+                <div className="flex items-start gap-3"><Building className="size-4 text-muted-foreground mt-1" /><p className="text-xs leading-relaxed">{patient?.organization || "单位未登记"}</p></div>
+                <div className="flex items-start gap-3"><Phone className="size-4 text-muted-foreground mt-1" /><p className="font-bold text-sm">{patient?.phoneNumber || "电话未登记"}</p></div>
               </div>
             </CardContent>
           </Card>
@@ -222,14 +227,19 @@ export default function PatientProfilePage() {
                     </div>
                     <div className="bg-white p-5 rounded-xl border shadow-sm group-hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h4 className="text-lg font-bold">{event.type === 'abnormal' ? '重要异常发现' : '随访结果'}</h4>
-                          <span className="text-[10px] text-muted-foreground font-mono">{event.checkupDate || event.followUpDate} {event.notificationTime || event.followUpTime}</span>
+                        <div className="flex flex-col gap-1">
+                          <div className="text-sm font-bold text-foreground">
+                            {event.checkupDate || event.followUpDate}
+                            <span className="text-[10px] font-mono text-muted-foreground ml-3 font-normal">
+                              {event.notificationTime || event.followUpTime}
+                            </span>
+                          </div>
+                          <h4 className="text-base font-bold text-primary/80">{event.type === 'abnormal' ? '重要异常发现' : '随访结果'}</h4>
                         </div>
                         <div className="flex items-center gap-2">
                           {event.anomalyCategory && (
                             <Badge className={cn(
-                              "font-bold",
+                              "font-bold text-[10px] h-5",
                               event.anomalyCategory === 'A' ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"
                             )}>
                               {event.anomalyCategory}类异常
@@ -254,7 +264,7 @@ export default function PatientProfilePage() {
                           </DropdownMenu>
                         </div>
                       </div>
-                      <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap leading-relaxed">{event.anomalyDetails || event.followUpResult}</p>
+                      <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap leading-relaxed border-l-2 border-primary/20">{event.anomalyDetails || event.followUpResult}</p>
                     </div>
                   </div>
                 ))}
@@ -263,14 +273,14 @@ export default function PatientProfilePage() {
 
             <TabsContent value="pdfs" className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
               {pdfs.map((pdf: any) => (
-                <Card key={pdf.id} className="hover:shadow-md transition-all group">
+                <Card key={pdf.id} className="hover:shadow-md transition-all group border-none shadow-sm ring-1 ring-border">
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className="size-12 bg-primary/10 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                      <FileText className="size-6" />
+                    <div className="size-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                      <FileText className="size-5" />
                     </div>
                     <div className="flex-1 overflow-hidden">
                       <p className="text-sm font-bold truncate">{pdf.reportCategory}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono">{pdf.checkDate} • ID: {pdf.id}</p>
+                      <div className="text-[10px] font-bold text-foreground mt-0.5">{pdf.checkDate}</div>
                       <p className="text-[9px] text-muted-foreground truncate opacity-50 mt-1" title={pdf.fullPath}>{pdf.fullPath}</p>
                     </div>
                     <div className="flex gap-1">
