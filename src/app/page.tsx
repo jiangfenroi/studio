@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -147,7 +146,7 @@ export default function HomePage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-xl font-bold flex items-center gap-2">
               <TrendingUp className="size-5 text-primary" />
-              {selectedYear}年度 随访告知趋势 (按通知月统计)
+              {selectedYear}年度 月重要异常结果随访率(按通知月统计)
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[400px] pt-4">
@@ -166,7 +165,6 @@ export default function HomePage() {
                   }}
                 />
                 <Legend verticalAlign="top" height={36}/>
-                {/* 增加隐藏的 Line 以便 Tooltip 能捕获 total 和 followed 数据 */}
                 <Line 
                   name="total"
                   type="monotone" 
@@ -219,7 +217,7 @@ export default function HomePage() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
                 <p className="text-sm leading-relaxed">
-                  年度随访率基于全量通知任务实时聚合。任何月份补录的随访结果都将实时更新对应通知月份的随访成功率。
+                  年度随访率基于全量通知任务实时聚合。任何月份补录的随访结果都将实时更新对应通知月份的重要异常结果随访率。
                 </p>
               </div>
             </div>
