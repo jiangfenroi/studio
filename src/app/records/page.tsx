@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -9,21 +8,14 @@ import {
   Plus,
   Activity,
   Loader2,
-  User,
-  AlertTriangle,
   RefreshCcw,
   Trash2,
   Edit,
-  ClipboardCheck,
-  MessageSquare,
-  ShieldCheck,
-  FileText,
-  Link as LinkIcon,
   Upload,
   FileSpreadsheet,
   Download,
   AlertCircle,
-  Phone
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -59,8 +51,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { AbnormalResultForm } from "@/components/forms/AbnormalResultForm"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { fetchAllRecords, deleteAnomalyRecord, bulkImportAnomalyRecords } from "@/app/actions/mysql-sync"
@@ -215,7 +205,7 @@ export default function RecordsPage() {
               <TableRow>
                 <TableHead>患者姓名</TableHead>
                 <TableHead>档案信息</TableHead>
-                <TableHead>体检日期/编号</TableHead>
+                <TableHead>体检信息</TableHead>
                 <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
                 <TableHead>告知人/被通知人</TableHead>
                 <TableHead>随访状态</TableHead>
@@ -231,20 +221,17 @@ export default function RecordsPage() {
                 <TableRow key={r.id} className="hover:bg-muted/5 group">
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-bold text-foreground text-xl">{r.patientName || "待补录"}</span>
+                      <span className="font-bold text-foreground text-xl leading-tight">{r.patientName || "待补录"}</span>
                       {r.patientName && (
-                        <div className="flex flex-col mt-0.5">
-                          <span className="text-[10px] text-muted-foreground">
-                            {r.patientGender} / {r.patientAge}岁
-                          </span>
-                        </div>
+                        <span className="text-[11px] text-muted-foreground mt-0.5">
+                          {r.patientGender} / {r.patientAge}岁
+                        </span>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                        <Phone className="size-3.5 text-muted-foreground" />
+                      <div className="text-sm font-bold text-foreground">
                         <span className="font-mono tracking-tighter">{r.patientPhone}</span>
                       </div>
                       <span className="text-[10px] font-mono text-muted-foreground mt-1">
@@ -255,19 +242,17 @@ export default function RecordsPage() {
                   <TableCell>
                     <div className="flex flex-col">
                       <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono mt-0.5">NO: {r.checkupNumber}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono mt-1 uppercase opacity-70">NO: {r.checkupNumber}</div>
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[400px]">
                     <div className="flex flex-col gap-1">
-                      <div className="flex gap-1">
-                        <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
-                          "h-4 text-[8px] px-1",
-                          r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
-                        )}>
-                          {r.anomalyCategory}类
-                        </Badge>
-                      </div>
+                      <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
+                        "h-4 text-[8px] px-1 w-fit font-black",
+                        r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
+                      )}>
+                        {r.anomalyCategory}类
+                      </Badge>
                       <p className="text-xs leading-relaxed truncate" title={r.anomalyDetails}>{r.anomalyDetails}</p>
                     </div>
                   </TableCell>
@@ -307,13 +292,11 @@ export default function RecordsPage() {
       <Dialog open={isImporting} onOpenChange={setIsImporting}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="size-5 text-primary" /> 批量导入异常结果</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">批量导入异常结果</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-3">
-              <p className="font-bold text-primary flex items-center gap-2">
-                <FileText className="size-3" /> 字段填写指引：
-              </p>
+              <p className="font-bold text-primary flex items-center gap-2">字段填写指引：</p>
               <ScrollArea className="h-40 pr-3">
                 <div className="space-y-3 pl-2 border-l-2 border-primary/20">
                   <div className="p-2 bg-red-100/50 rounded border border-red-200">

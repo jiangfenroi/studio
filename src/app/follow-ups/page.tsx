@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -7,15 +6,11 @@ import {
   Clock, 
   Loader2, 
   RefreshCcw,
-  Phone,
   ChevronRight,
   History,
   FileText,
-  User,
   Activity,
-  MoreVertical,
-  Eye,
-  ClipboardCheck
+  Eye
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -29,20 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { fetchFollowUpTasks } from "@/app/actions/mysql-sync"
 import { useToast } from "@/hooks/use-toast"
@@ -126,19 +107,22 @@ export default function FollowUpsPage() {
                 应随访日期: {r.nextFollowUpDate}
               </div>
 
-              <div className="text-base font-bold flex items-center gap-1.5 text-foreground">
-                <Phone className="size-4 text-muted-foreground" />
+              <div className="text-base font-bold text-foreground">
                 <span className="font-mono tracking-tighter">{r.patientPhone}</span>
               </div>
 
               <div className="text-sm">
-                <span className="text-muted-foreground mr-1 font-normal">体检号:</span>
-                <span className="font-mono font-bold text-foreground">{r.checkupNumber}</span>
+                <span className="text-muted-foreground mr-1 font-normal text-[11px]">体检号:</span>
+                <span className="font-mono font-bold text-foreground text-[11px]">{r.checkupNumber}</span>
               </div>
 
               <div className="text-sm">
-                <span className="text-muted-foreground mr-1 font-normal">末次随访:</span>
-                <span className="font-bold text-green-600">{r.lastFollowUpDate || "-"}</span>
+                <span className="text-muted-foreground mr-1 font-normal text-[11px]">末次随访:</span>
+                <span className="font-bold text-green-600 text-[11px]">{r.lastFollowUpDate || "-"}</span>
+              </div>
+              
+              <div className="text-[10px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
+                {r.archiveNo}
               </div>
             </div>
 
@@ -175,7 +159,7 @@ export default function FollowUpsPage() {
           <TableRow>
             <TableHead>患者姓名</TableHead>
             <TableHead>档案信息</TableHead>
-            <TableHead>体检日期/编号</TableHead>
+            <TableHead>体检信息</TableHead>
             <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
             <TableHead>告知人/被通知人</TableHead>
             <TableHead>末次随访时间</TableHead>
@@ -189,16 +173,15 @@ export default function FollowUpsPage() {
             <TableRow key={r.anomalyId} className="hover:bg-muted/5 group">
               <TableCell>
                 <div className="flex flex-col">
-                  <span className="font-bold text-foreground text-xl">{r.patientName || "待补录"}</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="font-bold text-foreground text-xl leading-tight">{r.patientName || "待补录"}</span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
                     {r.patientGender} / {r.patientAge}岁
                   </span>
                 </div>
               </TableCell>
               <TableCell>
                 <div className="flex flex-col">
-                  <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                    <Phone className="size-3.5 text-muted-foreground" />
+                  <div className="text-sm font-bold text-foreground">
                     <span className="font-mono tracking-tighter">{r.patientPhone}</span>
                   </div>
                   <span className="text-[10px] font-mono text-muted-foreground mt-1">
@@ -209,13 +192,13 @@ export default function FollowUpsPage() {
               <TableCell>
                 <div className="flex flex-col">
                   <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
-                  <div className="text-[10px] text-muted-foreground font-mono mt-0.5">NO: {r.checkupNumber}</div>
+                  <div className="text-[10px] text-muted-foreground font-mono mt-1 uppercase opacity-70">NO: {r.checkupNumber}</div>
                 </div>
               </TableCell>
               <TableCell className="max-w-[400px]">
                 <div className="flex flex-col gap-1">
                   <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
-                    "h-4 text-[8px] px-1 w-fit",
+                    "h-4 text-[8px] px-1 w-fit font-black",
                     r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
                   )}>
                     {r.anomalyCategory}类
@@ -239,7 +222,7 @@ export default function FollowUpsPage() {
                   <Button variant="ghost" size="icon" asChild title="查看详情">
                     <Link href={`/follow-ups/detail/${r.anomalyId}`}><Eye className="size-4 text-primary" /></Link>
                   </Button>
-                  <Button variant="ghost" size="icon" asChild>
+                  <Button variant="ghost" size="icon" asChild title="查看病历轴">
                     <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4" /></Link>
                   </Button>
                 </div>
@@ -264,7 +247,6 @@ export default function FollowUpsPage() {
       </header>
 
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
         <Input 
           placeholder="搜索姓名、档案号、体检号..." 
