@@ -10,7 +10,10 @@ import {
   Phone,
   ChevronRight,
   History,
-  FileText
+  FileText,
+  CalendarDays,
+  Activity,
+  User
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -74,69 +77,77 @@ export default function FollowUpsPage() {
             r.anomalyCategory === 'A' ? "border-l-red-500" : "border-l-amber-500"
           )}
         >
-          <div className="p-6">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-xl font-bold text-foreground">{r.patientName || "待补录"}</h2>
-                <Badge variant="secondary" className="bg-muted text-muted-foreground font-medium">
-                  {r.patientGender} / {r.patientAge}岁
-                </Badge>
-                <Badge className={cn(
-                  "font-bold",
-                  r.anomalyCategory === 'A' ? "bg-red-50 text-red-700 border-red-100" : "bg-amber-50 text-amber-700 border-amber-100"
-                )}>
-                  {r.anomalyCategory}类异常
-                </Badge>
-                {r.nextFollowUpDate && (
-                  <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-sm font-bold border border-amber-100">
-                    <Clock className="size-4" />
-                    应随访日期: {r.nextFollowUpDate}
-                  </div>
-                )}
+          <div className="p-5">
+            {/* Top Row: All Key Info in One Line */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-4 pb-4 border-b">
+              <div className="flex items-center gap-2">
+                <User className="size-4 text-muted-foreground" />
+                <span className="text-lg font-bold text-foreground">{r.patientName || "待补录"}</span>
               </div>
-              <div className="flex flex-col gap-2 min-w-[160px]">
-                <Button asChild className="bg-primary hover:bg-primary/90 shadow-md">
-                  <Link href={`/follow-ups/${r.anomalyId}/record`} className="flex items-center justify-between w-full">
-                    录入随访结果 <ChevronRight className="size-4 ml-1" />
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild className="text-muted-foreground">
-                  <Link href={`/patients/${r.archiveNo}`}>
-                    查看病历全轴
-                  </Link>
-                </Button>
+              
+              <div className="text-sm text-muted-foreground font-medium">
+                {r.patientGender} / {r.patientAge}岁
+              </div>
+
+              <Badge className={cn(
+                "font-bold px-3 py-0.5",
+                r.anomalyCategory === 'A' ? "bg-red-50 text-red-700 border-red-100" : "bg-amber-50 text-amber-700 border-amber-100"
+              )}>
+                {r.anomalyCategory}类异常
+              </Badge>
+
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-xs font-bold border border-amber-100">
+                <Clock className="size-3.5" />
+                应随访日期: {r.nextFollowUpDate}
+              </div>
+
+              <div className={cn(
+                "text-base font-bold flex items-center gap-1.5",
+                r.anomalyCategory === 'A' ? "text-red-600" : "text-amber-600"
+              )}>
+                <Phone className="size-4" />
+                <span className="font-mono">{r.patientPhone}</span>
+              </div>
+
+              <div className="text-xs">
+                <span className="text-muted-foreground mr-1">体检号:</span>
+                <span className="font-mono font-bold">{r.checkupNumber}</span>
+              </div>
+
+              <div className="text-xs">
+                <span className="text-muted-foreground mr-1">发现日期:</span>
+                <span className="font-medium">{r.notificationDate}</span>
+              </div>
+
+              <div className="text-xs">
+                <span className="text-muted-foreground mr-1">最后随访:</span>
+                <span className="font-medium text-blue-600">{r.lastFollowUpDate || "-"}</span>
               </div>
             </div>
 
-            {/* Info Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-8 text-sm mb-6">
-              <div className="space-y-1">
-                <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-wider">档案号</p>
-                <p className="font-mono text-blue-600 font-bold">{r.archiveNo}</p>
+            {/* Bottom Row: Details and Actions side by side */}
+            <div className="flex gap-4 items-stretch">
+              <div className="flex-1 bg-muted/30 rounded-lg p-4 border border-muted-foreground/5 relative min-h-[80px]">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1.5 flex items-center gap-2">
+                  <Activity className="size-3" /> 重要异常发现详情
+                </p>
+                <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                  {r.anomalyDetails}
+                </p>
               </div>
-              <div className="space-y-1">
-                <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-wider">体检号</p>
-                <p className="font-mono">{r.checkupNumber}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-wider">联系电话</p>
-                <p className="font-mono font-bold text-base text-foreground">{r.patientPhone}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-wider">异常发现日期</p>
-                <p className="font-mono">{r.notificationDate}</p>
-              </div>
-            </div>
 
-            {/* Details Section */}
-            <div className="bg-muted/30 rounded-lg p-4 border border-muted-foreground/5">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2 flex items-center gap-2">
-                异常发现详情
-              </p>
-              <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
-                {r.anomalyDetails}
-              </p>
+              <div className="flex flex-col gap-2 shrink-0 w-44">
+                <Button asChild className="bg-primary hover:bg-primary/90 shadow-sm h-10 w-full">
+                  <Link href={`/follow-ups/${r.anomalyId}/record`} className="flex items-center justify-between">
+                    录入随访结果 <ChevronRight className="size-4" />
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild className="text-muted-foreground h-10 w-full border-dashed">
+                  <Link href={`/patients/${r.archiveNo}`} className="flex items-center justify-center gap-2">
+                    <History className="size-4" /> 查看病历档案
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -149,7 +160,7 @@ export default function FollowUpsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">随访任务管理中心</h1>
-          <p className="text-muted-foreground font-medium">MySQL 核心驱动 • 基于临床优先级分配</p>
+          <p className="text-muted-foreground font-medium">MySQL 核心驱动 • 紧凑型临床看板</p>
         </div>
         <Button onClick={loadData} variant="outline" className="gap-2 bg-white">
           <RefreshCcw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} /> 刷新任务池
@@ -159,7 +170,7 @@ export default function FollowUpsPage() {
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
         <Input 
-          placeholder="快速搜索姓名、体检号、档案号..." 
+          placeholder="搜索姓名、体检号..." 
           className="pl-12 h-14 bg-white shadow-sm text-lg border-primary/10 rounded-xl" 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}

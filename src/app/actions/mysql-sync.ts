@@ -1,3 +1,4 @@
+
 'use server';
 
 import mysql from 'mysql2/promise';
@@ -433,7 +434,8 @@ export async function fetchFollowUpTasks(config: any) {
     const sql = `SELECT rw.nextFollowUpDate, rw.anomalyId, 
                         y.checkupNumber, y.checkupDate, y.anomalyCategory, y.anomalyDetails,
                         y.notificationDate, y.notificationTime, y.notifier, y.notifiedPerson, y.isFollowUpRequired,
-                        p.archiveNo, p.name as patientName, p.gender as patientGender, p.age as patientAge, p.phoneNumber as patientPhone, p.status as patientStatus
+                        p.archiveNo, p.name as patientName, p.gender as patientGender, p.age as patientAge, p.phoneNumber as patientPhone, p.status as patientStatus,
+                        (SELECT MAX(followUpDate) FROM SP_SF WHERE associatedAnomalyId = y.id) as lastFollowUpDate
                  FROM SP_RW rw 
                  JOIN SP_YCJG y ON rw.anomalyId = y.id 
                  JOIN SP_PERSON p ON rw.archiveNo = p.archiveNo 
