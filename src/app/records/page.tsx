@@ -73,7 +73,7 @@ export default function RecordsPage() {
   const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null)
   const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
   const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const loadRecords = React.useCallback(async () => {
     setIsLoading(true)
@@ -181,6 +181,8 @@ export default function RecordsPage() {
     link.click()
   }
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
   return (
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
       <header className="flex justify-between items-center">
@@ -244,8 +246,8 @@ export default function RecordsPage() {
                           <span className="text-[10px] text-muted-foreground">
                             {r.patientGender} / {r.patientAge}岁
                           </span>
-                          <span className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-1.5">
-                            <Phone className="size-3" />
+                          <span className="text-base font-bold text-foreground flex items-center gap-1.5 mt-1.5">
+                            <Phone className="size-3.5" />
                             <span className="font-mono tracking-tighter">{r.patientPhone}</span>
                           </span>
                         </div>
@@ -383,7 +385,7 @@ export default function RecordsPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground">联系电话</p>
-                    <p className="font-mono font-bold text-foreground text-base tracking-tighter">{selectedRecord?.patientPhone || "-"}</p>
+                    <p className="font-mono font-bold text-foreground text-lg tracking-tighter">{selectedRecord?.patientPhone || "-"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground">档案状态</p>
