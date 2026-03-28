@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -10,7 +11,6 @@ import {
   ChevronRight,
   History,
   FileText,
-  Activity,
   User
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -77,49 +77,46 @@ export default function FollowUpsPage() {
           <div className="p-4">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
-                <User className="size-4 text-muted-foreground" />
-                <span className="text-base font-bold text-foreground">{r.patientName || "待补录"}</span>
+                <User className="size-5 text-muted-foreground" />
+                <span className="text-lg font-bold text-foreground">{r.patientName || "待补录"}</span>
               </div>
               
-              <div className="text-xs text-muted-foreground font-medium">
+              <div className="text-sm text-muted-foreground font-medium">
                 {r.patientGender} / {r.patientAge}岁
               </div>
 
               <Badge className={cn(
-                "font-bold px-2 py-0 text-[10px]",
+                "font-bold px-2 py-0.5 text-xs",
                 r.anomalyCategory === 'A' ? "bg-red-50 text-red-700 border-red-100" : "bg-blue-50 text-blue-700 border-blue-100"
               )}>
                 {r.anomalyCategory}类异常
               </Badge>
 
-              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-muted/50 text-muted-foreground rounded-full text-[10px] font-bold border">
-                <Clock className="size-3" />
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-700 rounded-md text-sm font-bold border border-orange-300 shadow-sm">
+                <Clock className="size-4" />
                 应随访日期: {r.nextFollowUpDate}
               </div>
 
-              <div className={cn(
-                "text-base font-bold flex items-center gap-1.5",
-                r.anomalyCategory === 'A' ? "text-red-600" : "text-blue-600"
-              )}>
-                <Phone className="size-4" />
+              <div className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                <Phone className="size-4 text-muted-foreground" />
                 <span className="font-mono tracking-tighter">{r.patientPhone}</span>
               </div>
 
-              <div className="text-[11px]">
+              <div className="text-sm text-foreground">
                 <span className="text-muted-foreground mr-1">体检号:</span>
                 <span className="font-mono font-bold">{r.checkupNumber}</span>
               </div>
 
-              <div className="text-[11px]">
+              <div className="text-sm">
                 <span className="text-muted-foreground mr-1">最后随访:</span>
-                <span className="font-medium text-blue-600">{r.lastFollowUpDate || "-"}</span>
+                <span className="font-bold text-green-600">{r.lastFollowUpDate || "-"}</span>
               </div>
             </div>
 
             <div className="flex gap-4 items-stretch">
               <div className="flex-1 bg-muted/20 rounded-lg p-3 border border-muted-foreground/5 relative min-h-[60px]">
                 <p 
-                  className="text-sm leading-relaxed text-foreground/80 truncate"
+                  className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap"
                   title={r.anomalyDetails}
                 >
                   {r.anomalyDetails}
@@ -150,7 +147,7 @@ export default function FollowUpsPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary">随访任务管理中心</h1>
-          <p className="text-muted-foreground font-medium">MySQL 核心驱动 • 紧凑型临床看板</p>
+          <p className="text-muted-foreground font-medium">MySQL 核心驱动 • 临床随访监控看板</p>
         </div>
         <Button onClick={loadData} variant="outline" className="gap-2 bg-white">
           <RefreshCcw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} /> 刷新任务池
