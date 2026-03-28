@@ -5,7 +5,7 @@
 
 ## 1. 数据库初始化 (MySQL 8.4)
 
-请在中心服务器执行以下 SQL 脚本以创建 7 张核心业务表及相关索引。
+请在中心服务器执行以下 SQL 脚本以创建 7 张核心业务表。
 
 ```sql
 CREATE DATABASE IF NOT EXISTS meditrack_db CHARACTER SET utf8mb4;
@@ -99,33 +99,28 @@ CREATE TABLE SP_CONFIG (
   pdfStoragePath TEXT DEFAULT 'C:\\HealthReports\\',
   authKey VARCHAR(50) DEFAULT 'HEALTH-INSIGHT-2025'
 );
-
--- 初始管理员：1058 (请注册后在数据库手动确认或通过系统直接注册)
 ```
 
 ## 2. 核心架构特性
 
-- **数据中心性**：100% 依赖 MySQL 8.4，不缓存业务数据，确保实时唯一。
-- **计算本地化**：所有年龄计算、告知率统计均由 Server Actions 在本地 Node.js 运行时执行。
-- **物理隔离**：程序不依赖任何互联网云端服务（如 Firebase），适配封闭医疗内网。
-- **自动算龄引擎**：内置 18 位身份证解析及基于体检周期的偏移算龄逻辑。
+- **数据中心性**：100% 依赖 MySQL 8.4，物理隔离 Firebase 云端。
+- **离线能力**：全业务逻辑在内网服务器端执行，不依赖任何公网 API。
+- **自动算龄引擎**：支持 18 位身份证自动解析及体检周期自增。
 
 ## 3. 部署指南
 
 ### Ubuntu 24.04 (推荐)
 1. 安装 Node.js 20+ 及 MySQL 8.4。
-2. 配置 MySQL 允许远程连接（如有需要）。
-3. 运行 `npm install`。
-4. 运行 `npm run build`。
-5. 执行 `npm start`。默认访问端口 `9002`。
+2. 运行 `npm install`。
+3. 运行 `npm run build`。
+4. 执行 `./start-app.sh`。
 
-### Windows (Windows 10/11/Server)
-1. 安装 Node.js 及 MySQL 8.4。
-2. 将项目解压至非中文路径。
-3. 在目录下执行 `npm install`。
-4. 运行 `npm run build`。
-5. 通过任务计划程序或 PM2 设置 `npm start` 自动运行。
+### Windows
+1. 安装 Node.js 20+ 及 MySQL 8.4。
+2. 运行 `npm install`。
+3. 执行 `npm run build`。
+4. 使用 `npm start` 启动。
 
 ## 4. 维护说明
-- **重置数据**：管理员可在“配置中心”->“系统维护”中一键清空临床数据或账户库。
-- **配置同步**：登录页一键配置数据库连接，配置将自动同步至全院终端。
+- **初始管理员**：请使用工号 `1058` 注册，系统将自动赋予管理员权限。
+- **注册密钥**：`HEALTH-INSIGHT-2025`。

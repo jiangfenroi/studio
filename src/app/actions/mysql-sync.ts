@@ -329,9 +329,6 @@ export async function fetchDashboardStats(config: any, selectedYear: number) {
 
 /**
  * 核心功能：全量档案算龄引擎
- * 逻辑：
- * 1. 优先解析 18 位身份证。
- * 2. 若无证，根据 SP_YCJG 中最近一次体检日期，满一年自动增加 1 岁。
  */
 export async function calculateAllAges(config: any) {
   let connection;
@@ -410,6 +407,17 @@ export async function savePdfMetadata(config: any, data: any) {
     const sql = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
     await connection.execute(sql, [pdfId, data.archiveNo, data.checkDate, data.reportCategory, data.fullPath]);
     return { success: true, pdfId };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deletePdfMetadata(config: any, id: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    await connection.execute('DELETE FROM SP_PDF WHERE id = ?', [id]);
+    return { success: true };
   } finally {
     if (connection) await connection.end();
   }
