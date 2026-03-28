@@ -21,6 +21,7 @@ import {
   Download,
   Upload,
   Edit,
+  Eye,
   Link as LinkIcon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -41,7 +42,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { FollowUpForm } from "@/components/forms/FollowUpForm"
 import { PdfUploadForm } from "@/components/forms/PdfUploadForm"
-import { AbnormalResultForm } from "@/components/forms/AbnormalResultForm"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +51,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { fetchPatientFullTimeline, deleteAnomalyRecord, deletePdfMetadata, deleteFollowUpRecord } from "@/app/actions/mysql-sync"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 export default function PatientProfilePage() {
   const params = useParams()
@@ -62,8 +63,6 @@ export default function PatientProfilePage() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isFollowUpOpen, setIsFollowUpOpen] = React.useState(false)
   const [isUploadOpen, setIsUploadOpen] = React.useState(false)
-  const [editingAnomaly, setEditingAnomaly] = React.useState<any>(null)
-  const [editingFollowUp, setEditingFollowUp] = React.useState<any>(null)
   
   const [recordToDelete, setRecordToDelete] = React.useState<any>(null)
   const [pdfToDelete, setPdfToDelete] = React.useState<any>(null)
@@ -137,7 +136,7 @@ export default function PatientProfilePage() {
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary flex items-center gap-3">
               {patient?.name || "未补录"}
-              <Badge variant="secondary" className="bg-primary/10 text-primary h-5 text-[10px]">档案号: {id}</Badge>
+              <Badge variant="secondary" className="bg-primary/10 text-primary h-5 text-[10px] font-mono">ID: {id}</Badge>
             </h1>
             <p className="text-xs text-muted-foreground mt-1">全生命周期病历档案驱动</p>
           </div>
@@ -192,17 +191,17 @@ export default function PatientProfilePage() {
                 </div>
                 <h2 className="text-xl font-bold">{patient?.name || "未补录"}</h2>
                 <div className="flex gap-2 mt-2">
-                  <Badge variant="outline" className="text-[10px]">{patient?.gender} / {patient?.age}岁</Badge>
-                  <Badge className={cn("text-[10px]", patient?.status === '正常' ? 'bg-green-500' : 'bg-red-500')}>{patient?.status}</Badge>
+                  <Badge variant="outline" className="text-[10px] font-bold">{patient?.gender} / {patient?.age}岁</Badge>
+                  <Badge className={cn("text-[10px] font-bold", patient?.status === '正常' ? 'bg-green-500' : 'bg-red-500')}>{patient?.status}</Badge>
                 </div>
-                <div className="text-[10px] font-mono text-muted-foreground mt-2 uppercase">ID: {id}</div>
+                <div className="text-[10px] font-mono text-muted-foreground mt-2 uppercase tracking-tighter">ARCHIVE NO: {id}</div>
               </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-5 text-sm">
               <div className="space-y-4">
                 <div className="flex items-start gap-3"><MapPin className="size-4 text-muted-foreground mt-1" /><p className="text-xs leading-relaxed">{patient?.address || "地址未登记"}</p></div>
                 <div className="flex items-start gap-3"><Building className="size-4 text-muted-foreground mt-1" /><p className="text-xs leading-relaxed">{patient?.organization || "单位未登记"}</p></div>
-                <div className="flex items-start gap-3"><Phone className="size-4 text-muted-foreground mt-1" /><p className="font-bold text-sm">{patient?.phoneNumber || "电话未登记"}</p></div>
+                <div className="flex items-start gap-3"><Phone className="size-4 text-primary mt-1" /><p className="font-bold text-sm">{patient?.phoneNumber || "电话未登记"}</p></div>
               </div>
             </CardContent>
           </Card>
@@ -220,7 +219,7 @@ export default function PatientProfilePage() {
                 {timeline.map((event: any, idx: number) => (
                   <div key={idx} className="relative group">
                     <div className={cn(
-                      "absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow flex items-center justify-center",
+                      "absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow flex items-center justify-center z-10",
                       event.type === 'abnormal' ? (event.anomalyCategory === 'A' ? 'bg-destructive' : 'bg-primary') : 'bg-green-600'
                     )}>
                       {event.type === 'abnormal' ? <AlertCircle className="size-4 text-white" /> : <Activity className="size-4 text-white" />}
@@ -230,11 +229,11 @@ export default function PatientProfilePage() {
                         <div className="flex flex-col gap-1">
                           <div className="text-sm font-bold text-foreground">
                             {event.checkupDate || event.followUpDate}
-                            <span className="text-[10px] font-mono text-muted-foreground ml-3 font-normal">
+                            <span className="text-[10px] font-mono text-muted-foreground ml-3 font-normal opacity-70">
                               {event.notificationTime || event.followUpTime}
                             </span>
                           </div>
-                          <h4 className="text-base font-bold text-primary/80">{event.type === 'abnormal' ? '重要异常发现' : '随访结果'}</h4>
+                          <h4 className="text-base font-bold text-primary/80">{event.type === 'abnormal' ? '重要异常发现' : '临床随访结果'}</h4>
                         </div>
                         <div className="flex items-center gap-2">
                           {event.anomalyCategory && (
@@ -246,28 +245,52 @@ export default function PatientProfilePage() {
                             </Badge>
                           )}
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {event.type === 'abnormal' ? (
-                                <DropdownMenuItem onSelect={() => setEditingAnomaly(event)}>
-                                  <Edit className="size-4 mr-2" /> 修改结果信息
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/records/${event.id}`} className="flex items-center">
+                                      <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
+                                    </Link>
+                                  </DropdownMenuItem>
+                                </>
                               ) : (
-                                <DropdownMenuItem onSelect={() => setEditingFollowUp(event)}>
-                                  <Edit className="size-4 mr-2" /> 修改随访信息
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/follow-ups/detail/${event.id}`} className="flex items-center">
+                                      <Eye className="size-4 mr-2 text-primary" /> 查看及修改详情
+                                    </Link>
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(event)}>
-                                <Trash2 className="size-4 mr-2" /> 删除记录
+                                <Trash2 className="size-4 mr-2" /> 撤销记录
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                       </div>
-                      <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap leading-relaxed border-l-2 border-primary/20">{event.anomalyDetails || event.followUpResult}</p>
+                      <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap leading-relaxed border-l-2 border-primary/20 shadow-inner">
+                        {event.anomalyDetails || event.followUpResult}
+                      </p>
+                      
+                      <div className="mt-3 flex justify-end">
+                         <Button variant="link" size="sm" asChild className="text-[11px] text-muted-foreground hover:text-primary p-0 h-auto">
+                            <Link href={event.type === 'abnormal' ? `/records/${event.id}` : `/follow-ups/detail/${event.id}`}>
+                              详情追溯 <ExternalLink className="size-3 ml-1" />
+                            </Link>
+                         </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
+                {timeline.length === 0 && (
+                   <div className="py-20 text-center text-muted-foreground border-2 border-dashed rounded-xl flex flex-col items-center gap-3">
+                     <History className="size-10 opacity-20" />
+                     暂无临床病史记录
+                   </div>
+                )}
               </div>
             </TabsContent>
 
@@ -296,42 +319,19 @@ export default function PatientProfilePage() {
         </div>
       </div>
 
-      <Dialog open={!!editingAnomaly} onOpenChange={(o) => !o && setEditingAnomaly(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>修改临床异常记录</DialogTitle></DialogHeader>
-          <AbnormalResultForm 
-            initialData={editingAnomaly} 
-            onSuccess={() => { setEditingAnomaly(null); loadData(); }} 
-          />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!editingFollowUp} onOpenChange={(o) => !o && setEditingFollowUp(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>修改随访结果记录</DialogTitle></DialogHeader>
-          <FollowUpForm 
-            archiveNo={id}
-            patientName={patient?.name}
-            anomalyRecordId={editingFollowUp?.associatedAnomalyId || ""}
-            initialData={editingFollowUp}
-            onSuccess={() => { setEditingFollowUp(null); loadData(); }} 
-          />
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={!!recordToDelete} onOpenChange={(o) => !o && setRecordToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除此条临床记录？</AlertDialogTitle>
+            <AlertDialogTitle>确认撤销此条临床记录？</AlertDialogTitle>
             <AlertDialogDescription>
               {recordToDelete?.type === 'abnormal' 
-                ? "此操作将永久移除异常结果及其关联的所有随访任务和历史，不可撤销。" 
-                : "此操作将永久移除单条随访结果。"}
+                ? "此操作将永久移除异常发现及其关联的所有随访任务和历史，不可撤销。" 
+                : "此操作将从数据库中永久移除该条随访结果。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteRecord} className="bg-destructive">确认删除</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteRecord} className="bg-destructive">确认撤销</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
