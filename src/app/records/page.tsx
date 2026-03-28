@@ -63,6 +63,7 @@ import { AbnormalResultForm } from "@/components/forms/AbnormalResultForm"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { fetchAllRecords, deleteAnomalyRecord, bulkImportAnomalyRecords } from "@/app/actions/mysql-sync"
+import { cn } from "@/lib/utils"
 
 export default function RecordsPage() {
   const { toast } = useToast()
