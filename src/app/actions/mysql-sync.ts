@@ -534,13 +534,17 @@ export async function clearAllClinicalData(config: any) {
   try {
     connection = await getConnection(config);
     await connection.execute('SET FOREIGN_KEY_CHECKS = 0');
-    await connection.execute('TRUNCATE TABLE SP_SF');
-    await connection.execute('TRUNCATE TABLE SP_RW');
-    await connection.execute('TRUNCATE TABLE SP_YCJG');
-    await connection.execute('TRUNCATE TABLE SP_PERSON');
-    await connection.execute('TRUNCATE TABLE SP_PDF');
+    // 使用 DELETE FROM 替代 TRUNCATE 以确保更好的兼容性和权限适应性
+    await connection.execute('DELETE FROM SP_SF');
+    await connection.execute('DELETE FROM SP_RW');
+    await connection.execute('DELETE FROM SP_PDF');
+    await connection.execute('DELETE FROM SP_YCJG');
+    await connection.execute('DELETE FROM SP_PERSON');
     await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
     return { success: true };
+  } catch (err: any) {
+    console.error('Clear clinical data error:', err);
+    throw new Error(`重置临床数据失败: ${err.message}`);
   } finally {
     if (connection) await connection.end();
   }
@@ -550,8 +554,11 @@ export async function clearAllStaffData(config: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    await connection.execute('TRUNCATE TABLE SP_STAFF');
+    await connection.execute('DELETE FROM SP_STAFF');
     return { success: true };
+  } catch (err: any) {
+    console.error('Clear staff data error:', err);
+    throw new Error(`重置账户数据失败: ${err.message}`);
   } finally {
     if (connection) await connection.end();
   }
