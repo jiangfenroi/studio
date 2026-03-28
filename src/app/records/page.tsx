@@ -231,7 +231,7 @@ export default function RecordsPage() {
                 <TableRow key={r.id} className="hover:bg-muted/5 group">
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-bold text-foreground text-lg">{r.patientName || "待补录"}</span>
+                      <span className="font-bold text-foreground text-xl">{r.patientName || "待补录"}</span>
                       {r.patientName && (
                         <div className="flex flex-col mt-0.5">
                           <span className="text-[10px] text-muted-foreground">
@@ -242,17 +242,21 @@ export default function RecordsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-[11px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
-                      {r.archiveNo}
-                    </span>
-                    <div className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-1.5">
-                      <Phone className="size-3.5 text-muted-foreground" />
-                      <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                    <div className="flex flex-col">
+                      <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                        <Phone className="size-3.5 text-muted-foreground" />
+                        <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground mt-1">
+                        {r.archiveNo}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">NO: {r.checkupNumber}</div>
+                    <div className="flex flex-col">
+                      <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono mt-0.5">NO: {r.checkupNumber}</div>
+                    </div>
                   </TableCell>
                   <TableCell className="max-w-[400px]">
                     <div className="flex flex-col gap-1">
