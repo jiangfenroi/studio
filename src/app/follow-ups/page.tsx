@@ -109,14 +109,14 @@ export default function FollowUpsPage() {
             <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
                 <span className="text-xl font-bold text-foreground">{r.patientName || "待补录"}</span>
-                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                <span className="text-sm font-medium text-muted-foreground">
                   {r.patientGender} / {r.patientAge}岁
                 </span>
               </div>
               
               <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
                 "font-bold text-[10px] h-5",
-                r.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
+                r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
               )}>
                 {r.anomalyCategory}类异常
               </Badge>
@@ -131,9 +131,9 @@ export default function FollowUpsPage() {
                 <span className="font-mono tracking-tighter">{r.patientPhone}</span>
               </div>
 
-              <div className="text-sm text-foreground">
+              <div className="text-sm">
                 <span className="text-muted-foreground mr-1 font-normal">体检号:</span>
-                <span className="font-mono font-bold">{r.checkupNumber}</span>
+                <span className="font-mono font-bold text-foreground">{r.checkupNumber}</span>
               </div>
 
               <div className="text-sm">
@@ -175,7 +175,7 @@ export default function FollowUpsPage() {
           <TableRow>
             <TableHead>患者姓名</TableHead>
             <TableHead>档案信息</TableHead>
-            <TableHead>体检编号/日期</TableHead>
+            <TableHead>体检日期/编号</TableHead>
             <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
             <TableHead>告知人/被通知人</TableHead>
             <TableHead>末次随访时间</TableHead>
@@ -190,7 +190,7 @@ export default function FollowUpsPage() {
               <TableCell>
                 <div className="flex flex-col">
                   <span className="font-bold text-foreground text-lg">{r.patientName || "待补录"}</span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     {r.patientGender} / {r.patientAge}岁
                   </span>
                 </div>
@@ -199,20 +199,20 @@ export default function FollowUpsPage() {
                 <span className="text-[11px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
                   {r.archiveNo}
                 </span>
-                <div className="text-base font-bold text-foreground flex items-center gap-1.5 mt-1.5">
+                <div className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-1.5">
                   <Phone className="size-3.5 text-muted-foreground" />
                   <span className="font-mono tracking-tighter">{r.patientPhone}</span>
                 </div>
               </TableCell>
               <TableCell>
-                <div className="text-xs font-mono">{r.checkupNumber}</div>
-                <div className="text-[10px] text-muted-foreground">体检: {r.checkupDate}</div>
+                <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">NO: {r.checkupNumber}</div>
               </TableCell>
               <TableCell className="max-w-[400px]">
                 <div className="flex flex-col gap-1">
                   <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
                     "h-4 text-[8px] px-1 w-fit",
-                    r.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
+                    r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
                   )}>
                     {r.anomalyCategory}类
                   </Badge>

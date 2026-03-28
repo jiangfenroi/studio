@@ -215,7 +215,7 @@ export default function RecordsPage() {
               <TableRow>
                 <TableHead>患者姓名</TableHead>
                 <TableHead>档案信息</TableHead>
-                <TableHead>体检编号/日期</TableHead>
+                <TableHead>体检日期/编号</TableHead>
                 <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
                 <TableHead>告知人/被通知人</TableHead>
                 <TableHead>随访状态</TableHead>
@@ -251,15 +251,15 @@ export default function RecordsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="text-xs font-mono">{r.checkupNumber}</div>
-                    <div className="text-[10px] text-muted-foreground">体检: {r.checkupDate}</div>
+                    <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">NO: {r.checkupNumber}</div>
                   </TableCell>
                   <TableCell className="max-w-[400px]">
                     <div className="flex flex-col gap-1">
                       <div className="flex gap-1">
                         <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
                           "h-4 text-[8px] px-1",
-                          r.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
+                          r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
                         )}>
                           {r.anomalyCategory}类
                         </Badge>
