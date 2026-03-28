@@ -142,12 +142,12 @@ export default function RecordsPage() {
           archiveNo: cols[0],
           checkupNumber: cols[1],
           checkupDate: cols[2],
-          anomalyCategory: cols[3] as 'A' | 'B',
+          anomalyCategory: (cols[3] || 'A') as 'A' | 'B',
           anomalyDetails: cols[4],
           notificationDate: cols[5],
           notificationTime: cols[6],
           isNotified: cols[7] === '是' || cols[7] === '1',
-          isHealthEducationProvided: cols[8] === '是' || cols[8] === '1',
+          isHealthEducationProvided: cols[8] === '是' || cols[8] === '1' || cols[8] === '',
           notifier: cols[9],
           notifiedPerson: cols[10],
           disposalSuggestions: cols[11],
@@ -172,7 +172,7 @@ export default function RecordsPage() {
 
   const downloadTemplate = () => {
     const headers = "档案编号(必填),体检编号(必填),体检日期(必填),种类(必填:A/B),异常详情(必填),通知日期(必填),通知时间(必填),是否告知(必填:是/否),是否宣教(选填:是/否),通知人(必填),被通知人(必填),处置意见(必填),被通知人反馈(选填)"
-    const example = "D0001,202501010001,2025-01-01,A,血压偏高,2025-01-02,09:30,是,是,张医生,患者本人,建议复查,知道了"
+    const example = "D0001,202501010001,2025-01-01,A,血压偏高,2025-01-02,09:30,是,是,张医生,患者本人,建议复查,知道了，近期去复诊"
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -307,17 +307,21 @@ export default function RecordsPage() {
                 <div className="space-y-3 pl-2 border-l-2 border-primary/20">
                   <div>
                     <p className="font-bold text-destructive mb-1">必填项：</p>
-                    <p className="opacity-80 leading-relaxed">档案编号、体检编号、体检日期、种类(A/B)、异常详情、通知日期、通知时间、是否告知、通知人、被通知人、处置意见</p>
+                    <p className="opacity-80 leading-relaxed text-[11px]">
+                      1.档案编号 2.体检编号 3.体检日期 4.种类(A/B) 5.异常详情 6.通知日期 7.通知时间 8.是否告知 10.通知人 11.被通知人 12.处置意见
+                    </p>
                   </div>
                   <div>
                     <p className="font-bold text-muted-foreground mb-1">选填项：</p>
-                    <p className="opacity-80 leading-relaxed">是否宣教(默认是)、被通知人反馈</p>
+                    <p className="opacity-80 leading-relaxed text-[11px]">
+                      9.是否宣教(留空默认是)、13.被通知人反馈(录入沟通记录)
+                    </p>
                   </div>
                 </div>
               </ScrollArea>
               <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
                 <AlertCircle className="size-3 inline mr-1" />
-                提示：导入后系统会自动为每一条异常发现创建 7 日随访任务。若档案不存在将自动创建占位。
+                提示：导入后系统会自动为每一条异常发现创建 7 日随访任务。若档案不存在将自动创建占位。支持空列兼容导入。
               </p>
             </div>
             

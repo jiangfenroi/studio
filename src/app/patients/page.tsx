@@ -111,12 +111,12 @@ export default function PatientsPage() {
         return {
           archiveNo: cols[0],
           name: cols[1],
-          gender: cols[2],
+          gender: cols[2] || "男",
           age: parseInt(cols[3]) || 0,
-          idNumber: cols[4],
-          phoneNumber: cols[5],
-          organization: cols[6],
-          address: cols[7],
+          idNumber: cols[4] || "",
+          phoneNumber: cols[5] || "",
+          organization: cols[6] || "",
+          address: cols[7] || "",
           status: cols[8] || '正常'
         }
       }).filter(p => p.archiveNo)
@@ -220,12 +220,12 @@ export default function PatientsPage() {
                 <FileText className="size-3" /> 字段填写指引：
               </p>
               <div className="space-y-1.5 pl-2 border-l-2 border-primary/20">
-                <p><span className="font-bold text-destructive">必填项：</span>档案编号、姓名、电话</p>
-                <p><span className="font-bold text-muted-foreground">选填项：</span>性别、年龄、身份证号、单位、地址、状态</p>
+                <p><span className="font-bold text-destructive">必填项：</span>1.档案编号 2.姓名 6.电话</p>
+                <p><span className="font-bold text-muted-foreground">选填项：</span>3.性别 4.年龄 5.身份证号 7.单位 8.地址 9.状态</p>
               </div>
               <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
                 <AlertCircle className="size-3 inline mr-1" />
-                注：若档案编号重复将自动更新。选填列若无数据请保持单元格为空。
+                注：若档案编号重复将自动更新。选填列若无数据请保持单元格为空。支持空列兼容。
               </p>
             </div>
             
