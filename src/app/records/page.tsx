@@ -20,7 +20,8 @@ import {
   Link as LinkIcon,
   Upload,
   FileSpreadsheet,
-  Download
+  Download,
+  AlertCircle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -170,12 +171,12 @@ export default function RecordsPage() {
   }
 
   const downloadTemplate = () => {
-    const headers = "档案编号,体检编号(12位),体检日期(YYYY-MM-DD),种类(A/B),异常详情,通知日期,通知时间,是否告知(是/否),是否宣教(是/否),通知人,被通知人,处置意见,被通知人反馈"
+    const headers = "档案编号(必填),体检编号(必填),体检日期(必填),种类(必填:A/B),异常详情(必填),通知日期(必填),通知时间(必填),是否告知(必填:是/否),是否宣教(选填:是/否),通知人(必填),被通知人(必填),处置意见(必填),被通知人反馈(选填)"
     const example = "D0001,202501010001,2025-01-01,A,血压偏高,2025-01-02,09:30,是,是,张医生,患者本人,建议复查,知道了"
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
-    link.download = "重要异常结果导入模板.csv"
+    link.download = "重要异常结果批量导入模板.csv"
     link.click()
   }
 
@@ -295,19 +296,34 @@ export default function RecordsPage() {
       <Dialog open={isImporting} onOpenChange={setIsImporting}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>批量导入异常结果记录</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="size-5 text-primary" /> 批量导入异常发现</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-4 bg-muted/50 rounded-lg text-[10px] space-y-2">
+          <div className="space-y-4 py-2">
+            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-3">
               <p className="font-bold text-primary flex items-center gap-2">
-                <FileText className="size-3" /> CSV 导入说明
+                <FileText className="size-3" /> CSV 字段填写指引：
               </p>
-              <p className="font-mono break-all text-xs opacity-80">档案编号, 体检编号, 体检日期, 种类(A/B), 异常详情, 通知日期, 通知时间, 是否告知, 是否宣教, 通知人, 被通知人, 处置意见, 被通知人反馈</p>
-              <p className="text-muted-foreground italic mt-2">提示：系统会自动根据导入记录创建 7 日随访任务。若档案号不存在，将自动占位创建。</p>
+              <ScrollArea className="h-48 pr-3">
+                <div className="space-y-3 pl-2 border-l-2 border-primary/20">
+                  <div>
+                    <p className="font-bold text-destructive mb-1">必填项：</p>
+                    <p className="opacity-80 leading-relaxed">档案编号、体检编号、体检日期、种类(A/B)、异常详情、通知日期、通知时间、是否告知、通知人、被通知人、处置意见</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-muted-foreground mb-1">选填项：</p>
+                    <p className="opacity-80 leading-relaxed">是否宣教(默认是)、被通知人反馈</p>
+                  </div>
+                </div>
+              </ScrollArea>
+              <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
+                <AlertCircle className="size-3 inline mr-1" />
+                提示：导入后系统会自动为每一条异常发现创建 7 日随访任务。若档案不存在将自动创建占位。
+              </p>
             </div>
+            
             <div className="flex flex-col gap-3">
-              <Button variant="outline" className="w-full gap-2 border-dashed" onClick={downloadTemplate}>
-                <Download className="size-4" /> 下载标准导入模板
+              <Button variant="outline" className="w-full gap-2 border-dashed h-12" onClick={downloadTemplate}>
+                <Download className="size-4" /> 下载标准导入模板 (.csv)
               </Button>
               <input 
                 type="file" 
@@ -316,8 +332,8 @@ export default function RecordsPage() {
                 className="hidden" 
                 accept=".csv"
               />
-              <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
-                <FileSpreadsheet className="size-4" /> 选择并上传 CSV 文件
+              <Button className="w-full h-12 gap-2 bg-primary shadow-lg" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="size-4" /> 选择并上传填写好的文件
               </Button>
             </div>
           </div>

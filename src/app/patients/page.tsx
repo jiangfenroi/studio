@@ -13,7 +13,9 @@ import {
   Calculator,
   Download,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText,
+  AlertCircle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -23,13 +25,12 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { fetchPatients, syncPatientToMysql, calculateAllAges, bulkImportPatients } from "@/app/actions/mysql-sync"
+import Link from "next/link"
 
 const patientSchema = z.object({
   id: z.string().min(1, "档案编号不能为空"),
@@ -136,12 +137,12 @@ export default function PatientsPage() {
   }
 
   const downloadTemplate = () => {
-    const headers = "档案编号,姓名,性别,年龄,身份证号,电话,单位,地址,状态"
+    const headers = "档案编号(必填),姓名(必填),性别(选填),年龄(选填),身份证号(选填),电话(必填),单位(选填),地址(选填),状态(选填:正常/死亡/无法联系)"
     const example = "D0001,张三,男,45,110101198001011234,13800138000,某某公司,某某街道,正常"
     const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
-    link.download = "个人档案导入模板.csv"
+    link.download = "个人档案批量导入模板.csv"
     link.click()
   }
 
@@ -211,17 +212,26 @@ export default function PatientsPage() {
       <Dialog open={isImporting} onOpenChange={setIsImporting}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>批量导入患者档案</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="size-5 text-primary" /> 批量导入个人档案</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-2">
-              <p className="font-bold text-primary">CSV 导入列顺序：</p>
-              <p className="font-mono opacity-80">档案编号, 姓名, 性别, 年龄, 身份证号, 电话, 单位, 地址, 状态</p>
-              <p className="text-muted-foreground italic text-[10px] mt-2">注：若档案编号重复将自动更新。允许部分非必填列为空。</p>
+          <div className="space-y-4 py-2">
+            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-3">
+              <p className="font-bold text-primary flex items-center gap-2">
+                <FileText className="size-3" /> 字段填写指引：
+              </p>
+              <div className="space-y-1.5 pl-2 border-l-2 border-primary/20">
+                <p><span className="font-bold text-destructive">必填项：</span>档案编号、姓名、电话</p>
+                <p><span className="font-bold text-muted-foreground">选填项：</span>性别、年龄、身份证号、单位、地址、状态</p>
+              </div>
+              <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
+                <AlertCircle className="size-3 inline mr-1" />
+                注：若档案编号重复将自动更新。选填列若无数据请保持单元格为空。
+              </p>
             </div>
+            
             <div className="flex flex-col gap-3">
-              <Button variant="outline" className="w-full gap-2 border-dashed" onClick={downloadTemplate}>
-                <Download className="size-4" /> 下载档案导入模板
+              <Button variant="outline" className="w-full gap-2 border-dashed h-12" onClick={downloadTemplate}>
+                <Download className="size-4" /> 下载标准导入模板 (.csv)
               </Button>
               <input 
                 type="file" 
@@ -230,8 +240,8 @@ export default function PatientsPage() {
                 className="hidden" 
                 accept=".csv"
               />
-              <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
-                <FileSpreadsheet className="size-4" /> 选择并上传 CSV 文件
+              <Button className="w-full h-12 gap-2 bg-primary shadow-lg" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="size-4" /> 选择并上传填写好的文件
               </Button>
             </div>
           </div>
