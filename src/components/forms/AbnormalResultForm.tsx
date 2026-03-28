@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { FileText, CheckCircle2, Loader2, AlertCircle, Upload, Link as LinkIcon, CalendarDays, MessageSquareText } from "lucide-react"
+import { FileText, CheckCircle2, Loader2, Upload, Link as LinkIcon, CalendarDays, MessageSquareText } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { saveAnomalyResult, updateAnomalyResult } from "@/app/actions/mysql-sync"
 import { PdfUploadForm } from "./PdfUploadForm"
@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
 const formSchema = z.object({
@@ -159,36 +159,36 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Card className="shadow-lg border-primary/10">
-          <CardHeader className="bg-primary/5">
-            <CardTitle className="flex items-center gap-2">
+        <Card className="shadow-sm border-primary/10 overflow-hidden">
+          <CardHeader className="bg-primary/5 py-4">
+            <CardTitle className="flex items-center gap-2 text-lg font-bold">
               <FileText className="size-5 text-primary" /> 
-              {readOnly ? '记录详情预览' : initialData ? '修改记录信息' : '重要异常结果登记'}
+              {readOnly ? '临床记录追溯' : initialData ? '修改记录详情' : '重要异常结果登记'}
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
             <FormField control={form.control} name="archiveNo" render={({ field }) => (
-              <FormItem><FormLabel>档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} disabled={!!initialData || readOnly} /></FormControl></FormItem>
+              <FormItem><FormLabel className="text-xs font-semibold text-muted-foreground uppercase">档案编号</FormLabel><FormControl><Input placeholder="D123..." {...field} className="h-9 text-sm" disabled={!!initialData || readOnly} /></FormControl></FormItem>
             )} />
             <FormField control={form.control} name="checkupNumber" render={({ field }) => (
-              <FormItem><FormLabel>体检编号 (12位)</FormLabel><FormControl><Input maxLength={12} {...field} disabled={readOnly} /></FormControl></FormItem>
+              <FormItem><FormLabel className="text-xs font-semibold text-muted-foreground uppercase">体检编号</FormLabel><FormControl><Input maxLength={12} {...field} className="h-9 text-sm font-mono" disabled={readOnly} /></FormControl></FormItem>
             )} />
             <FormField control={form.control} name="checkupDate" render={({ field }) => (
-              <FormItem><FormLabel>体检日期</FormLabel><FormControl><Input type="date" {...field} disabled={readOnly} /></FormControl></FormItem>
+              <FormItem><FormLabel className="text-xs font-semibold text-muted-foreground uppercase">体检日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
             )} />
             
             <FormField control={form.control} name="anomalyCategory" render={({ field }) => (
               <FormItem className="col-span-full">
-                <FormLabel>异常结果种类</FormLabel>
+                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase">异常结果种类</FormLabel>
                 <FormControl>
                   <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4" disabled={readOnly}>
-                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50">
+                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                       <FormControl><RadioGroupItem value="A" /></FormControl>
-                      <FormLabel className="font-bold text-destructive">A类 (危急干预)</FormLabel>
+                      <FormLabel className="font-bold text-destructive text-sm cursor-pointer">A类 (危急干预)</FormLabel>
                     </FormItem>
-                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50">
+                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                       <FormControl><RadioGroupItem value="B" /></FormControl>
-                      <FormLabel className="font-bold text-primary">B类 (进一步检查)</FormLabel>
+                      <FormLabel className="font-bold text-primary text-sm cursor-pointer">B类 (进一步检查)</FormLabel>
                     </FormItem>
                   </RadioGroup>
                 </FormControl>
@@ -196,35 +196,45 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
             )} />
 
             <FormField control={form.control} name="anomalyDetails" render={({ field }) => (
-              <FormItem className="col-span-full"><FormLabel>异常结果详情</FormLabel><FormControl><Textarea {...field} disabled={readOnly} /></FormControl></FormItem>
+              <FormItem className="col-span-full">
+                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase">医学发现/异常详情</FormLabel>
+                <FormControl><Textarea {...field} className="min-h-[140px] text-sm leading-relaxed" disabled={readOnly} /></FormControl>
+              </FormItem>
             )} />
             <FormField control={form.control} name="disposalSuggestions" render={({ field }) => (
-              <FormItem className="col-span-full"><FormLabel>处置意见</FormLabel><FormControl><Textarea {...field} disabled={readOnly} /></FormControl></FormItem>
+              <FormItem className="col-span-full">
+                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase">临床处置意见</FormLabel>
+                <FormControl><Textarea {...field} className="min-h-[100px] text-sm leading-relaxed" disabled={readOnly} /></FormControl>
+              </FormItem>
             )} />
 
             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/20 p-6 rounded-xl border border-dashed border-primary/20">
               <div className="space-y-4">
-                <h4 className="font-bold text-sm flex items-center gap-2"><CheckCircle2 className="size-4 text-primary" /> 告知与反馈</h4>
+                <h4 className="font-bold text-xs uppercase tracking-wider text-primary flex items-center gap-2">
+                  <CheckCircle2 className="size-4" /> 告知与反馈状态
+                </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="notifier" render={({ field }) => (
-                    <FormItem><FormLabel>通知人</FormLabel><FormControl><Input {...field} disabled={readOnly} /></FormControl></FormItem>
+                    <FormItem><FormLabel className="text-[10px] font-bold">通知人</FormLabel><FormControl><Input {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="notifiedPerson" render={({ field }) => (
-                    <FormItem><FormLabel>被通知人</FormLabel><FormControl><Input {...field} disabled={readOnly} /></FormControl></FormItem>
+                    <FormItem><FormLabel className="text-[10px] font-bold">被通知人</FormLabel><FormControl><Input {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
                   )} />
                 </div>
               </div>
 
               <div className="space-y-4">
-                <h4 className="font-bold text-sm flex items-center gap-2"><Upload className="size-4 text-primary" /> 原始报告关联 (PDF)</h4>
+                <h4 className="font-bold text-xs uppercase tracking-wider text-primary flex items-center gap-2">
+                  <Upload className="size-4" /> 原始报告关联 (PDF)
+                </h4>
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     <FormField control={form.control} name="pdfId" render={({ field }) => (
                       <FormItem className="flex-1">
                         <FormControl>
                           <div className="relative">
-                            <LinkIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-                            <Input placeholder="尚未关联报告编号" {...field} readOnly className="pl-9 bg-white" />
+                            <LinkIcon className="absolute left-2.5 top-2 size-4 text-muted-foreground" />
+                            <Input placeholder="尚未关联报告编号" {...field} readOnly className="pl-9 h-9 text-sm bg-white" />
                           </div>
                         </FormControl>
                       </FormItem>
@@ -232,8 +242,8 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
                     {!readOnly && (
                       <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button type="button" variant="outline" className="gap-2 shadow-sm" disabled={!watchArchiveNo}>
-                            <Upload className="size-4" /> 上传并关联
+                          <Button type="button" variant="outline" size="sm" className="h-9 gap-2 shadow-sm" disabled={!watchArchiveNo}>
+                            <Upload className="size-4" /> 上传
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl">
@@ -244,47 +254,49 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
                     )}
                   </div>
                   {form.watch("pdfId") && (
-                    <Badge variant="secondary" className="w-fit gap-1.5 py-1 px-3 bg-green-50 text-green-700 border-green-200">
-                      <CheckCircle2 className="size-3.5" /> 已成功关联报告 ID: {form.watch("pdfId")}
+                    <Badge variant="secondary" className="w-fit gap-1.5 py-1 px-3 bg-green-50 text-green-700 border-green-200 text-[10px] font-bold">
+                      <CheckCircle2 className="size-3" /> 已关联 ID: {form.watch("pdfId")}
                     </Badge>
                   )}
                 </div>
               </div>
 
-              <div className="col-span-full">
+              <div className="col-span-full border-t border-primary/10 pt-4">
                 <FormField control={form.control} name="notifiedPersonFeedback" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-1"><MessageSquareText className="size-3 text-muted-foreground" /> 被通知人反馈内容</FormLabel>
-                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="h-24 bg-white" {...field} disabled={readOnly} /></FormControl>
+                    <FormLabel className="text-[10px] font-bold flex items-center gap-1">
+                      <MessageSquareText className="size-3 text-muted-foreground" /> 被通知人反馈内容
+                    </FormLabel>
+                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="min-h-[80px] text-sm leading-relaxed bg-white" {...field} disabled={readOnly} /></FormControl>
                   </FormItem>
                 )} />
               </div>
             </div>
 
-            <div className="col-span-full grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="col-span-full grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-2">
               <FormField control={form.control} name="notificationDate" render={({ field }) => (
-                <FormItem><FormLabel>通知日期</FormLabel><FormControl><Input type="date" {...field} disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-[10px] font-bold">通知日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="notificationTime" render={({ field }) => (
-                <FormItem><FormLabel>通知时间</FormLabel><FormControl><Input type="time" {...field} disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-[10px] font-bold">通知时间</FormLabel><FormControl><Input type="time" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
               )} />
               
-              <div className="space-y-2">
-                <FormLabel className="text-primary font-bold flex items-center gap-1">
-                  下次随访日期 (预设+7日)
+              <div className="space-y-1.5">
+                <FormLabel className="text-primary font-black text-[10px] uppercase flex items-center gap-1">
+                  下次随访任务 (预设+7日)
                 </FormLabel>
-                <div className="flex items-center gap-2 h-10 px-3 bg-primary/5 border border-primary/20 rounded-md text-primary font-mono text-sm shadow-inner">
-                  <CalendarDays className="size-4" />
+                <div className="flex items-center gap-2 h-9 px-3 bg-primary/5 border border-primary/20 rounded-md text-primary font-bold text-xs shadow-inner">
+                  <CalendarDays className="size-4 opacity-70" />
                   {nextFollowUpDateDisplay}
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 pb-1 h-10">
+              <div className="flex items-center gap-6 pb-2 h-9 justify-end">
                 <FormField control={form.control} name="isNotified" render={({ field }) => (
-                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} /></FormControl><FormLabel className="text-xs">已通知</FormLabel></FormItem>
+                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className="scale-75" /></FormControl><FormLabel className="text-[10px] font-bold">已告知</FormLabel></FormItem>
                 )} />
                 <FormField control={form.control} name="isHealthEducationProvided" render={({ field }) => (
-                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} /></FormControl><FormLabel className="text-xs">已宣教</FormLabel></FormItem>
+                  <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className="scale-75" /></FormControl><FormLabel className="text-[10px] font-bold">已宣教</FormLabel></FormItem>
                 )} />
               </div>
             </div>
@@ -292,10 +304,10 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
         </Card>
 
         {!readOnly && (
-          <div className="flex justify-end gap-4 pb-6">
-            <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white h-12" disabled={isSyncing}>
+          <div className="flex justify-end gap-4 pb-10">
+            <Button type="submit" size="lg" className="px-12 shadow-md bg-primary hover:bg-primary/90 text-white font-bold h-12" disabled={isSyncing}>
               {isSyncing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="size-5 mr-2" />}
-              {initialData ? '确认修改信息' : '完成登记并前往档案补录'}
+              {initialData ? '保存修改并同步' : '完成登记并同步库'}
             </Button>
           </div>
         )}

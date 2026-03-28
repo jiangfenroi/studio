@@ -115,28 +115,28 @@ export default function FollowUpsPage() {
         <div 
           key={r.anomalyId} 
           className={cn(
-            "bg-white rounded-xl shadow-sm border border-l-4 transition-all hover:shadow-md",
+            "bg-white rounded-xl shadow-sm border border-l-4 transition-all hover:shadow-md overflow-hidden",
             r.anomalyCategory === 'A' ? "border-l-destructive" : "border-l-primary"
           )}
         >
-          <div className="p-4">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3 pb-3 border-b">
-              <div className="flex items-center gap-2">
+          <div className="p-5">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mb-4 pb-4 border-b">
+              <div className="flex items-center gap-3">
                 <span className="text-xl font-bold text-foreground leading-none">{r.patientName || "待补录"}</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold opacity-60">
                   {r.patientGender} / {r.patientAge}岁
                 </span>
               </div>
               
               <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
-                "font-bold text-[10px] h-5",
+                "font-black text-[9px] h-4 px-1.5 tracking-tighter",
                 r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
               )}>
                 {r.anomalyCategory}类异常
               </Badge>
 
               <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-700 rounded-md text-sm font-bold border border-orange-300 shadow-sm">
-                应随访日期: {r.nextFollowUpDate}
+                应随访: {r.nextFollowUpDate}
               </div>
 
               <div className="text-sm font-bold text-foreground">
@@ -145,40 +145,40 @@ export default function FollowUpsPage() {
 
               <div className="flex flex-col">
                 <div className="text-sm font-bold text-foreground">{r.checkupDate}</div>
-                <div className="text-[10px] text-muted-foreground font-mono uppercase opacity-70">NO: {r.checkupNumber}</div>
+                <div className="text-[10px] text-muted-foreground font-mono uppercase opacity-50">NO: {r.checkupNumber}</div>
               </div>
 
               <div className="flex flex-col">
                 <div className="text-sm font-bold text-foreground">{r.notificationDate}</div>
-                <div className="text-[10px] text-muted-foreground">告知: {r.notifier} / 被告知: {r.notifiedPerson}</div>
+                <div className="text-[10px] text-muted-foreground opacity-50">通知: {r.notifier} / {r.notifiedPerson}</div>
               </div>
 
               <div className="text-sm">
-                <span className="text-muted-foreground mr-1 font-normal text-[10px]">末次随访:</span>
-                <span className="font-bold text-green-600 text-[10px]">{r.lastFollowUpDate || "-"}</span>
+                <span className="text-muted-foreground mr-2 font-medium text-[10px] uppercase">末次随访:</span>
+                <span className="font-bold text-green-600 text-sm">{r.lastFollowUpDate || "-"}</span>
               </div>
               
-              <div className="text-[10px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
+              <div className="text-[10px] font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded ml-auto">
                 {r.archiveNo}
               </div>
             </div>
 
-            <div className="flex gap-4 items-stretch">
-              <div className="flex-1 bg-muted/20 rounded-lg p-3 border border-muted-foreground/5 relative min-h-[60px]">
-                <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+            <div className="flex gap-6 items-start">
+              <div className="flex-1 bg-muted/10 rounded-xl p-4 border border-primary/5 relative min-h-[80px]">
+                <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap font-medium">
                   {r.anomalyDetails}
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 shrink-0 w-40 justify-center">
-                <Button asChild size="sm" className="bg-primary hover:bg-primary/90 shadow-sm h-9 w-full">
+              <div className="flex flex-col gap-2 shrink-0 w-44">
+                <Button asChild size="lg" className="bg-primary hover:bg-primary/90 shadow-md h-11 w-full font-bold">
                   <Link href={`/follow-ups/${r.anomalyId}/record`} className="flex items-center justify-between">
-                    录入随访结果 <ChevronRight className="size-4" />
+                    录入结果 <ChevronRight className="size-4" />
                   </Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild className="text-muted-foreground h-9 w-full border-dashed">
                   <Link href={`/patients/${r.archiveNo}`} className="flex items-center justify-center gap-2">
-                    <Activity className="size-3.5" /> 查看病历档案
+                    <Activity className="size-3.5" /> 临床病历轴
                   </Link>
                 </Button>
               </div>
@@ -190,28 +190,28 @@ export default function FollowUpsPage() {
   )
 
   const renderHistoryTable = (dataList: any[]) => (
-    <div className="bg-white rounded-xl shadow-lg border overflow-hidden">
+    <div className="bg-white rounded-xl shadow-sm border border-primary/5 overflow-hidden">
       <Table>
         <TableHeader className="bg-muted/30">
           <TableRow>
-            <TableHead>患者姓名</TableHead>
-            <TableHead>档案信息</TableHead>
-            <TableHead>体检信息</TableHead>
+            <TableHead className="w-[180px]">患者姓名</TableHead>
+            <TableHead className="w-[180px]">档案信息</TableHead>
+            <TableHead className="w-[180px]">体检信息</TableHead>
             <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
-            <TableHead>告知人/被通知人</TableHead>
-            <TableHead>末次随访时间</TableHead>
-            <TableHead className="text-right">操作</TableHead>
+            <TableHead className="w-[180px]">通知日期/告知</TableHead>
+            <TableHead className="w-[120px]">末次随访时间</TableHead>
+            <TableHead className="text-right w-[150px]">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {dataList.length === 0 ? (
             <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">暂无结案记录</TableCell></TableRow>
           ) : dataList.map((r) => (
-            <TableRow key={r.anomalyId} className="hover:bg-muted/5 group">
+            <TableRow key={r.anomalyId} className="hover:bg-muted/5 group transition-colors">
               <TableCell>
                 <div className="flex flex-col">
                   <span className="font-bold text-foreground text-xl leading-tight">{r.patientName || "待补录"}</span>
-                  <span className="text-xs text-muted-foreground mt-0.5">
+                  <span className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-medium opacity-70">
                     {r.patientGender} / {r.patientAge}岁
                   </span>
                 </div>
@@ -221,7 +221,7 @@ export default function FollowUpsPage() {
                   <div className="text-sm font-bold text-foreground">
                     {r.patientPhone}
                   </div>
-                  <span className="text-[10px] font-mono text-muted-foreground mt-1">
+                  <span className="text-[10px] font-mono text-muted-foreground mt-1 opacity-70">
                     {r.archiveNo}
                   </span>
                 </div>
@@ -233,14 +233,14 @@ export default function FollowUpsPage() {
                 </div>
               </TableCell>
               <TableCell className="max-w-[400px]">
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
-                    "h-4 text-[8px] px-1 w-fit font-black",
+                    "h-4 text-[8px] px-1.5 w-fit font-black tracking-tighter",
                     r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
                   )}>
-                    {r.anomalyCategory}类
+                    {r.anomalyCategory}类异常
                   </Badge>
-                  <p className="text-xs leading-relaxed truncate" title={r.anomalyDetails}>
+                  <p className="text-xs leading-relaxed truncate opacity-80" title={r.anomalyDetails}>
                     {r.anomalyDetails}
                   </p>
                 </div>
@@ -248,7 +248,7 @@ export default function FollowUpsPage() {
               <TableCell>
                 <div className="flex flex-col gap-1">
                   <div className="text-sm font-bold text-foreground">{r.notificationDate}</div>
-                  <div className="text-[10px] text-muted-foreground">告知: {r.notifier} / 被告知: {r.notifiedPerson}</div>
+                  <div className="text-[10px] text-muted-foreground opacity-70">告知: {r.notifier} / {r.notifiedPerson}</div>
                 </div>
               </TableCell>
               <TableCell>
@@ -258,19 +258,19 @@ export default function FollowUpsPage() {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" asChild title="查看详情 (只读)">
+                  <Button variant="ghost" size="icon" className="size-8" asChild title="查看详情">
                     <Link href={`/follow-ups/detail/${r.anomalyId}`}><Eye className="size-4 text-primary" /></Link>
                   </Button>
-                  <Button variant="ghost" size="icon" asChild title="修改随访">
+                  <Button variant="ghost" size="icon" className="size-8" asChild title="修改记录">
                     <Link href={`/follow-ups/detail/${r.anomalyId}/edit`}><Edit className="size-4 text-primary" /></Link>
                   </Button>
-                  <Button variant="ghost" size="icon" asChild title="查看完整病历轴">
+                  <Button variant="ghost" size="icon" className="size-8" asChild title="临床病历轴">
                     <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 text-primary" /></Link>
                   </Button>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
+                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(r)}><Trash2 className="size-4 mr-2" /> 撤销记录</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive font-bold text-xs" onSelect={() => setRecordToDelete(r)}><Trash2 className="size-3.5 mr-2" /> 撤销随访</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -289,7 +289,7 @@ export default function FollowUpsPage() {
           <h1 className="text-3xl font-bold text-primary">随访任务管理中心</h1>
           <p className="text-muted-foreground font-medium">100% MySQL 驱动 • 随访动态监控</p>
         </div>
-        <Button onClick={loadData} variant="outline" className="gap-2 bg-white">
+        <Button onClick={loadData} variant="outline" size="sm" className="gap-2 bg-white">
           <RefreshCcw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} /> 刷新任务池
         </Button>
       </header>
@@ -306,10 +306,10 @@ export default function FollowUpsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-fit h-11 bg-muted/50 p-1 mb-6">
-          <TabsTrigger value="pending" className="flex gap-2 text-sm px-6">
-            待随访任务 <Badge className="bg-destructive text-[10px] h-4 px-1.5" variant="destructive">{filteredTasks.pending.length}</Badge>
+          <TabsTrigger value="pending" className="flex gap-2 text-sm px-6 font-bold">
+            待处理任务 <Badge className="bg-destructive text-[10px] h-4 px-1.5" variant="destructive">{filteredTasks.pending.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="closed" className="flex gap-2 text-sm px-6">已结案/历史</TabsTrigger>
+          <TabsTrigger value="closed" className="flex gap-2 text-sm px-6 font-bold">已结案/历史</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="mt-0 outline-none">

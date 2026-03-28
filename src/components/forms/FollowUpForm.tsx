@@ -136,52 +136,55 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Alert className="bg-primary/5 border-primary/20">
+        <Alert className="bg-primary/5 border-primary/20 py-3">
           <Info className="size-4 text-primary" />
-          <AlertTitle className="text-primary font-bold">
-            {readOnly ? '随访记录详情' : initialData ? '修改随访任务记录' : '临床随访任务登记'}
+          <AlertTitle className="text-primary font-bold text-sm">
+            {readOnly ? '临床随访追溯' : initialData ? '修改随访记录' : '临床随访任务登记'}
           </AlertTitle>
-          <AlertDescription className="text-xs">
-            患者: <span className="font-bold">[{archiveNo}] {patientName}</span>
+          <AlertDescription className="text-xs font-medium opacity-80">
+            患者: <span className="font-bold underline">[{archiveNo}] {patientName}</span>
           </AlertDescription>
         </Alert>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="shadow-md border-none ring-1 ring-border">
-            <CardHeader className="bg-muted/30 pb-4"><CardTitle className="text-lg flex items-center gap-2"><FileText className="size-4" /> 随访过程描述</CardTitle></CardHeader>
-            <CardContent className="pt-6 space-y-4">
+          <Card className="shadow-sm border-none ring-1 ring-border overflow-hidden">
+            <CardHeader className="bg-muted/30 py-3"><CardTitle className="text-sm font-bold flex items-center gap-2"><FileText className="size-4" /> 随访过程描述</CardTitle></CardHeader>
+            <CardContent className="pt-6 space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="followUpPerson" render={({ field }) => (
-                  <FormItem><FormLabel>回访人</FormLabel><FormControl><Input {...field} disabled={readOnly} /></FormControl></FormItem>
+                  <FormItem><FormLabel className="text-[10px] font-bold uppercase">回访人</FormLabel><FormControl><Input {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
                 )} />
                 <FormField control={form.control} name="followUpDate" render={({ field }) => (
-                  <FormItem><FormLabel>回访日期</FormLabel><FormControl><Input type="date" {...field} disabled={readOnly} /></FormControl></FormItem>
+                  <FormItem><FormLabel className="text-[10px] font-bold uppercase">回访日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="followUpTime" render={({ field }) => (
-                <FormItem><FormLabel>回访时间</FormLabel><FormControl><Input type="time" {...field} disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-[10px] font-bold uppercase">回访时间</FormLabel><FormControl><Input type="time" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="followUpResult" render={({ field }) => (
-                <FormItem><FormLabel>医学记录/回访结果</FormLabel><FormControl><Textarea className="min-h-[100px]" {...field} disabled={readOnly} /></FormControl></FormItem>
+                <FormItem>
+                  <FormLabel className="text-[10px] font-bold uppercase">医学回访记录/反馈结果</FormLabel>
+                  <FormControl><Textarea className="min-h-[140px] text-sm leading-relaxed" {...field} disabled={readOnly} /></FormControl>
+                </FormItem>
               )} />
               <FormField control={form.control} name="isReExamined" render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-4 shadow-sm">
-                  <FormLabel className="m-0">是否复查/进一步检查</FormLabel>
-                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} /></FormControl>
+                <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-muted/5">
+                  <FormLabel className="m-0 text-sm font-bold">是否复查/进一步检查</FormLabel>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} className="scale-75" /></FormControl>
                 </FormItem>
               )} />
             </CardContent>
           </Card>
 
           <div className="space-y-6">
-            <Card className="shadow-md border-none ring-1 ring-border">
-              <CardHeader className="bg-amber-50/50 pb-4 border-b border-amber-100"><CardTitle className="text-lg text-amber-800 flex items-center gap-2"><CalendarIcon className="size-4" /> 下次随访计划</CardTitle></CardHeader>
+            <Card className="shadow-sm border-none ring-1 ring-border overflow-hidden">
+              <CardHeader className="bg-amber-50/50 py-3 border-b border-amber-100"><CardTitle className="text-sm text-amber-800 font-bold flex items-center gap-2"><CalendarIcon className="size-4" /> 下次随访计划</CardTitle></CardHeader>
               <CardContent className="pt-6">
                 <FormField control={form.control} name="nextFollowUpInterval" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>随访周期选择</FormLabel>
+                    <FormLabel className="text-[10px] font-bold uppercase">预设周期选择</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value} disabled={readOnly}>
-                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="1month">1 个月后</SelectItem>
                         <SelectItem value="3months">3 个月后</SelectItem>
@@ -194,19 +197,19 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
               </CardContent>
             </Card>
 
-            <Card className="shadow-md border-none ring-1 ring-border">
-              <CardHeader className="bg-blue-50/50 pb-4 border-b border-blue-100"><CardTitle className="text-lg text-blue-800 flex items-center gap-2"><Upload className="size-4" /> 报告索引关联</CardTitle></CardHeader>
+            <Card className="shadow-sm border-none ring-1 ring-border overflow-hidden">
+              <CardHeader className="bg-blue-50/50 py-3 border-b border-blue-100"><CardTitle className="text-sm text-blue-800 font-bold flex items-center gap-2"><Upload className="size-4" /> 报告索引关联</CardTitle></CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="flex gap-2">
                   <FormField control={form.control} name="pdfId" render={({ field }) => (
                     <FormItem className="flex-1">
-                      <FormControl><Input placeholder="PDF文件编号" {...field} readOnly className="bg-muted" /></FormControl>
+                      <FormControl><Input placeholder="PDF 报告 ID" {...field} readOnly className="h-9 text-sm font-mono bg-muted" /></FormControl>
                     </FormItem>
                   )} />
                   {!readOnly && (
                     <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" className="gap-2"><Upload className="size-4" /> 归档报告</Button>
+                        <Button type="button" variant="outline" size="sm" className="h-9 gap-2 shadow-sm"><Upload className="size-3.5" /> 归档</Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">
                         <DialogHeader><DialogTitle>归档随访复查报告</DialogTitle></DialogHeader>
@@ -221,10 +224,10 @@ export function FollowUpForm({ archiveNo, patientName, anomalyRecordId, onSucces
         </div>
 
         {!readOnly && (
-          <div className="flex justify-end gap-4 pb-6">
-            <Button type="submit" size="lg" className="px-12 shadow-xl bg-primary hover:bg-primary/90 text-white" disabled={isSyncing}>
+          <div className="flex justify-end gap-4 pb-10">
+            <Button type="submit" size="lg" className="px-12 shadow-md bg-primary hover:bg-primary/90 text-white font-bold h-12" disabled={isSyncing}>
               {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-5 mr-2" />}
-              {initialData ? '确认修改并同步' : '完成记录并同步 MySQL'}
+              {initialData ? '保存修改并同步' : '完成记录并同步库'}
             </Button>
           </div>
         )}

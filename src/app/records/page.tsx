@@ -173,43 +173,43 @@ export default function RecordsPage() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">重要异常结果记录</h1>
-          <p className="text-muted-foreground">内网核心驱动 • 支持 CSV 批量同步</p>
+          <p className="text-muted-foreground font-medium">100% MySQL 核心驱动 • 闭环路径监控</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsImporting(true)} className="gap-2 bg-green-50 text-green-700 border-green-200">
+          <Button variant="outline" size="sm" onClick={() => setIsImporting(true)} className="gap-2 bg-green-50 text-green-700 border-green-200">
             <Upload className="size-4" /> 批量导入
           </Button>
-          <Button variant="outline" onClick={loadRecords} disabled={isLoading} className="gap-2">
+          <Button variant="outline" size="sm" onClick={loadRecords} disabled={isLoading} className="gap-2">
             <RefreshCcw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} /> 同步刷新
           </Button>
-          <Button asChild className="shadow-md bg-primary hover:bg-primary/90">
+          <Button asChild size="sm" className="shadow-md bg-primary hover:bg-primary/90">
             <Link href="/records/new"><Plus className="size-4 mr-2" /> 新增登记</Link>
           </Button>
         </div>
       </header>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input 
           placeholder="搜索姓名、档案号、体检号..." 
-          className="pl-10 h-11 bg-white" 
+          className="pl-12 h-12 bg-white shadow-sm rounded-xl border-primary/10" 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg border overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-primary/5 overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead>患者姓名</TableHead>
-                <TableHead>档案信息</TableHead>
-                <TableHead>体检信息</TableHead>
+                <TableHead className="w-[180px]">患者姓名</TableHead>
+                <TableHead className="w-[180px]">档案信息</TableHead>
+                <TableHead className="w-[180px]">体检信息</TableHead>
                 <TableHead className="max-w-[400px]">结果详情/分类</TableHead>
-                <TableHead>通知日期/告知情况</TableHead>
-                <TableHead>随访状态</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead className="w-[180px]">通知日期/告知</TableHead>
+                <TableHead className="w-[100px]">随访状态</TableHead>
+                <TableHead className="text-right w-[150px]">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -218,12 +218,12 @@ export default function RecordsPage() {
               ) : filteredRecords.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">暂无符合条件的异常记录</TableCell></TableRow>
               ) : filteredRecords.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/5 group">
+                <TableRow key={r.id} className="hover:bg-muted/5 group transition-colors">
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-bold text-foreground text-xl leading-tight">{r.patientName || "待补录"}</span>
                       {r.patientName && (
-                        <span className="text-xs text-muted-foreground mt-0.5">
+                        <span className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-medium opacity-70">
                           {r.patientGender} / {r.patientAge}岁
                         </span>
                       )}
@@ -234,7 +234,7 @@ export default function RecordsPage() {
                       <div className="text-sm font-bold text-foreground">
                         {r.patientPhone}
                       </div>
-                      <span className="text-[10px] font-mono text-muted-foreground mt-1">
+                      <span className="text-[10px] font-mono text-muted-foreground mt-1 opacity-70">
                         {r.archiveNo}
                       </span>
                     </div>
@@ -246,42 +246,45 @@ export default function RecordsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[400px]">
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1.5">
                       <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
-                        "h-4 text-[8px] px-1 w-fit font-black",
+                        "h-4 text-[8px] px-1.5 w-fit font-black tracking-tighter",
                         r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
                       )}>
-                        {r.anomalyCategory}类
+                        {r.anomalyCategory}类异常
                       </Badge>
-                      <p className="text-xs leading-relaxed truncate" title={r.anomalyDetails}>{r.anomalyDetails}</p>
+                      <p className="text-xs leading-relaxed truncate opacity-80" title={r.anomalyDetails}>{r.anomalyDetails}</p>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <div className="text-sm font-bold text-foreground">{r.notificationDate}</div>
-                      <div className="text-[10px] text-muted-foreground">告知: {r.notifier} / 被告知: {r.notifiedPerson}</div>
+                      <div className="text-[10px] text-muted-foreground opacity-70">告知: {r.notifier} / {r.notifiedPerson}</div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={r.isFollowUpRequired ? 'default' : 'outline'} className={r.isFollowUpRequired ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''}>
-                      {r.isFollowUpRequired ? '已随访' : '未随访'}
+                    <Badge variant={r.isFollowUpRequired ? 'default' : 'outline'} className={cn(
+                      "text-[9px] h-4 font-bold",
+                      r.isFollowUpRequired ? 'bg-green-100 text-green-700 hover:bg-green-100 border-green-200' : 'opacity-60'
+                    )}>
+                      {r.isFollowUpRequired ? '已结案' : '待随访'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" asChild title="查看详情 (只读)">
+                      <Button variant="ghost" size="icon" className="size-8" asChild title="查看详情">
                         <Link href={`/records/${r.id}`}><Eye className="size-4 text-primary" /></Link>
                       </Button>
-                      <Button variant="ghost" size="icon" asChild title="修改记录">
+                      <Button variant="ghost" size="icon" className="size-8" asChild title="修改记录">
                         <Link href={`/records/${r.id}/edit`}><Edit className="size-4 text-primary" /></Link>
                       </Button>
-                      <Button variant="ghost" size="icon" asChild title="查看完整病历轴">
+                      <Button variant="ghost" size="icon" className="size-8" asChild title="查看病历轴">
                         <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4 text-primary" /></Link>
                       </Button>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="text-destructive" onSelect={() => setRecordToDelete(r)}><Trash2 className="size-4 mr-2" /> 撤销登记</DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive font-bold text-xs" onSelect={() => setRecordToDelete(r)}><Trash2 className="size-3.5 mr-2" /> 撤销登记</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -299,20 +302,20 @@ export default function RecordsPage() {
             <DialogTitle className="flex items-center gap-2">批量导入异常结果</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-3">
-              <p className="font-bold text-primary flex items-center gap-2">字段填写指引：</p>
+            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-3 border">
+              <p className="font-bold text-primary flex items-center gap-2 uppercase tracking-wider">字段填写指引</p>
               <ScrollArea className="h-40 pr-3">
                 <div className="space-y-3 pl-2 border-l-2 border-primary/20">
                   <div className="p-2 bg-red-100/50 rounded border border-red-200">
-                    <p className="font-bold text-destructive mb-1 flex items-center gap-1">
+                    <p className="font-bold text-destructive mb-1 flex items-center gap-1 text-[10px]">
                       <AlertCircle className="size-3" /> 乱码解决提示：
                     </p>
                     <p className="text-[10px] leading-relaxed text-destructive/80">
                       如果您使用 WPS 或 Excel 编辑后出现乱码，请在保存时选择文件类型为：<span className="font-black">“CSV UTF-8 (逗号分隔) (*.csv)”</span>。
                     </p>
                   </div>
-                  <div className="space-y-1.5">
-                    <p><span className="font-bold text-destructive">必填项：</span>档案编号, 体检编号, 体检日期, 种类(A/B), 详情, 通知日期/时间, 告知/被告知人, 处置意见</p>
+                  <div className="space-y-1.5 text-muted-foreground">
+                    <p><span className="font-bold text-foreground">必填项：</span>档案编号, 体检编号, 体检日期, 种类(A/B), 详情, 通知日期/时间, 告知/被告知人, 处置意见</p>
                   </div>
                 </div>
               </ScrollArea>
@@ -320,11 +323,11 @@ export default function RecordsPage() {
             
             <div className="flex flex-col gap-3">
               <Button variant="outline" className="w-full gap-2 border-dashed h-12" onClick={downloadTemplate}>
-                <Download className="size-4" /> 下载标准导入模板 (.csv)
+                <Download className="size-4" /> 下载标准模板 (.csv)
               </Button>
               <input type="file" ref={fileInputRef} onChange={handleCsvImport} className="hidden" accept=".csv" />
-              <Button className="w-full h-12 gap-2 bg-primary shadow-lg" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="size-4" /> 选择并上传填写好的文件
+              <Button className="w-full h-12 gap-2 bg-primary shadow-lg font-bold" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="size-4" /> 选择并上传文件
               </Button>
             </div>
           </div>
