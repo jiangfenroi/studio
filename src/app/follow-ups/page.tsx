@@ -101,13 +101,13 @@ export default function FollowUpsPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-bold text-primary text-base">{r.patientName || "待补录"}</span>
+                    <span className="font-bold text-foreground text-base">{r.patientName || "待补录"}</span>
                     {r.patientName && (
                       <div className="flex flex-col mt-0.5">
                         <span className="text-[10px] text-muted-foreground">
                           {r.patientGender} / {r.patientAge}岁
                         </span>
-                        <span className="text-sm font-bold text-primary flex items-center gap-1.5 mt-1.5">
+                        <span className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-1.5">
                           <Phone className="size-3" />
                           <span className="font-mono tracking-tighter">{r.patientPhone}</span>
                         </span>
@@ -119,14 +119,14 @@ export default function FollowUpsPage() {
                   <div className="text-xs font-mono">{r.checkupNumber}</div>
                   <div className="text-[10px] text-muted-foreground">体检: {r.checkupDate}</div>
                 </TableCell>
-                <TableCell className="max-w-[400px] whitespace-normal break-words">
-                  <div className="flex flex-col gap-1">
+                <TableCell className="max-w-[400px] whitespace-nowrap overflow-hidden">
+                  <div className="flex flex-col gap-1 overflow-hidden">
                     <div className="flex gap-1">
                       <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="h-4 text-[8px] px-1">
                         {r.anomalyCategory}类
                       </Badge>
                     </div>
-                    <p className="text-xs leading-relaxed" title={r.anomalyDetails}>{r.anomalyDetails}</p>
+                    <p className="text-xs leading-relaxed truncate" title={r.anomalyDetails}>{r.anomalyDetails}</p>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -226,7 +226,7 @@ export default function FollowUpsPage() {
                   <span className="text-muted-foreground">姓名</span><span className="font-bold">{selectedRecord?.patientName || "未补录"}</span>
                   <span className="text-muted-foreground">档案编号</span><span className="font-mono">{selectedRecord?.archiveNo}</span>
                   <span className="text-muted-foreground">性别/年龄</span><span>{selectedRecord?.patientGender || "-"} / {selectedRecord?.patientAge || "-"}岁</span>
-                  <span className="text-muted-foreground">联系电话</span><span className="font-bold text-primary font-mono text-base tracking-tighter">{selectedRecord?.patientPhone || "-"}</span>
+                  <span className="text-muted-foreground">联系电话</span><span className="font-bold text-foreground font-mono text-base tracking-tighter">{selectedRecord?.patientPhone || "-"}</span>
                   <span className="text-muted-foreground">应随访日期</span><Badge variant="destructive">{selectedRecord?.nextFollowUpDate || "未设定"}</Badge>
                 </div>
               </div>
