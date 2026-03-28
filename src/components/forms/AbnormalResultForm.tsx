@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { FileText, CheckCircle2, Loader2, AlertCircle, Upload, Link as LinkIcon, CalendarDays } from "lucide-react"
+import { FileText, CheckCircle2, Loader2, AlertCircle, Upload, Link as LinkIcon, CalendarDays, MessageSquareText } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { saveAnomalyResult, updateAnomalyResult } from "@/app/actions/mysql-sync"
 import { PdfUploadForm } from "./PdfUploadForm"
@@ -123,13 +123,11 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
   const watchArchiveNo = form.watch("archiveNo")
   const watchNotificationDate = form.watch("notificationDate")
 
-  // 计算随访预设日期：通知日期 + 7天
   const nextFollowUpDateDisplay = React.useMemo(() => {
     if (!watchNotificationDate) return "待选告知日期"
     try {
       const date = new Date(watchNotificationDate)
       if (isNaN(date.getTime())) return "日期格式有误"
-      // 增加7天
       date.setDate(date.getDate() + 7)
       return format(date, "yyyy-MM-dd")
     } catch (e) {
@@ -213,6 +211,13 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                     <FormItem><FormLabel>被通知人</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                   )} />
                 </div>
+                {/* 新增被通知人反馈字段 */}
+                <FormField control={form.control} name="notifiedPersonFeedback" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1"><MessageSquareText className="size-3 text-muted-foreground" /> 被通知人反馈内容</FormLabel>
+                    <FormControl><Textarea placeholder="输入患者或家属的反馈信息..." className="h-20 bg-white" {...field} /></FormControl>
+                  </FormItem>
+                )} />
               </div>
 
               <div className="space-y-4">
@@ -258,7 +263,6 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                 <FormItem><FormLabel>通知时间</FormLabel><FormControl><Input type="time" {...field} /></FormControl></FormItem>
               )} />
               
-              {/* 下次随访日期预设展示 */}
               <div className="space-y-2">
                 <FormLabel className="text-amber-600 font-bold flex items-center gap-1">
                   下次随访日期 (预设+7日)
