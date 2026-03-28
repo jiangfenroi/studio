@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -67,7 +68,7 @@ export default function HomePage() {
       const found = stats.trend.find((t: any) => t.month === m);
       const total = Number(found?.total || 0);
       const followed = Number(found?.followed || 0);
-      // 鲁棒性计算：确保分母大于0且结果为有限数值
+      // 鲁棒性计算：确保分母大于0且结果为有限数值，解决 100000000000% 异常
       const rate = total > 0 ? Math.round((followed / total) * 100) : 0;
       return {
         month: m.split('-')[1] + '月',
@@ -158,13 +159,14 @@ export default function HomePage() {
                 <Tooltip 
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   formatter={(value: any, name: string) => {
-                    if (name === 'rate') return [`${value}%`, '随访率'];
+                    if (name === 'rate') return [`${value}%`, '重要异常结果随访率'];
                     if (name === 'total') return [value, '重要异常结果例数'];
                     if (name === 'followed') return [value, '已随访例数'];
                     return [value, name];
                   }}
                 />
                 <Legend verticalAlign="top" height={36}/>
+                {/* 隐藏的 Line 仅用于 Tooltip 触发数据展示 */}
                 <Line 
                   name="total"
                   type="monotone" 
