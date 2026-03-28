@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { FileText, CheckCircle2, Loader2, AlertCircle, Upload, Link as LinkIcon } from "lucide-react"
+import { FileText, CheckCircle2, Loader2, AlertCircle, Upload, Link as LinkIcon, CalendarDays } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { saveAnomalyResult, updateAnomalyResult } from "@/app/actions/mysql-sync"
 import { PdfUploadForm } from "./PdfUploadForm"
@@ -61,7 +61,6 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
     if (user.name) setCurrentUserName(user.name)
   }, [])
 
-  // 数据清洗：将 MySQL 返回的 null 转换为 React 受控组件需要的 ""
   const defaultValues = React.useMemo(() => {
     if (!initialData) {
       return {
@@ -106,7 +105,6 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
     defaultValues,
   })
 
-  // 当 defaultValues 变化时重置表单（特别是 currentUserName 异步加载后）
   React.useEffect(() => {
     form.reset(defaultValues)
   }, [defaultValues, form])
@@ -123,6 +121,21 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
   }, [watchCheckupNo, form, initialData])
 
   const watchArchiveNo = form.watch("archiveNo")
+  const watchNotificationDate = form.watch("notificationDate")
+
+  // 计算随访预设日期：通知日期 + 7天
+  const nextFollowUpDateDisplay = React.useMemo(() => {
+    if (!watchNotificationDate) return "待选告知日期"
+    try {
+      const date = new Date(watchNotificationDate)
+      if (isNaN(date.getTime())) return "日期格式有误"
+      // 增加7天
+      date.setDate(date.getDate() + 7)
+      return format(date, "yyyy-MM-dd")
+    } catch (e) {
+      return "计算异常"
+    }
+  }, [watchNotificationDate])
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
@@ -133,7 +146,7 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
         toast({ title: "修改成功" })
       } else {
         await saveAnomalyResult(config, values)
-        toast({ title: "登记成功", description: "记录已保存，已生成 7 日随访任务。" })
+        toast({ title: "登记成功", description: `记录已保存，已自动生成 ${nextFollowUpDateDisplay} 随访任务。` })
       }
       onSuccess(values.archiveNo)
     } catch (err: any) {
@@ -237,14 +250,26 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
               </div>
             </div>
 
-            <div className="col-span-full grid grid-cols-3 gap-4">
+            <div className="col-span-full grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               <FormField control={form.control} name="notificationDate" render={({ field }) => (
                 <FormItem><FormLabel>通知日期</FormLabel><FormControl><Input type="date" {...field} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="notificationTime" render={({ field }) => (
                 <FormItem><FormLabel>通知时间</FormLabel><FormControl><Input type="time" {...field} /></FormControl></FormItem>
               )} />
-              <div className="flex items-end gap-4 pb-1">
+              
+              {/* 下次随访日期预设展示 */}
+              <div className="space-y-2">
+                <FormLabel className="text-amber-600 font-bold flex items-center gap-1">
+                  下次随访日期 (预设+7日)
+                </FormLabel>
+                <div className="flex items-center gap-2 h-10 px-3 bg-amber-50 border border-amber-200 rounded-md text-amber-700 font-mono text-sm shadow-inner">
+                  <CalendarDays className="size-4" />
+                  {nextFollowUpDateDisplay}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 pb-1 h-10">
                 <FormField control={form.control} name="isNotified" render={({ field }) => (
                   <FormItem className="flex items-center gap-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-xs">已通知</FormLabel></FormItem>
                 )} />
