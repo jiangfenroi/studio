@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -99,9 +98,15 @@ export default function PatientsPage() {
     const reader = new FileReader()
     reader.onload = async (event) => {
       const text = event.target?.result as string
-      const rows = text.split('\n').slice(1).filter(r => r.trim())
-      const patientsToImport = rows.map(row => {
-        const cols = row.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+      const lines = text.split('\n').filter(l => l.trim())
+      if (lines.length <= 1) {
+        toast({ variant: "destructive", title: "文件无效", description: "CSV 文件中没有数据行。" });
+        setIsLoading(false);
+        return;
+      }
+
+      const patientsToImport = lines.slice(1).map(line => {
+        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
         return {
           archiveNo: cols[0],
           name: cols[1],
@@ -128,6 +133,16 @@ export default function PatientsPage() {
       }
     }
     reader.readAsText(file)
+  }
+
+  const downloadTemplate = () => {
+    const headers = "档案编号,姓名,性别,年龄,身份证号,电话,单位,地址,状态"
+    const example = "D0001,张三,男,45,110101198001011234,13800138000,某某公司,某某街道,正常"
+    const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = "个人档案导入模板.csv"
+    link.click()
   }
 
   const filteredPatients = patients.filter(p => 
@@ -200,20 +215,25 @@ export default function PatientsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-2">
-              <p className="font-bold text-primary">CSV 模板列顺序提示：</p>
-              <p className="font-mono">档案编号, 姓名, 性别, 年龄, 身份证号, 电话, 单位, 地址, 状态</p>
-              <p className="text-muted-foreground italic">注：第一行为表头，系统会自动跳过。档案编号重复时将执行覆盖更新。</p>
+              <p className="font-bold text-primary">CSV 导入列顺序：</p>
+              <p className="font-mono opacity-80">档案编号, 姓名, 性别, 年龄, 身份证号, 电话, 单位, 地址, 状态</p>
+              <p className="text-muted-foreground italic text-[10px] mt-2">注：若档案编号重复将自动更新。允许部分非必填列为空。</p>
             </div>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleCsvImport} 
-              className="hidden" 
-              accept=".csv"
-            />
-            <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
-              <FileSpreadsheet className="size-4" /> 选择 CSV 文件并开始同步
-            </Button>
+            <div className="flex flex-col gap-3">
+              <Button variant="outline" className="w-full gap-2 border-dashed" onClick={downloadTemplate}>
+                <Download className="size-4" /> 下载档案导入模板
+              </Button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleCsvImport} 
+                className="hidden" 
+                accept=".csv"
+              />
+              <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
+                <FileSpreadsheet className="size-4" /> 选择并上传 CSV 文件
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

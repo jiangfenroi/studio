@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,7 +19,8 @@ import {
   FileText,
   Link as LinkIcon,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Download
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -128,9 +128,15 @@ export default function RecordsPage() {
     const reader = new FileReader()
     reader.onload = async (event) => {
       const text = event.target?.result as string
-      const rows = text.split('\n').slice(1).filter(r => r.trim())
-      const recordsToImport = rows.map(row => {
-        const cols = row.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+      const lines = text.split('\n').filter(l => l.trim())
+      if (lines.length <= 1) {
+        toast({ variant: "destructive", title: "文件无效", description: "CSV 文件中没有数据行。" });
+        setIsLoading(false);
+        return;
+      }
+
+      const recordsToImport = lines.slice(1).map(line => {
+        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
         return {
           archiveNo: cols[0],
           checkupNumber: cols[1],
@@ -143,14 +149,15 @@ export default function RecordsPage() {
           isHealthEducationProvided: cols[8] === '是' || cols[8] === '1',
           notifier: cols[9],
           notifiedPerson: cols[10],
-          disposalSuggestions: cols[11]
+          disposalSuggestions: cols[11],
+          notifiedPersonFeedback: cols[12] || ""
         }
-      }).filter(r => r.archiveNo && r.checkupNumber)
+      }).filter(r => r.archiveNo)
 
       const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
       try {
         const res = await bulkImportAnomalyRecords(config, recordsToImport)
-        toast({ title: "批量导入成功", description: `已成功导入 ${res.count} 条异常记录，并同步创建了随访任务。` })
+        toast({ title: "批量导入成功", description: `已成功导入 ${res.count} 条记录。` })
         loadRecords()
       } catch (err: any) {
         toast({ variant: "destructive", title: "导入失败", description: err.message })
@@ -160,6 +167,16 @@ export default function RecordsPage() {
       }
     }
     reader.readAsText(file)
+  }
+
+  const downloadTemplate = () => {
+    const headers = "档案编号,体检编号(12位),体检日期(YYYY-MM-DD),种类(A/B),异常详情,通知日期,通知时间,是否告知(是/否),是否宣教(是/否),通知人,被通知人,处置意见,被通知人反馈"
+    const example = "D0001,202501010001,2025-01-01,A,血压偏高,2025-01-02,09:30,是,是,张医生,患者本人,建议复查,知道了"
+    const blob = new Blob(["\ufeff" + headers + "\n" + example], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = "重要异常结果导入模板.csv"
+    link.click()
   }
 
   return (
@@ -282,20 +299,27 @@ export default function RecordsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 bg-muted/50 rounded-lg text-[10px] space-y-2">
-              <p className="font-bold text-primary">CSV 模板列顺序提示：</p>
-              <p className="font-mono break-all text-xs">档案编号, 体检编号(12位), 体检日期, 种类(A/B), 异常详情, 通知日期, 通知时间, 是否告知(是/否), 是否宣教(是/否), 通知人, 被通知人, 处置意见</p>
-              <p className="text-muted-foreground italic">注：系统会自动为导入的记录创建 7 日随访任务。</p>
+              <p className="font-bold text-primary flex items-center gap-2">
+                <FileText className="size-3" /> CSV 导入说明
+              </p>
+              <p className="font-mono break-all text-xs opacity-80">档案编号, 体检编号, 体检日期, 种类(A/B), 异常详情, 通知日期, 通知时间, 是否告知, 是否宣教, 通知人, 被通知人, 处置意见, 被通知人反馈</p>
+              <p className="text-muted-foreground italic mt-2">提示：系统会自动根据导入记录创建 7 日随访任务。若档案号不存在，将自动占位创建。</p>
             </div>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleCsvImport} 
-              className="hidden" 
-              accept=".csv"
-            />
-            <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
-              <FileSpreadsheet className="size-4" /> 选择 CSV 文件并启动批量同步
-            </Button>
+            <div className="flex flex-col gap-3">
+              <Button variant="outline" className="w-full gap-2 border-dashed" onClick={downloadTemplate}>
+                <Download className="size-4" /> 下载标准导入模板
+              </Button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleCsvImport} 
+                className="hidden" 
+                accept=".csv"
+              />
+              <Button className="w-full h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
+                <FileSpreadsheet className="size-4" /> 选择并上传 CSV 文件
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

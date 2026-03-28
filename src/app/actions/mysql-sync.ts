@@ -1,4 +1,3 @@
-
 'use server';
 
 import mysql from 'mysql2/promise';
@@ -166,14 +165,15 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
         (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
       await connection.execute(sqlYCJG, [
-        anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory, 
-        data.anomalyDetails, data.notifier || '批量导入', data.notifiedPerson || '未知', data.notificationDate, 
+        anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory || 'A', 
+        data.anomalyDetails || '批量导入', data.notifier || '批量导入', data.notifiedPerson || '未知', data.notificationDate || new Date().toISOString().split('T')[0], 
         data.notificationTime || '08:00', data.disposalSuggestions || '批量导入意见', data.notifiedPersonFeedback || '',
         data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
       ]);
       
       // 3. 创建待随访任务
-      const nextDate = new Date(data.notificationDate);
+      const baseDateStr = data.notificationDate || new Date().toISOString().split('T')[0];
+      const nextDate = new Date(baseDateStr);
       nextDate.setDate(nextDate.getDate() + 7);
       const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)`;
       await connection.execute(sqlRW, [data.archiveNo, anomalyId, nextDate.toISOString().split('T')[0]]);
@@ -350,7 +350,17 @@ export async function bulkImportPatients(config: any, patients: any[]) {
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE name=VALUES(name), gender=VALUES(gender), age=VALUES(age), idNumber=VALUES(idNumber), organization=VALUES(organization), address=VALUES(address), phoneNumber=VALUES(phoneNumber), status=VALUES(status)`;
     for (const p of patients) {
-      await connection.execute(sql, [p.archiveNo, p.name, p.gender || '男', p.age || 0, p.idNumber || '', p.organization || '', p.address || '', p.phoneNumber || '', p.status || '正常']);
+      await connection.execute(sql, [
+        p.archiveNo, 
+        p.name || '待补录', 
+        p.gender || '男', 
+        p.age || 0, 
+        p.idNumber || '', 
+        p.organization || '', 
+        p.address || '', 
+        p.phoneNumber || '', 
+        p.status || '正常'
+      ]);
     }
     await connection.commit();
     return { success: true, count: patients.length };
