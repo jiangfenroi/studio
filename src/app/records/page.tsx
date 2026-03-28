@@ -21,7 +21,8 @@ import {
   Upload,
   FileSpreadsheet,
   Download,
-  AlertCircle
+  AlertCircle,
+  Phone
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -240,9 +241,15 @@ export default function RecordsPage() {
                       <span className="font-bold text-primary">{r.patientName || "待补录"}</span>
                       <span className="text-[10px] text-muted-foreground font-mono">NO: {r.archiveNo}</span>
                       {r.patientName && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {r.patientGender} / {r.patientAge}岁 / {r.patientPhone}
-                        </span>
+                        <div className="flex flex-col mt-0.5">
+                          <span className="text-[10px] text-muted-foreground">
+                            {r.patientGender} / {r.patientAge}岁
+                          </span>
+                          <span className="text-[11px] font-bold text-primary flex items-center gap-1 mt-0.5">
+                            <Phone className="size-2.5" />
+                            <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                          </span>
+                        </div>
                       )}
                     </div>
                   </TableCell>
@@ -377,7 +384,7 @@ export default function RecordsPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground">联系电话</p>
-                    <p className="font-mono">{selectedRecord?.patientPhone || "-"}</p>
+                    <p className="font-mono font-bold text-primary text-base tracking-tighter">{selectedRecord?.patientPhone || "-"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground">档案状态</p>

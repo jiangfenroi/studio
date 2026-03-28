@@ -12,7 +12,8 @@ import {
   ChevronRight,
   History,
   Eye,
-  RefreshCcw
+  RefreshCcw,
+  Phone
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -103,9 +104,15 @@ export default function FollowUpsPage() {
                     <span className="font-bold text-primary">{r.patientName || "待补录"}</span>
                     <span className="text-[10px] text-muted-foreground font-mono">NO: {r.archiveNo}</span>
                     {r.patientName && (
-                      <span className="text-[10px] text-muted-foreground">
-                        {r.patientGender} / {r.patientAge}岁 / {r.patientPhone}
-                      </span>
+                      <div className="flex flex-col mt-0.5">
+                        <span className="text-[10px] text-muted-foreground">
+                          {r.patientGender} / {r.patientAge}岁
+                        </span>
+                        <span className="text-[11px] font-bold text-primary flex items-center gap-1 mt-0.5">
+                          <Phone className="size-2.5" />
+                          <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                        </span>
+                      </div>
                     )}
                   </div>
                 </TableCell>
@@ -220,7 +227,7 @@ export default function FollowUpsPage() {
                   <span className="text-muted-foreground">姓名</span><span className="font-bold">{selectedRecord?.patientName || "未补录"}</span>
                   <span className="text-muted-foreground">档案编号</span><span className="font-mono">{selectedRecord?.archiveNo}</span>
                   <span className="text-muted-foreground">性别/年龄</span><span>{selectedRecord?.patientGender || "-"} / {selectedRecord?.patientAge || "-"}岁</span>
-                  <span className="text-muted-foreground">联系电话</span><span>{selectedRecord?.patientPhone || "-"}</span>
+                  <span className="text-muted-foreground">联系电话</span><span className="font-bold text-primary font-mono text-base tracking-tighter">{selectedRecord?.patientPhone || "-"}</span>
                   <span className="text-muted-foreground">应随访日期</span><Badge variant="destructive">{selectedRecord?.nextFollowUpDate || "未设定"}</Badge>
                 </div>
               </div>
