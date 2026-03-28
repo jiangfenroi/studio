@@ -25,7 +25,7 @@ async function getConnection(config: any) {
   } catch (err: any) {
     // 捕获权限错误并翻译为易懂的内网指引
     if (err.message.includes('35.230.25.171')) {
-      throw new Error(`[AI 环境受限] 中心库拒绝了当前的开发 IP。请在本地内网服务器部署后再进行测试。`);
+      throw new Error(`[AI 环境受限] 中心库拒绝了当前的开发 IP (${err.message})。请在本地内网服务器部署后再进行测试。`);
     }
     throw new Error(`中心库连接失败: ${err.message}`);
   }
@@ -137,7 +137,7 @@ export async function saveAnomalyResult(config: any, data: any) {
   try {
     connection = await getConnection(config);
     await connection.beginTransaction();
-    const anomalyId = `YCJG${Date.now()}`;
+    const anomalyId = `YCJG${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
     const sqlYCJG = `INSERT INTO SP_YCJG 
       (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
@@ -145,7 +145,7 @@ export async function saveAnomalyResult(config: any, data: any) {
     await connection.execute(sqlYCJG, [
       anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory, 
       data.anomalyDetails, data.notifier, data.notifiedPerson, data.notificationDate, 
-      data.notificationTime, data.disposalSuggestions, data.notifiedPersonFeedback,
+      data.notificationTime, data.disposalSuggestions, data.notifiedPersonFeedback || "",
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
     ]);
     const nextDate = new Date(data.notificationDate);
@@ -169,17 +169,36 @@ export async function bulkImportAnomalyRecords(config: any, records: any[]) {
     await connection.beginTransaction();
     
     for (const data of records) {
-      const anomalyId = `YCJG${Math.floor(Math.random() * 10000)}${Date.now()}`;
+      // 自动生成唯一异常结果编号：YCJG + 时间戳 + 随机数
+      const anomalyId = `YCJG${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+      
+      // 1. 档案占位逻辑
       await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
+      
+      // 2. 写入异常记录 (带空值降级保护)
       const sqlYCJG = `INSERT INTO SP_YCJG 
         (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
+      
       await connection.execute(sqlYCJG, [
-        anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory || 'A', 
-        data.anomalyDetails || '批量导入', data.notifier || '批量导入', data.notifiedPerson || '未知', data.notificationDate || new Date().toISOString().split('T')[0], 
-        data.notificationTime || '08:00', data.disposalSuggestions || '批量导入意见', data.notifiedPersonFeedback || '',
-        data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
+        anomalyId, 
+        data.archiveNo, 
+        data.checkupNumber || "无体检号", 
+        data.checkupDate || new Date().toISOString().split('T')[0], 
+        data.anomalyCategory || 'A', 
+        data.anomalyDetails || '批量导入临床发现', 
+        data.notifier || '系统批量导入', 
+        data.notifiedPerson || '见体检报告', 
+        data.notificationDate || new Date().toISOString().split('T')[0], 
+        data.notificationTime || '08:30', 
+        data.disposalSuggestions || '建议临床复查', 
+        data.notifiedPersonFeedback || '',
+        data.isHealthEducationProvided ? 1 : 0, 
+        data.isNotified ? 1 : 0, 
+        data.pdfId || null
       ]);
+
+      // 3. 自动同步创建待随访任务 (7日随访)
       const baseDateStr = data.notificationDate || new Date().toISOString().split('T')[0];
       const nextDate = new Date(baseDateStr);
       nextDate.setDate(nextDate.getDate() + 7);
@@ -209,7 +228,7 @@ export async function updateAnomalyResult(config: any, id: string, data: any) {
     await connection.execute(sql, [
       data.checkupNumber, data.checkupDate, data.anomalyCategory, data.anomalyDetails,
       data.notifier, data.notifiedPerson, data.notificationDate, data.notificationTime,
-      data.disposalSuggestions, data.notifiedPersonFeedback, 
+      data.disposalSuggestions, data.notifiedPersonFeedback || "", 
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null,
       id
     ]);
@@ -224,7 +243,7 @@ export async function saveFollowUpRecord(config: any, data: any) {
   try {
     connection = await getConnection(config);
     await connection.beginTransaction();
-    const sfId = `SF${Date.now()}`;
+    const sfId = `SF${Date.now()}${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`;
     const sqlSF = `INSERT INTO SP_SF (id, archiveNo, associatedAnomalyId, followUpResult, followUpPerson, followUpDate, followUpTime, isReExamined, pdfId)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     await connection.execute(sqlSF, [
