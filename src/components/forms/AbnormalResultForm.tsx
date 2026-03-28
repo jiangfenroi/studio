@@ -204,7 +204,7 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
             <FormField control={form.control} name="disposalSuggestions" render={({ field }) => (
               <FormItem className="col-span-full">
                 <FormLabel className="text-xs font-semibold text-muted-foreground uppercase">临床处置意见</FormLabel>
-                <FormControl><Textarea {...field} className="min-h-[100px] text-sm leading-relaxed" disabled={readOnly} /></FormControl>
+                <FormControl><Textarea {...field} className="min-h-[80px] text-sm leading-normal" disabled={readOnly} /></FormControl>
               </FormItem>
             )} />
 
@@ -275,10 +275,10 @@ export function AbnormalResultForm({ onSuccess, initialData, readOnly = false }:
 
             <div className="col-span-full grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-2">
               <FormField control={form.control} name="notificationDate" render={({ field }) => (
-                <FormItem><FormLabel className="text-[10px] font-bold">通知日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-sm font-bold">通知日期</FormLabel><FormControl><Input type="date" {...field} className="h-9 text-sm font-bold" disabled={readOnly} /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="notificationTime" render={({ field }) => (
-                <FormItem><FormLabel className="text-[10px] font-bold">通知时间</FormLabel><FormControl><Input type="time" {...field} className="h-9 text-sm" disabled={readOnly} /></FormControl></FormItem>
+                <FormItem><FormLabel className="text-sm font-bold">通知时间</FormLabel><FormControl><Input type="time" {...field} className="h-9 text-sm font-bold" disabled={readOnly} /></FormControl></FormItem>
               )} />
               
               <div className="space-y-1.5">
