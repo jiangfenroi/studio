@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react"
@@ -45,9 +44,9 @@ export default function SettingsPage() {
     appName: "HealthInsight Registry",
     pdfStoragePath: "C:\\HealthReports\\",
     pacsUrlBase: "http://172.16.201.61:7242/?ChtId=",
-    mysqlHost: "8.137.162.142",
-    mysqlPort: "3306",
-    mysqlUser: "root",
+    mysqlHost: "172.17.126.18",
+    mysqlPort: "10699",
+    mysqlUser: "abc",
     mysqlPassword: "",
     mysqlDatabase: "meditrack_db"
   })
@@ -265,8 +264,6 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* 弹窗部分保持一致 */}
     </div>
   )
 }

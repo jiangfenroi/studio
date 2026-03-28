@@ -25,9 +25,9 @@ export default function LoginPage() {
   const [isConnected, setIsConnected] = React.useState(false);
   
   const [mysqlConfig, setMysqlConfig] = React.useState({
-    host: '8.137.162.142',
-    port: '3306',
-    user: 'root',
+    host: '172.17.126.18',
+    port: '10699',
+    user: 'abc',
     password: '',
     database: 'meditrack_db'
   });
