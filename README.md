@@ -91,7 +91,7 @@ CREATE TABLE SP_RW (
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
--- 修复: MySQL 中 TEXT 字段不能有默认值，改为 VARCHAR(512)
+-- 修复: MySQL 8.4 中 TEXT/BLOB 字段不能有默认值，改为 VARCHAR(512)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY,
   appName VARCHAR(100) DEFAULT 'HealthInsight Registry',

@@ -23,10 +23,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // 针对医疗内网极速启动优化
-  devIndicators: {
-    appIsrStatus: false,
-  },
 };
 
 export default nextConfig;
