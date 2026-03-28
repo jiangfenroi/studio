@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -62,33 +61,55 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
     if (user.name) setCurrentUserName(user.name)
   }, [])
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: initialData ? {
+  // 数据清洗：将 MySQL 返回的 null 转换为 React 受控组件需要的 ""
+  const defaultValues = React.useMemo(() => {
+    if (!initialData) {
+      return {
+        archiveNo: "",
+        checkupNumber: "",
+        checkupDate: "",
+        notifiedPerson: "",
+        anomalyCategory: "A" as const,
+        anomalyDetails: "",
+        disposalSuggestions: "",
+        isNotified: true,
+        isHealthEducationProvided: true,
+        notifier: currentUserName,
+        notifiedPersonFeedback: "",
+        notificationDate: format(new Date(), "yyyy-MM-dd"),
+        notificationTime: format(new Date(), "HH:mm"),
+        pdfId: "",
+      }
+    }
+
+    return {
       ...initialData,
+      archiveNo: initialData.archiveNo ?? "",
+      checkupNumber: initialData.checkupNumber ?? "",
+      checkupDate: initialData.checkupDate ?? "",
+      notifiedPerson: initialData.notifiedPerson ?? "",
+      anomalyCategory: (initialData.anomalyCategory as "A" | "B") ?? "A",
+      anomalyDetails: initialData.anomalyDetails ?? "",
+      disposalSuggestions: initialData.disposalSuggestions ?? "",
       isNotified: initialData.isNotified === 1 || initialData.isNotified === true,
       isHealthEducationProvided: initialData.isHealthEducationProvided === 1 || initialData.isHealthEducationProvided === true,
-    } : {
-      archiveNo: "",
-      checkupNumber: "",
-      checkupDate: "",
-      notifiedPerson: "",
-      anomalyCategory: "A",
-      anomalyDetails: "",
-      disposalSuggestions: "",
-      isNotified: true,
-      isHealthEducationProvided: true,
-      notifier: "",
-      notifiedPersonFeedback: "",
-      notificationDate: format(new Date(), "yyyy-MM-dd"),
-      notificationTime: format(new Date(), "HH:mm"),
-      pdfId: "",
-    },
+      notifier: initialData.notifier ?? currentUserName,
+      notifiedPersonFeedback: initialData.notifiedPersonFeedback ?? "",
+      notificationDate: initialData.notificationDate ?? "",
+      notificationTime: initialData.notificationTime ?? "",
+      pdfId: initialData.pdfId ?? "",
+    }
+  }, [initialData, currentUserName])
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues,
   })
 
+  // 当 defaultValues 变化时重置表单（特别是 currentUserName 异步加载后）
   React.useEffect(() => {
-    if (!initialData && currentUserName) form.setValue("notifier", currentUserName)
-  }, [currentUserName, form, initialData])
+    form.reset(defaultValues)
+  }, [defaultValues, form])
 
   const watchCheckupNo = form.watch("checkupNumber")
   React.useEffect(() => {
@@ -147,7 +168,7 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
               <FormItem className="col-span-full">
                 <FormLabel>异常结果种类</FormLabel>
                 <FormControl>
-                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
+                  <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4">
                     <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50">
                       <FormControl><RadioGroupItem value="A" /></FormControl>
                       <FormLabel className="font-bold text-destructive">A类 (危急干预)</FormLabel>
