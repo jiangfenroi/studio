@@ -117,6 +117,21 @@ export async function deletePdfMetadata(config: any, id: string) {
 
 // ---------------- 临床业务逻辑 ----------------
 
+export async function fetchAnomalyDetails(config: any, anomalyId: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `SELECT y.*, p.name as patientName, p.gender as patientGender, p.age as patientAge, p.phoneNumber as patientPhone, p.status as patientStatus
+                 FROM SP_YCJG y 
+                 JOIN SP_PERSON p ON y.archiveNo = p.archiveNo 
+                 WHERE y.id = ?`;
+    const [rows]: any = await connection.execute(sql, [anomalyId]);
+    return rows[0] ? serializeRow(rows[0]) : null;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 export async function saveAnomalyResult(config: any, data: any) {
   let connection;
   try {
