@@ -73,7 +73,7 @@ export default function RecordsPage() {
   const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null)
   const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
   const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
-  fileInputRef = React.useRef<HTMLInputElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const loadRecords = React.useCallback(async () => {
     setIsLoading(true)
@@ -181,8 +181,6 @@ export default function RecordsPage() {
     link.click()
   }
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
-
   return (
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
       <header className="flex justify-between items-center">
@@ -248,7 +246,7 @@ export default function RecordsPage() {
                           </span>
                           <span className="text-base font-bold text-foreground flex items-center gap-1.5 mt-1.5">
                             <Phone className="size-3.5" />
-                            <span className="font-mono tracking-tighter">{r.patientPhone}</span>
+                            <span className="font-mono tracking-tighter text-base">{r.patientPhone}</span>
                           </span>
                         </div>
                       )}
@@ -258,8 +256,8 @@ export default function RecordsPage() {
                     <div className="text-xs font-mono">{r.checkupNumber}</div>
                     <div className="text-[10px] text-muted-foreground">体检: {r.checkupDate}</div>
                   </TableCell>
-                  <TableCell className="max-w-[400px] whitespace-nowrap overflow-hidden">
-                    <div className="flex flex-col gap-1 overflow-hidden">
+                  <TableCell className="max-w-[400px]">
+                    <div className="flex flex-col gap-1">
                       <div className="flex gap-1">
                         <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="h-4 text-[8px] px-1">
                           {r.anomalyCategory}类
