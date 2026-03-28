@@ -72,8 +72,6 @@ export default function RecordsPage() {
   const [records, setRecords] = React.useState<any[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isImporting, setIsImporting] = React.useState(false)
-  const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null)
-  const [editingRecord, setEditingRecord] = React.useState<any | null>(null)
   const [recordToDelete, setRecordToDelete] = React.useState<any | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
@@ -117,11 +115,6 @@ export default function RecordsPage() {
     } finally {
       setRecordToDelete(null)
     }
-  }
-
-  const handleEditSuccess = () => {
-    setEditingRecord(null)
-    loadRecords()
   }
 
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -285,8 +278,12 @@ export default function RecordsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" title="查看详情" onClick={() => setSelectedRecord(r)}><Eye className="size-4 text-primary" /></Button>
-                      <Button variant="ghost" size="icon" title="修改信息" onClick={() => setEditingRecord(r)}><Edit className="size-4 text-primary" /></Button>
+                      <Button variant="ghost" size="icon" asChild title="查看详情">
+                        <Link href={`/records/${r.id}`}><Eye className="size-4 text-primary" /></Link>
+                      </Button>
+                      <Button variant="ghost" size="icon" asChild title="修改信息">
+                        <Link href={`/records/${r.id}`}><Edit className="size-4 text-primary" /></Link>
+                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -340,71 +337,6 @@ export default function RecordsPage() {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-6 bg-primary text-primary-foreground">
-            <DialogTitle className="flex items-center gap-2">
-              <ClipboardCheck className="size-5" />
-              重要异常结果 - 详细临床档案预览
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="flex-1 p-0">
-            <div className="p-8 space-y-8">
-              <section className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
-                  <User className="size-5" /> 患者基础档案
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">姓名</p>
-                    <p className="font-bold text-xl text-primary">{selectedRecord?.patientName || "待补录"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">档案信息</p>
-                    <p className="text-xs font-mono bg-muted px-2 py-1 rounded inline-block">{selectedRecord?.archiveNo}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">联系电话</p>
-                    <p className="font-mono font-bold text-lg tracking-tighter">{selectedRecord?.patientPhone || "-"}</p>
-                  </div>
-                </div>
-              </section>
-              <Separator />
-              <section className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
-                  <Activity className="size-5" /> 临床异常发现
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div className="space-y-1"><p className="text-muted-foreground">体检编号</p><p className="font-mono">{selectedRecord?.checkupNumber}</p></div>
-                  <div className="space-y-1"><p className="text-muted-foreground">体检日期</p><p>{selectedRecord?.checkupDate}</p></div>
-                  <div className="space-y-1"><p className="text-muted-foreground">异常类别</p>
-                    <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
-                      "font-bold",
-                      selectedRecord?.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
-                    )}>
-                      {selectedRecord?.anomalyCategory}类异常
-                    </Badge>
-                  </div>
-                  <div className="col-span-full space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">医学异常详情描述</p>
-                    <div className="p-4 bg-muted/20 border rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
-                      {selectedRecord?.anomalyDetails}
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!editingRecord} onOpenChange={(o) => !o && setEditingRecord(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>修改重要异常结果记录</DialogTitle></DialogHeader>
-          <AbnormalResultForm initialData={editingRecord} onSuccess={handleEditSuccess} />
         </DialogContent>
       </Dialog>
 

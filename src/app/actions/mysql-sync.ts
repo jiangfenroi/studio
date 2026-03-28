@@ -132,6 +132,21 @@ export async function fetchAnomalyDetails(config: any, anomalyId: string) {
   }
 }
 
+export async function fetchFollowUpDetail(config: any, sfId: string) {
+  let connection;
+  try {
+    connection = await getConnection(config);
+    const sql = `SELECT sf.*, p.name as patientName, p.gender as patientGender, p.age as patientAge, p.phoneNumber as patientPhone
+                 FROM SP_SF sf
+                 JOIN SP_PERSON p ON sf.archiveNo = p.archiveNo
+                 WHERE sf.id = ?`;
+    const [rows]: any = await connection.execute(sql, [sfId]);
+    return rows[0] ? serializeRow(rows[0]) : null;
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
 /**
  * 批量导入重要异常记录
  * 纯本地代码逻辑，无需联网
@@ -427,9 +442,9 @@ export async function bulkImportPatients(config: any, patients: any[]) {
         p.gender || '男', 
         p.age || 0, 
         p.idNumber || '', 
+        p.phoneNumber || '', 
         p.organization || '', 
         p.address || '', 
-        p.phoneNumber || '', 
         p.status || '正常'
       ]);
     }

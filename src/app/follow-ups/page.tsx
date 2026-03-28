@@ -54,7 +54,6 @@ export default function FollowUpsPage() {
   const [activeTab, setActiveTab] = React.useState("pending")
   const [tasks, setTasks] = React.useState<any>({ pending: [], closed: [] })
   const [isLoading, setIsLoading] = React.useState(true)
-  const [selectedTask, setSelectedTask] = React.useState<any | null>(null)
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true)
@@ -111,14 +110,10 @@ export default function FollowUpsPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xl font-bold text-foreground">{r.patientName || "待补录"}</span>
                 <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                  ID:{r.archiveNo}
+                  {r.patientGender} / {r.patientAge}岁
                 </span>
               </div>
               
-              <div className="text-sm text-muted-foreground">
-                {r.patientGender} / {r.patientAge}岁
-              </div>
-
               <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
                 "font-bold text-[10px] h-5",
                 r.anomalyCategory === 'B' && "bg-primary hover:bg-primary/90"
@@ -137,12 +132,12 @@ export default function FollowUpsPage() {
               </div>
 
               <div className="text-sm text-foreground">
-                <span className="text-muted-foreground mr-1">体检号:</span>
+                <span className="text-muted-foreground mr-1 font-normal">体检号:</span>
                 <span className="font-mono font-bold">{r.checkupNumber}</span>
               </div>
 
               <div className="text-sm">
-                <span className="text-muted-foreground mr-1">末次随访:</span>
+                <span className="text-muted-foreground mr-1 font-normal">末次随访:</span>
                 <span className="font-bold text-green-600">{r.lastFollowUpDate || "-"}</span>
               </div>
             </div>
@@ -237,8 +232,8 @@ export default function FollowUpsPage() {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" title="预览数据" onClick={() => setSelectedTask(r)}>
-                    <Eye className="size-4 text-primary" />
+                  <Button variant="ghost" size="icon" asChild title="查看详情">
+                    <Link href={`/follow-ups/detail/${r.anomalyId}`}><Eye className="size-4 text-primary" /></Link>
                   </Button>
                   <Button variant="ghost" size="icon" asChild>
                     <Link href={`/patients/${r.archiveNo}`}><Activity className="size-4" /></Link>
@@ -300,41 +295,6 @@ export default function FollowUpsPage() {
           ) : renderHistoryTable(filteredTasks.closed)}
         </TabsContent>
       </Tabs>
-
-      <Dialog open={!!selectedTask} onOpenChange={(o) => !o && setSelectedTask(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-6 bg-primary text-primary-foreground">
-            <DialogTitle className="flex items-center gap-2">
-              <ClipboardCheck className="size-5" />
-              随访档案详情预览
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="flex-1">
-            <div className="p-8 space-y-8">
-              <section className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
-                  <User className="size-5" /> 患者与检查信息
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div className="space-y-1"><p className="text-muted-foreground">姓名</p><p className="font-bold text-xl text-primary">{selectedTask?.patientName}</p></div>
-                  <div className="space-y-1"><p className="text-muted-foreground">特征</p><p>{selectedTask?.patientGender} / {selectedTask?.patientAge} 岁</p></div>
-                  <div className="space-y-1"><p className="text-muted-foreground">联系电话</p><p className="font-mono font-bold text-lg">{selectedTask?.patientPhone}</p></div>
-                  <div className="space-y-1"><p className="text-muted-foreground">档案编号</p><p className="text-xs font-mono bg-muted px-2 py-1 rounded inline-block">{selectedTask?.archiveNo}</p></div>
-                </div>
-              </section>
-              <Separator />
-              <section className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
-                  <Activity className="size-5" /> 医学发现详情
-                </h3>
-                <div className="p-4 bg-muted/20 border rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
-                  {selectedTask?.anomalyDetails}
-                </div>
-              </section>
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
