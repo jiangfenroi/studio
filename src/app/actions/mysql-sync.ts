@@ -59,7 +59,6 @@ export async function uploadPdfFile(config: any, formData: FormData) {
 
   if (!files || files.length === 0) throw new Error('未选择有效文件');
 
-  // 获取根路径配置
   const remoteConfig = await fetchConfigFromMysql(config);
   const rootPath = remoteConfig?.pdfStoragePath || 'C:\\HealthReports\\';
 
@@ -68,84 +67,51 @@ export async function uploadPdfFile(config: any, formData: FormData) {
   for (const file of files) {
     try {
       const buffer = Buffer.from(await file.arrayBuffer());
-      
-      // 构建物理路径
       const targetDir = path.join(rootPath, archiveNo, reportCategory);
-      
-      // 递归创建目录 (如果不存在)
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
-
       const filePath = path.join(targetDir, file.name);
-      
-      // 执行物理磁盘写入
       fs.writeFileSync(filePath, buffer);
 
-      // 记录元数据至 MySQL 并获取 10 位倒序 ID
       const res = await savePdfMetadata(config, {
         archiveNo,
         checkDate,
         reportCategory,
         fullPath: filePath
       });
-      
       if (res.success) lastPdfId = res.pdfId;
     } catch (e: any) {
       console.error(`File save error: ${file.name}`, e);
       throw new Error(`物理磁盘写入失败: ${e.message}`);
     }
   }
-
   return { success: true, pdfId: lastPdfId };
 }
 
-/**
- * 保存 PDF 元数据并生成 10 位倒序 ID
- */
 export async function savePdfMetadata(config: any, data: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    // 生成 10 位倒序 ID (2000000000 - 当前秒数)
     const pdfId = (2000000000 - Math.floor(Date.now() / 1000)).toString().substring(0, 10);
-    
     const sql = `INSERT INTO SP_PDF (id, archiveNo, checkDate, reportCategory, fullPath) VALUES (?, ?, ?, ?, ?)`;
-    await connection.execute(sql, [
-      pdfId, 
-      data.archiveNo, 
-      data.checkDate, 
-      data.reportCategory, 
-      data.fullPath
-    ]);
+    await connection.execute(sql, [pdfId, data.archiveNo, data.checkDate, data.reportCategory, data.fullPath]);
     return { success: true, pdfId };
   } finally {
     if (connection) await connection.end();
   }
 }
 
-/**
- * 删除 PDF 元数据及物理文件
- */
 export async function deletePdfMetadata(config: any, id: string) {
   let connection;
   try {
     connection = await getConnection(config);
-    // 先查出路径以便物理删除
     const [rows]: any = await connection.execute('SELECT fullPath FROM SP_PDF WHERE id = ?', [id]);
     const filePath = rows[0]?.fullPath;
-
     await connection.execute('DELETE FROM SP_PDF WHERE id = ?', [id]);
-
-    // 如果文件存在则尝试物理删除
     if (filePath && fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (e) {
-        console.warn(`Physical file delete failed: ${filePath}`);
-      }
+      try { fs.unlinkSync(filePath); } catch (e) { console.warn(`Physical file delete failed: ${filePath}`); }
     }
-    
     return { success: true };
   } finally {
     if (connection) await connection.end();
@@ -159,28 +125,21 @@ export async function saveAnomalyResult(config: any, data: any) {
   try {
     connection = await getConnection(config);
     await connection.beginTransaction();
-
     const anomalyId = `YCJG${Date.now()}`;
-    // 确保患者在档案中
     await connection.execute('INSERT IGNORE INTO SP_PERSON (archiveNo, status) VALUES (?, "正常")', [data.archiveNo]);
-
     const sqlYCJG = `INSERT INTO SP_YCJG 
       (id, archiveNo, checkupNumber, checkupDate, anomalyCategory, anomalyDetails, notifier, notifiedPerson, notificationDate, notificationTime, disposalSuggestions, notifiedPersonFeedback, isHealthEducationProvided, isNotified, isFollowUpRequired, pdfId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
-    
     await connection.execute(sqlYCJG, [
       anomalyId, data.archiveNo, data.checkupNumber, data.checkupDate, data.anomalyCategory, 
       data.anomalyDetails, data.notifier, data.notifiedPerson, data.notificationDate, 
       data.notificationTime, data.disposalSuggestions, data.notifiedPersonFeedback,
       data.isHealthEducationProvided ? 1 : 0, data.isNotified ? 1 : 0, data.pdfId || null
     ]);
-
-    // 自动在任务表中增加一行
     const nextDate = new Date(data.notificationDate);
     nextDate.setDate(nextDate.getDate() + 7);
     const sqlRW = `INSERT INTO SP_RW (archiveNo, anomalyId, nextFollowUpDate) VALUES (?, ?, ?)`;
     await connection.execute(sqlRW, [data.archiveNo, anomalyId, nextDate.toISOString().split('T')[0]]);
-
     await connection.commit();
     return { success: true, anomalyId };
   } catch (e) {
@@ -200,7 +159,6 @@ export async function updateAnomalyResult(config: any, id: string, data: any) {
       notifier=?, notifiedPerson=?, notificationDate=?, notificationTime=?, 
       disposalSuggestions=?, notifiedPersonFeedback=?, isHealthEducationProvided=?, isNotified=?, pdfId=?
       WHERE id=?`;
-    
     await connection.execute(sql, [
       data.checkupNumber, data.checkupDate, data.anomalyCategory, data.anomalyDetails,
       data.notifier, data.notifiedPerson, data.notificationDate, data.notificationTime,
@@ -219,22 +177,16 @@ export async function saveFollowUpRecord(config: any, data: any) {
   try {
     connection = await getConnection(config);
     await connection.beginTransaction();
-
     const sfId = `SF${Date.now()}`;
     const sqlSF = `INSERT INTO SP_SF (id, archiveNo, associatedAnomalyId, followUpResult, followUpPerson, followUpDate, followUpTime, isReExamined, pdfId)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     await connection.execute(sqlSF, [
       sfId, data.archiveNo, data.anomalyId, data.followUpResult, data.followUpPerson, data.followUpDate, data.followUpTime, data.isReExamined ? 1 : 0, data.pdfId || null
     ]);
-
-    // 更新任务表下次随访日期
     const sqlRW = `UPDATE SP_RW SET nextFollowUpDate = ? WHERE anomalyId = ?`;
     await connection.execute(sqlRW, [data.nextFollowUpDate, data.anomalyId]);
-
-    // 更新异常表随访状态
     const sqlYCJG = `UPDATE SP_YCJG SET isFollowUpRequired = 1 WHERE id = ?`;
     await connection.execute(sqlYCJG, [data.anomalyId]);
-
     await connection.commit();
     return { success: true };
   } catch (e) {
@@ -484,13 +436,25 @@ export async function clearAllStaffData(config: any) {
   }
 }
 
+/**
+ * 全量业务导出数据检索 (三表实时关联)
+ */
 export async function fetchDataForStats(config: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    const sql = `SELECT p.*, y.checkupNumber, y.checkupDate, y.anomalyCategory, y.anomalyDetails, y.disposalSuggestions, y.notifier, y.notifiedPerson, y.notificationDate, y.isFollowUpRequired,
-                        sf.followUpDate, sf.followUpResult, sf.followUpPerson, sf.isReExamined
-                 FROM SP_PERSON p LEFT JOIN SP_YCJG y ON p.archiveNo = y.archiveNo LEFT JOIN SP_SF sf ON y.id = sf.associatedAnomalyId ORDER BY y.notificationDate DESC`;
+    const sql = `
+      SELECT 
+        p.archiveNo, p.name, p.gender, p.age, p.phoneNumber, p.idNumber, p.address, p.organization, p.status as patientStatus,
+        y.checkupNumber, y.checkupDate, y.anomalyCategory, y.anomalyDetails, y.notifier, y.notifiedPerson, 
+        y.notificationDate, y.notificationTime, y.disposalSuggestions, y.notifiedPersonFeedback, 
+        y.isHealthEducationProvided, y.isNotified, y.isFollowUpRequired,
+        sf.followUpResult, sf.followUpPerson, sf.followUpDate, sf.followUpTime, sf.isReExamined
+      FROM SP_PERSON p 
+      LEFT JOIN SP_YCJG y ON p.archiveNo = y.archiveNo 
+      LEFT JOIN SP_SF sf ON y.id = sf.associatedAnomalyId 
+      ORDER BY y.notificationDate DESC, y.notificationTime DESC
+    `;
     const [rows]: any = await connection.execute(sql);
     return rows.map(serializeRow);
   } finally {
