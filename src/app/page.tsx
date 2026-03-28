@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -11,7 +10,8 @@ import {
   RefreshCcw,
   CheckCircle2,
   Activity,
-  Calendar
+  Calendar,
+  BarChart
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -68,7 +68,6 @@ export default function HomePage() {
       const found = stats.trend.find((t: any) => t.month === m);
       const total = Number(found?.total || 0);
       const followed = Number(found?.followed || 0);
-      // 鲁棒性计算：确保分母大于0且结果为有限数值
       const rate = total > 0 ? Math.round((followed / total) * 100) : 0;
       return {
         month: m.split('-')[1] + '月',
@@ -143,88 +142,121 @@ export default function HomePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 border-none shadow-lg bg-white">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <TrendingUp className="size-5 text-primary" />
-              {selectedYear}年度 月重要异常结果随访率(按通知月统计)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="h-[400px] pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  formatter={(value: any, name: string) => {
-                    if (name === 'rate') return [`${value}%`, '重要异常结果随访率'];
-                    if (name === 'total') return [value, '重要异常结果例数'];
-                    if (name === 'followed') return [value, '已随访例数'];
-                    return [value, name];
-                  }}
-                />
-                <Legend verticalAlign="top" height={36}/>
-                {/* 隐藏的 Line 仅用于 Tooltip 触发数据展示 */}
-                <Line 
-                  name="total"
-                  type="monotone" 
-                  dataKey="total" 
-                  stroke="transparent" 
-                  strokeWidth={0}
-                  dot={false}
-                  activeDot={false}
-                  legendType="none"
-                />
-                <Line 
-                  name="followed"
-                  type="monotone" 
-                  dataKey="followed" 
-                  stroke="transparent" 
-                  strokeWidth={0}
-                  dot={false}
-                  activeDot={false}
-                  legendType="none"
-                />
-                <Line 
-                  name="rate"
-                  type="monotone" 
-                  dataKey="rate" 
-                  stroke="hsl(var(--primary))" 
-                  strokeWidth={4} 
-                  dot={{ r: 6, fill: "white", stroke: "hsl(var(--primary))", strokeWidth: 2 }}
-                  activeDot={{ r: 8 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2 space-y-8">
+          {/* 随访率趋势图 */}
+          <Card className="border-none shadow-lg bg-white">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <TrendingUp className="size-5 text-primary" />
+                {selectedYear}年度 月重要异常结果随访率(按通知月统计)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[350px] pt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                  <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    formatter={(value: any, name: string) => {
+                      if (name === 'rate') return [`${value}%`, '重要异常结果随访率'];
+                      if (name === 'total') return [value, '重要异常结果例数'];
+                      if (name === 'followed') return [value, '已随访例数'];
+                      return [value, name];
+                    }}
+                  />
+                  <Legend verticalAlign="top" height={36}/>
+                  <Line 
+                    name="rate"
+                    type="monotone" 
+                    dataKey="rate" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={4} 
+                    dot={{ r: 6, fill: "white", stroke: "hsl(var(--primary))", strokeWidth: 2 }}
+                    activeDot={{ r: 8 }}
+                  />
+                  <Line name="total" type="monotone" dataKey="total" stroke="transparent" strokeWidth={0} dot={false} legendType="none" />
+                  <Line name="followed" type="monotone" dataKey="followed" stroke="transparent" strokeWidth={0} dot={false} legendType="none" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-        <Card className="border-none shadow-lg bg-primary text-primary-foreground flex flex-col">
-          <CardHeader><CardTitle>内网统计逻辑说明</CardTitle></CardHeader>
-          <CardContent className="space-y-6 pt-4 flex-1">
-            <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
-              <p className="text-xs font-bold uppercase tracking-wider opacity-70">统计归口准则</p>
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
-                <p className="text-sm leading-relaxed">
-                  系统严格按“通知日期”进行统计归口。例如 12 月的体检结果在次年 1 月通知，该数据将计入次年 1 月。
-                </p>
+          {/* 异常结果例数趋势图 */}
+          <Card className="border-none shadow-lg bg-white">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <BarChart className="size-5 text-accent" />
+                {selectedYear}年度 月重要异常结果例数(按通知月统计)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[350px] pt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                  <YAxis axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    formatter={(value: any, name: string) => {
+                      if (name === 'total') return [value, '重要异常结果例数'];
+                      if (name === 'followed') return [value, '已随访例数'];
+                      if (name === 'rate') return [`${value}%`, '随访率'];
+                      return [value, name];
+                    }}
+                  />
+                  <Legend verticalAlign="top" height={36}/>
+                  <Line 
+                    name="total"
+                    type="monotone" 
+                    dataKey="total" 
+                    stroke="hsl(var(--accent))" 
+                    strokeWidth={4} 
+                    dot={{ r: 6, fill: "white", stroke: "hsl(var(--accent))", strokeWidth: 2 }}
+                    activeDot={{ r: 8 }}
+                  />
+                  <Line 
+                    name="followed"
+                    type="monotone" 
+                    dataKey="followed" 
+                    stroke="hsl(var(--chart-3))" 
+                    strokeWidth={2} 
+                    strokeDasharray="5 5"
+                    dot={{ r: 4, fill: "white", stroke: "hsl(var(--chart-3))", strokeWidth: 1 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="border-none shadow-lg bg-primary text-primary-foreground flex flex-col">
+            <CardHeader><CardTitle>内网统计逻辑说明</CardTitle></CardHeader>
+            <CardContent className="space-y-6 pt-4 flex-1">
+              <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
+                <p className="text-xs font-bold uppercase tracking-wider opacity-70">统计归口准则</p>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
+                  <p className="text-sm leading-relaxed">
+                    系统严格按“通知日期”进行统计归口。跨年数据将计入通知发生的具体年份及月份。
+                  </p>
+                </div>
               </div>
-            </div>
-            
-            <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
-              <p className="text-xs font-bold uppercase tracking-wider opacity-70">数据追溯</p>
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
-                <p className="text-sm leading-relaxed">
-                  年度随访率基于全量通知任务实时聚合。任何月份补录的随访结果都将实时更新对应通知月份的重要异常结果随访率。
-                </p>
+              
+              <div className="p-5 bg-white/10 rounded-2xl space-y-3 border border-white/20">
+                <p className="text-xs font-bold uppercase tracking-wider opacity-70">数据追溯</p>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="size-5 shrink-0 mt-0.5" />
+                  <p className="text-sm leading-relaxed">
+                    年度随访率基于全量通知任务实时聚合。任何月份补录的随访结果都将实时更新对应通知月份的重要异常结果随访率。
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
