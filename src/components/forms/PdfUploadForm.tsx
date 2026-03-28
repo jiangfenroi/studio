@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -27,28 +26,29 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { savePdfMetadata } from "@/app/actions/mysql-sync"
+import { savePdfMetadata, fetchConfigFromMysql } from "@/app/actions/mysql-sync"
 
 const pdfSchema = z.object({
   checkDate: z.string().min(1, "检查日期不能为空"),
   reportCategory: z.enum(["体检报告", "影像检查报告", "内镜检查报告", "病理检查报告", "电生理检查报告"]),
-  localFileName: z.string().min(1, "请先选择本地文件"),
+  localFileNames: z.string().min(1, "请先选择/输入本地文件名"),
 })
 
 interface PdfUploadFormProps {
   archiveNo: string;
-  onSuccess: () => void;
+  onSuccess: (pdfId: string) => void;
 }
 
 export function PdfUploadForm({ archiveNo, onSuccess }: PdfUploadFormProps) {
   const { toast } = useToast()
   const [isSyncing, setIsSyncing] = React.useState(false)
-  const [pdfRoot, setPdfRoot] = React.useState("")
+  const [pdfRoot, setPdfRoot] = React.useState("C:\\HealthReports\\")
 
   React.useEffect(() => {
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
-    // 仿真从系统设置读取根路径
-    setPdfRoot(config.pdfStoragePath || "C:\\HealthReports\\")
+    fetchConfigFromMysql(config).then(res => {
+      if (res?.pdfStoragePath) setPdfRoot(res.pdfStoragePath)
+    })
   }, [])
 
   const form = useForm<z.infer<typeof pdfSchema>>({
@@ -56,34 +56,41 @@ export function PdfUploadForm({ archiveNo, onSuccess }: PdfUploadFormProps) {
     defaultValues: {
       checkDate: format(new Date(), "yyyy-MM-dd"),
       reportCategory: "体检报告",
-      localFileName: ""
+      localFileNames: ""
     }
   })
 
   const watchCategory = form.watch("reportCategory")
-  const watchFileName = form.watch("localFileName")
+  const watchFileNames = form.watch("localFileNames")
 
-  // 模拟自动生成的内网共享路径逻辑
-  const simulatedFullPath = React.useMemo(() => {
-    if (!watchFileName) return "等待选择文件..."
-    return `${pdfRoot}${archiveNo}\\${watchCategory}\\${watchFileName}`
-  }, [pdfRoot, archiveNo, watchCategory, watchFileName])
+  const simulatedPaths = React.useMemo(() => {
+    if (!watchFileNames) return ["等待选择文件..."]
+    const files = watchFileNames.split(',').map(f => f.trim()).filter(f => f.length > 0)
+    return files.map(f => `${pdfRoot}${archiveNo}\\${watchCategory}\\${f}`)
+  }, [pdfRoot, archiveNo, watchCategory, watchFileNames])
 
   async function onSubmit(values: z.infer<typeof pdfSchema>) {
     const config = JSON.parse(sessionStorage.getItem('mysql_config') || '{}')
     setIsSyncing(true)
     try {
-      await savePdfMetadata(config, {
-        archiveNo,
-        checkDate: values.checkDate,
-        reportCategory: values.reportCategory,
-        fullPath: simulatedFullPath
-      })
-      toast({ title: "报告上传成功", description: `已归档至: ${simulatedFullPath}` })
-      form.reset({ ...values, localFileName: "" })
-      onSuccess()
+      const files = values.localFileNames.split(',').map(f => f.trim()).filter(f => f.length > 0)
+      let lastPdfId = ""
+      
+      for (const fileName of files) {
+        const fullPath = `${pdfRoot}${archiveNo}\\${values.reportCategory}\\${fileName}`
+        const res = await savePdfMetadata(config, {
+          archiveNo,
+          checkDate: values.checkDate,
+          reportCategory: values.reportCategory,
+          fullPath
+        })
+        if (res.success) lastPdfId = res.pdfId
+      }
+      
+      toast({ title: "报告归档成功", description: `已成功生成 ${files.length} 条 PDF 索引。` })
+      onSuccess(lastPdfId)
     } catch (err: any) {
-      toast({ variant: "destructive", title: "上传失败", description: err.message })
+      toast({ variant: "destructive", title: "归档失败", description: err.message })
     } finally {
       setIsSyncing(false)
     }
@@ -91,9 +98,9 @@ export function PdfUploadForm({ archiveNo, onSuccess }: PdfUploadFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 p-4 bg-muted/20 rounded-xl border border-dashed border-primary/20">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 p-5 bg-muted/20 rounded-xl border border-dashed border-primary/30">
         <div className="flex items-center gap-2 mb-2 text-primary font-bold">
-          <Upload className="size-4" /> 批量上传/归档 PDF 报告
+          <Upload className="size-4" /> 批量报告归档中心
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -117,29 +124,31 @@ export function PdfUploadForm({ archiveNo, onSuccess }: PdfUploadFormProps) {
           )} />
         </div>
 
-        <FormField control={form.control} name="localFileName" render={({ field }) => (
+        <FormField control={form.control} name="localFileNames" render={({ field }) => (
           <FormItem>
-            <FormLabel>选择本地 PDF 文件</FormLabel>
+            <FormLabel>本地 PDF 文件名 (支持逗号分隔多个)</FormLabel>
             <div className="flex gap-2">
-              <FormControl><Input placeholder="例如: check_result.pdf" {...field} /></FormControl>
-              <Button type="button" variant="outline" size="icon" title="调用本地文件管理器" onClick={() => toast({ title: "仿真动作", description: "已调用本地资源管理器选择文件。" })}>
+              <FormControl><Input placeholder="report1.pdf, report2.pdf" {...field} /></FormControl>
+              <Button type="button" variant="outline" size="icon" onClick={() => toast({ title: "仿真动作", description: "已调用本地资源管理器。" })}>
                 <FolderSearch className="size-4" />
               </Button>
             </div>
             <FormDescription className="text-[10px] text-amber-600 flex items-center gap-1 mt-1">
-              <AlertCircle className="size-3" /> 系统将根据档案编号自动创建二级目录。
+              <AlertCircle className="size-3" /> 系统将按“档案/类别/文件”逻辑自动构建共享路径。
             </FormDescription>
           </FormItem>
         )} />
 
-        <div className="p-3 bg-white rounded border text-[10px] font-mono break-all">
-          <span className="text-muted-foreground uppercase font-bold block mb-1">预设归档全路径 (内网共享)</span>
-          {simulatedFullPath}
+        <div className="bg-white rounded border p-3 space-y-1">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase border-b pb-1">预设归档物理全路径预览</p>
+          {simulatedPaths.map((p, i) => (
+            <div key={i} className="text-[10px] font-mono break-all text-primary py-0.5">• {p}</div>
+          ))}
         </div>
 
-        <Button type="submit" className="w-full gap-2" disabled={isSyncing}>
-          {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-4" />}
-          立即归档至中心存储
+        <Button type="submit" className="w-full h-11 shadow-lg" disabled={isSyncing}>
+          {isSyncing ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="size-4 mr-2" />}
+          立即同步至中心 PDF 库
         </Button>
       </form>
     </Form>
