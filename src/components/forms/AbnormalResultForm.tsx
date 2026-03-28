@@ -20,7 +20,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/components/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -186,7 +186,7 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                     </FormItem>
                     <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50">
                       <FormControl><RadioGroupItem value="B" /></FormControl>
-                      <FormLabel className="font-bold text-blue-600">B类 (进一步检查)</FormLabel>
+                      <FormLabel className="font-bold text-primary">B类 (进一步检查)</FormLabel>
                     </FormItem>
                   </RadioGroup>
                 </FormControl>

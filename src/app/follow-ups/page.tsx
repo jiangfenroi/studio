@@ -102,7 +102,7 @@ export default function FollowUpsPage() {
                 r.anomalyCategory === 'A' ? "text-red-600" : "text-blue-600"
               )}>
                 <Phone className="size-4" />
-                <span className="font-mono">{r.patientPhone}</span>
+                <span className="font-mono tracking-tighter">{r.patientPhone}</span>
               </div>
 
               <div className="text-[11px]">
