@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -256,7 +255,10 @@ export default function RecordsPage() {
                   <TableCell className="max-w-[400px]">
                     <div className="flex flex-col gap-1">
                       <div className="flex gap-1">
-                        <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="h-4 text-[8px] px-1">
+                        <Badge variant={r.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
+                          "h-4 text-[8px] px-1",
+                          r.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
+                        )}>
                           {r.anomalyCategory}类
                         </Badge>
                       </div>
@@ -283,7 +285,7 @@ export default function RecordsPage() {
                         <Eye className="size-4 text-primary" />
                       </Button>
                       <Button variant="ghost" size="icon" title="修改信息" onClick={() => setEditingRecord(r)}>
-                        <Edit className="size-4 text-amber-600" />
+                        <Edit className="size-4 text-primary" />
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
@@ -301,61 +303,6 @@ export default function RecordsPage() {
         </div>
       </div>
 
-      {/* Import Dialog */}
-      <Dialog open={isImporting} onOpenChange={setIsImporting}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="size-5 text-primary" /> 批量导入异常发现</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-3">
-              <p className="font-bold text-primary flex items-center gap-2">
-                <FileText className="size-3" /> CSV 字段填写指引：
-              </p>
-              <ScrollArea className="h-48 pr-3">
-                <div className="space-y-3 pl-2 border-l-2 border-primary/20">
-                  <div className="p-2 bg-red-100/50 rounded border border-red-200">
-                    <p className="font-bold text-destructive mb-1 flex items-center gap-1">
-                      <AlertCircle className="size-3" /> 乱码解决提示：
-                    </p>
-                    <p className="text-[10px] leading-relaxed text-destructive/80">
-                      如果您使用 WPS 或 Excel 编辑后出现乱码，请在保存时选择文件类型为：<span className="font-black">“CSV UTF-8 (逗号分隔) (*.csv)”</span>。
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-bold text-muted-foreground mb-1">必填项：</p>
-                    <p className="opacity-80 leading-relaxed text-[11px]">
-                      1.档案编号 2.体检编号 3.体检日期 4.种类(A/B) 5.异常详情 6.通知日期 7.通知时间 8.是否告知 10.通知人 11.被通知人 12.处置意见
-                    </p>
-                  </div>
-                </div>
-              </ScrollArea>
-              <p className="text-muted-foreground italic text-[10px] bg-white/50 p-2 rounded">
-                <AlertCircle className="size-3 inline mr-1" />
-                提示：导入后系统会自动为每一条异常发现创建 7 日随访任务。
-              </p>
-            </div>
-            
-            <div className="flex flex-col gap-3">
-              <Button variant="outline" className="w-full gap-2 border-dashed h-12" onClick={downloadTemplate}>
-                <Download className="size-4" /> 下载标准导入模板 (.csv)
-              </Button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleCsvImport} 
-                className="hidden" 
-                accept=".csv"
-              />
-              <Button className="w-full h-12 gap-2 bg-primary shadow-lg" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="size-4" /> 选择并上传填写好的文件
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Detail Dialog */}
       <Dialog open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 bg-primary text-primary-foreground">
@@ -399,7 +346,7 @@ export default function RecordsPage() {
               <Separator />
 
               <section className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-destructive border-b pb-2">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
                   <Activity className="size-5" /> 临床异常发现
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
@@ -413,20 +360,17 @@ export default function RecordsPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground">异常类别</p>
-                    <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'secondary'} className="font-bold">
+                    <Badge variant={selectedRecord?.anomalyCategory === 'A' ? 'destructive' : 'default'} className={cn(
+                      "font-bold",
+                      selectedRecord?.anomalyCategory === 'B' && "bg-blue-500 hover:bg-blue-600"
+                    )}>
                       {selectedRecord?.anomalyCategory}类异常
                     </Badge>
                   </div>
                   <div className="col-span-full space-y-2">
                     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">医学异常详情描述</p>
-                    <div className="p-4 bg-red-50/50 border border-red-100 rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
+                    <div className="p-4 bg-muted/20 border rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
                       {selectedRecord?.anomalyDetails}
-                    </div>
-                  </div>
-                  <div className="col-span-full space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">临床处置意见</p>
-                    <div className="p-4 bg-muted/30 border rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
-                      {selectedRecord?.disposalSuggestions || "暂无记录"}
                     </div>
                   </div>
                 </div>
@@ -435,7 +379,7 @@ export default function RecordsPage() {
               <Separator />
 
               <section className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-amber-600 border-b pb-2">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-primary border-b pb-2">
                   <MessageSquare className="size-5" /> 告知与反馈信息
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
@@ -451,51 +395,6 @@ export default function RecordsPage() {
                     <p className="text-muted-foreground">通知具体时间</p>
                     <p>{selectedRecord?.notificationDate} {selectedRecord?.notificationTime}</p>
                   </div>
-                  <div className="col-span-full space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">被通知人反馈内容</p>
-                    <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-lg text-sm leading-relaxed whitespace-pre-wrap italic">
-                      {selectedRecord?.notifiedPersonFeedback || "未记录反馈"}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <Separator />
-
-              <section className="space-y-4 pb-4">
-                <h3 className="text-lg font-bold flex items-center gap-2 text-green-600 border-b pb-2">
-                  <ShieldCheck className="size-5" /> 系统合规与归档
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                  <div className="flex items-center gap-6 p-4 bg-muted/20 rounded-lg border">
-                    <div className="flex items-center gap-2">
-                      <div className={`size-3 rounded-full ${selectedRecord?.isNotified ? 'bg-green-500' : 'bg-muted'}`} />
-                      <span className="font-medium">通知状态: {selectedRecord?.isNotified ? '已告知' : '未告知'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`size-3 rounded-full ${selectedRecord?.isHealthEducationProvided ? 'bg-green-500' : 'bg-muted'}`} />
-                      <span className="font-medium">健康宣教: {selectedRecord?.isHealthEducationProvided ? '已提供' : '未提供'}</span>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-blue-50/30 border border-blue-100 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText className="size-5 text-blue-600" />
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold">原始 PDF 报告关联</p>
-                        <p className="font-mono text-xs text-blue-700">
-                          {selectedRecord?.pdfId ? `#${selectedRecord.pdfId}` : "尚未归档原始报告"}
-                        </p>
-                      </div>
-                    </div>
-                    {selectedRecord?.pdfId && (
-                      <Button variant="ghost" size="sm" className="h-8 gap-1 text-blue-600" onClick={() => {
-                        toast({ title: "关联报告 ID", description: `报告物理编号: ${selectedRecord.pdfId}` });
-                      }}>
-                        <LinkIcon className="size-3" />
-                        详情
-                      </Button>
-                    )}
-                  </div>
                 </div>
               </section>
             </div>
@@ -503,7 +402,6 @@ export default function RecordsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingRecord} onOpenChange={(o) => !o && setEditingRecord(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -516,7 +414,6 @@ export default function RecordsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
       <AlertDialog open={!!recordToDelete} onOpenChange={(o) => !o && setRecordToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

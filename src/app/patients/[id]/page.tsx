@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -24,7 +23,7 @@ import {
   Link as LinkIcon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
@@ -50,6 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { fetchPatientFullTimeline, deleteAnomalyRecord, deletePdfMetadata, deleteFollowUpRecord } from "@/app/actions/mysql-sync"
+import { cn } from "@/lib/utils"
 
 export default function PatientProfilePage() {
   const params = useParams()
@@ -154,7 +154,7 @@ export default function PatientProfilePage() {
 
           <Dialog open={isFollowUpOpen} onOpenChange={setIsFollowUpOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-amber-500 hover:bg-amber-600 shadow-md"><PlusCircle className="size-4" /> 录入随访</Button>
+              <Button className="gap-2 bg-primary hover:bg-primary/90 shadow-md"><PlusCircle className="size-4" /> 录入随访</Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>随访结果记录 - {patient?.name}</DialogTitle></DialogHeader>
@@ -213,7 +213,10 @@ export default function PatientProfilePage() {
               <div className="relative pl-8 ml-4 border-l-2 border-primary/10 space-y-10">
                 {timeline.map((event: any, idx: number) => (
                   <div key={idx} className="relative group">
-                    <div className={`absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow flex items-center justify-center ${event.type === 'abnormal' ? 'bg-destructive' : 'bg-primary'}`}>
+                    <div className={cn(
+                      "absolute -left-[45px] top-0 size-8 rounded-full border-4 border-white shadow flex items-center justify-center",
+                      event.type === 'abnormal' ? (event.anomalyCategory === 'A' ? 'bg-destructive' : 'bg-primary') : 'bg-primary'
+                    )}>
                       {event.type === 'abnormal' ? <AlertCircle className="size-4 text-white" /> : <Activity className="size-4 text-white" />}
                     </div>
                     <div className="bg-white p-5 rounded-xl border shadow-sm group-hover:shadow-md transition-shadow">
@@ -223,7 +226,14 @@ export default function PatientProfilePage() {
                           <span className="text-[10px] text-muted-foreground font-mono">{event.checkupDate || event.followUpDate} {event.notificationTime || event.followUpTime}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {event.anomalyCategory && <Badge variant="destructive" className="font-bold">{event.anomalyCategory}类异常</Badge>}
+                          {event.anomalyCategory && (
+                            <Badge className={cn(
+                              "font-bold",
+                              event.anomalyCategory === 'A' ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"
+                            )}>
+                              {event.anomalyCategory}类异常
+                            </Badge>
+                          )}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -240,36 +250,6 @@ export default function PatientProfilePage() {
                         </div>
                       </div>
                       <p className="text-sm bg-muted/30 p-4 rounded-lg whitespace-pre-wrap leading-relaxed">{event.anomalyDetails || event.followUpResult}</p>
-                      
-                      {event.pdfId && (
-                        <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10 flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs text-primary font-bold">
-                            <LinkIcon className="size-3.5" /> 
-                            关联原始报告: <span className="font-mono">#{event.pdfId}</span>
-                          </div>
-                          <Button 
-                            variant="link" 
-                            className="h-auto p-0 text-xs gap-1" 
-                            onClick={() => {
-                              const foundPdf = pdfs.find((p: any) => p.id === event.pdfId);
-                              if (foundPdf) {
-                                toast({ 
-                                  title: "报告详细路径", 
-                                  description: `路径: ${foundPdf.fullPath}`,
-                                });
-                              } else {
-                                toast({ 
-                                  variant: "destructive",
-                                  title: "未找到文件", 
-                                  description: `关联的报告 ID #${event.pdfId} 在索引库中不存在。`,
-                                });
-                              }
-                            }}
-                          >
-                            查看详情 <ExternalLink className="size-3" />
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}

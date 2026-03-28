@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -72,11 +71,10 @@ export default function FollowUpsPage() {
           key={r.anomalyId} 
           className={cn(
             "bg-white rounded-xl shadow-sm border border-l-4 transition-all hover:shadow-md",
-            r.anomalyCategory === 'A' ? "border-l-red-500" : "border-l-amber-500"
+            r.anomalyCategory === 'A' ? "border-l-red-500" : "border-l-blue-500"
           )}
         >
           <div className="p-4">
-            {/* Top Row: Aggregated Key Info */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-3 pb-3 border-b">
               <div className="flex items-center gap-2">
                 <User className="size-4 text-muted-foreground" />
@@ -89,7 +87,7 @@ export default function FollowUpsPage() {
 
               <Badge className={cn(
                 "font-bold px-2 py-0 text-[10px]",
-                r.anomalyCategory === 'A' ? "bg-red-50 text-red-700 border-red-100" : "bg-amber-50 text-amber-700 border-amber-100"
+                r.anomalyCategory === 'A' ? "bg-red-50 text-red-700 border-red-100" : "bg-blue-50 text-blue-700 border-blue-100"
               )}>
                 {r.anomalyCategory}类异常
               </Badge>
@@ -101,7 +99,7 @@ export default function FollowUpsPage() {
 
               <div className={cn(
                 "text-base font-bold flex items-center gap-1.5",
-                r.anomalyCategory === 'A' ? "text-red-600" : "text-amber-600"
+                r.anomalyCategory === 'A' ? "text-red-600" : "text-blue-600"
               )}>
                 <Phone className="size-4" />
                 <span className="font-mono">{r.patientPhone}</span>
@@ -118,11 +116,10 @@ export default function FollowUpsPage() {
               </div>
             </div>
 
-            {/* Bottom Row: Details and Actions side by side */}
             <div className="flex gap-4 items-stretch">
               <div className="flex-1 bg-muted/20 rounded-lg p-3 border border-muted-foreground/5 relative min-h-[60px]">
                 <p 
-                  className="text-sm leading-relaxed text-foreground/80 whitespace-nowrap overflow-hidden text-ellipsis"
+                  className="text-sm leading-relaxed text-foreground/80 truncate"
                   title={r.anomalyDetails}
                 >
                   {r.anomalyDetails}

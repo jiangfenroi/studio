@@ -87,8 +87,8 @@ export default function HomePage() {
         rate: rate,
         total: total,
         followed: followed,
-        totalA: totalA,
-        totalB: totalB
+        "A类": totalA,
+        "B类": totalB
       };
     });
   }, [stats, selectedYear]);
@@ -158,7 +158,6 @@ export default function HomePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* 随访率趋势图 */}
           <Card className="border-none shadow-lg bg-white">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xl font-bold flex items-center gap-2">
@@ -191,18 +190,15 @@ export default function HomePage() {
                     dot={{ r: 6, fill: "white", stroke: "hsl(var(--primary))", strokeWidth: 2 }}
                     activeDot={{ r: 8 }}
                   />
-                  <Line name="total" type="monotone" dataKey="total" stroke="transparent" strokeWidth={0} dot={false} legendType="none" />
-                  <Line name="followed" type="monotone" dataKey="followed" stroke="transparent" strokeWidth={0} dot={false} legendType="none" />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* 异常结果例数趋势图 - 改为堆叠柱状图 */}
           <Card className="border-none shadow-lg bg-white">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xl font-bold flex items-center gap-2">
-                <BarChartIcon className="size-5 text-accent" />
+                <BarChartIcon className="size-5 text-primary" />
                 {selectedYear}年度 月重要异常结果例数(按通知月统计)
               </CardTitle>
             </CardHeader>
@@ -214,25 +210,19 @@ export default function HomePage() {
                   <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                    formatter={(value: any, name: string) => {
-                      if (name === 'totalB') return [value, 'B类异常例数'];
-                      if (name === 'totalA') return [value, 'A类异常例数'];
-                      if (name === 'rate') return [`${value}%`, '随访率'];
-                      return [value, name];
-                    }}
                     cursor={{ fill: 'transparent' }}
                   />
                   <Legend verticalAlign="top" height={36}/>
                   <Bar 
-                    name="totalB"
-                    dataKey="totalB" 
+                    name="B类"
+                    dataKey="B类" 
                     stackId="a" 
-                    fill="hsl(var(--accent))" 
+                    fill="hsl(var(--primary))" 
                     radius={[0, 0, 0, 0]} 
                   />
                   <Bar 
-                    name="totalA"
-                    dataKey="totalA" 
+                    name="A类"
+                    dataKey="A类" 
                     stackId="a" 
                     fill="hsl(var(--destructive))" 
                     radius={[4, 4, 0, 0]} 

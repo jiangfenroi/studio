@@ -186,7 +186,7 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                     </FormItem>
                     <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50">
                       <FormControl><RadioGroupItem value="B" /></FormControl>
-                      <FormLabel className="font-bold text-amber-600">B类 (进一步检查)</FormLabel>
+                      <FormLabel className="font-bold text-blue-600">B类 (进一步检查)</FormLabel>
                     </FormItem>
                   </RadioGroup>
                 </FormControl>
@@ -247,7 +247,6 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
                 </div>
               </div>
 
-              {/* 被通知人反馈内容 - 调整为全宽展示 */}
               <div className="col-span-full">
                 <FormField control={form.control} name="notifiedPersonFeedback" render={({ field }) => (
                   <FormItem>
@@ -267,10 +266,10 @@ export function AbnormalResultForm({ onSuccess, initialData }: AbnormalResultFor
               )} />
               
               <div className="space-y-2">
-                <FormLabel className="text-amber-600 font-bold flex items-center gap-1">
+                <FormLabel className="text-primary font-bold flex items-center gap-1">
                   下次随访日期 (预设+7日)
                 </FormLabel>
-                <div className="flex items-center gap-2 h-10 px-3 bg-amber-50 border border-amber-200 rounded-md text-amber-700 font-mono text-sm shadow-inner">
+                <div className="flex items-center gap-2 h-10 px-3 bg-primary/5 border border-primary/20 rounded-md text-primary font-mono text-sm shadow-inner">
                   <CalendarDays className="size-4" />
                   {nextFollowUpDateDisplay}
                 </div>
