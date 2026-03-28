@@ -91,7 +91,7 @@ CREATE TABLE SP_RW (
 );
 
 -- 7. 系统配置表 (SP_CONFIG)
--- 修复: MySQL 8.4 中 TEXT/BLOB 字段不能有默认值，改为 VARCHAR(512)
+-- 注意：MySQL 8.4 中 TEXT 字段不能有默认值，此处已改为 VARCHAR(512)
 CREATE TABLE SP_CONFIG (
   configKey VARCHAR(20) PRIMARY KEY,
   appName VARCHAR(100) DEFAULT 'HealthInsight Registry',
@@ -117,7 +117,7 @@ INSERT IGNORE INTO SP_CONFIG (configKey) VALUES ('default');
 1. 安装 Node.js 20+ 及 MySQL 8.4。
 2. 运行 `npm install`。
 3. 运行 `npm run build`。
-4. 执行 `./start-app.sh`。
+4. 使用 `npm start` 启动。
 
 ### Windows
 1. 安装 Node.js 20+ 及 MySQL 8.4。

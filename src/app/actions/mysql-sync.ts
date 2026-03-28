@@ -8,16 +8,20 @@ import mysql from 'mysql2/promise';
  */
 async function getConnection(config: any) {
   if (!config || !config.host) {
-    throw new Error('MySQL 配置缺失，请先在登录页进行配置。');
+    throw new Error('MySQL 核心链路未建立。请在“配置中心”或“登录页”检查中心库参数。');
   }
-  return await mysql.createConnection({
-    host: config.host,
-    port: parseInt(config.port || '3306'),
-    user: config.user,
-    password: config.password,
-    database: config.database,
-    connectTimeout: 10000,
-  });
+  try {
+    return await mysql.createConnection({
+      host: config.host,
+      port: parseInt(config.port || '3306'),
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      connectTimeout: 5000, // 缩短超时时间以提高反馈速度
+    });
+  } catch (err: any) {
+    throw new Error(`无法连接至中心库 [${config.host}]: ${err.message}`);
+  }
 }
 
 /**
@@ -42,8 +46,6 @@ export async function checkConnection(config: any) {
   try {
     connection = await getConnection(config);
     return { success: true };
-  } catch (e: any) {
-    throw new Error(`中心库连接失败: ${e.message}`);
   } finally {
     if (connection) await connection.end();
   }
