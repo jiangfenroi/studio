@@ -321,9 +321,14 @@ export async function fetchFollowUpTasks(config: any) {
   let connection;
   try {
     connection = await getConnection(config);
-    const sql = `SELECT rw.nextFollowUpDate, rw.anomalyId, y.checkupNumber, y.checkupDate, y.anomalyCategory, y.anomalyDetails,
+    const sql = `SELECT rw.nextFollowUpDate, rw.anomalyId, 
+                        y.checkupNumber, y.checkupDate, y.anomalyCategory, y.anomalyDetails,
+                        y.notificationDate, y.notificationTime, y.notifier, y.notifiedPerson, y.isFollowUpRequired,
                         p.archiveNo, p.name as patientName, p.gender as patientGender, p.age as patientAge, p.phoneNumber as patientPhone, p.status as patientStatus
-                 FROM SP_RW rw JOIN SP_YCJG y ON rw.anomalyId = y.id JOIN SP_PERSON p ON rw.archiveNo = p.archiveNo ORDER BY rw.nextFollowUpDate ASC`;
+                 FROM SP_RW rw 
+                 JOIN SP_YCJG y ON rw.anomalyId = y.id 
+                 JOIN SP_PERSON p ON rw.archiveNo = p.archiveNo 
+                 ORDER BY rw.nextFollowUpDate ASC`;
     const [rows]: any = await connection.execute(sql);
     const serializedRows = rows.map(serializeRow);
     const today = new Date().toISOString().split('T')[0];
